@@ -33,6 +33,11 @@ namespace HorizonCyclingBridge.Trainer
         public event Action<double>? OnCadenceReceived;
 
         /// <summary>
+        /// スマートローラーから瞬時速度 (km/h) を受信したときに発生するイベント
+        /// </summary>
+        public event Action<double>? OnSpeedReceived;
+
+        /// <summary>
         /// BLEステータス変更時のログメッセージを受信するイベント
         /// </summary>
         public event Action<string>? OnStatusMessage;
@@ -150,23 +155,34 @@ namespace HorizonCyclingBridge.Trainer
                 return false;
             }
 
-            // Bike Data 特性取得 (Notify)
-            var charBikeDataResult = await service.GetCharacteristicsForUuidAsync(BIKE_DATA_CHAR_UUID);
-            if (charBikeDataResult.Status == GattCommunicationStatus.Success)
+            // サービスの全特性を一度に取得（往復回数を減らし、GATT競合を回避する堅牢なアプローチ）
+            GattCharacteristicsResult? charResult = null;
+            int retryCount = 3;
+            for (int i = 0; i < retryCount; i++)
             {
-                _bikeDataChar = charBikeDataResult.Characteristics.FirstOrDefault();
+                // BluetoothCacheMode.Uncached により、OSの古いキャッシュを破棄して実機から直接ライブで取得
+                charResult = await service.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
+                if (charResult.Status == GattCommunicationStatus.Success && charResult.Characteristics.Count > 0)
+                {
+                    break;
+                }
+                OnStatusMessage?.Invoke($"[BLE] Querying characteristics failed or returned empty (Status: {charResult?.Status}). Retrying in 300ms... (Attempt {i + 1}/{retryCount})");
+                await Task.Delay(300);
             }
 
-            // Control Point 特性取得 (Write / Indicate)
-            var charControlPointResult = await service.GetCharacteristicsForUuidAsync(CONTROL_POINT_CHAR_UUID);
-            if (charControlPointResult.Status == GattCommunicationStatus.Success)
+            if (charResult == null || charResult.Status != GattCommunicationStatus.Success)
             {
-                _controlPointChar = charControlPointResult.Characteristics.FirstOrDefault();
+                OnStatusMessage?.Invoke($"[BLE] Failed to acquire GATT characteristics after retries. Status: {charResult?.Status}");
+                return false;
             }
+
+            // 取得した全特性リストから、必要なUUIDを持つ特性を安全にマッピング
+            _bikeDataChar = charResult.Characteristics.FirstOrDefault(c => c.Uuid == BIKE_DATA_CHAR_UUID);
+            _controlPointChar = charResult.Characteristics.FirstOrDefault(c => c.Uuid == CONTROL_POINT_CHAR_UUID);
 
             if (_bikeDataChar == null)
             {
-                OnStatusMessage?.Invoke("[BLE] FTMS Indoor Bike Data characteristic not found.");
+                OnStatusMessage?.Invoke("[BLE] FTMS Indoor Bike Data characteristic not found in the characteristic list.");
                 return false;
             }
 
@@ -270,6 +286,36 @@ namespace HorizonCyclingBridge.Trainer
             }
         }
 
+        /// <summary>
+        /// スマートローラーの物理抵抗レベルを設定します。
+        /// 0 を設定すると、速度依存の空気抵抗シミュレーションがオフになり、完全に負荷が解放されます（スピンフリー）。
+        /// </summary>
+        /// <param name="level">抵抗レベル（通常 0〜100、0が完全にフリー）</param>
+        /// <returns>送信成否</returns>
+        public async Task<bool> SetTargetResistanceLevelAsync(byte level)
+        {
+            if (_controlPointChar == null || !IsConnected) return false;
+
+            // FTMS仕様: Set Target Resistance Level (OpCode 0x04)
+            // 引数: 8-bit unsigned integer
+            byte[] cmd = new byte[]
+            {
+                0x04,
+                level
+            };
+
+            try
+            {
+                var result = await _controlPointChar.WriteValueAsync(cmd.AsBuffer(), GattWriteOption.WriteWithResponse);
+                return result == GattCommunicationStatus.Success;
+            }
+            catch (Exception ex)
+            {
+                OnStatusMessage?.Invoke($"[BLE] Target resistance level update failed: {ex.Message}");
+                return false;
+            }
+        }
+
         private void BikeDataChar_ValueChanged(GattCharacteristic sender, GattValueChangedEventArgs args)
         {
             var reader = DataReader.FromBuffer(args.CharacteristicValue);
@@ -285,7 +331,9 @@ namespace HorizonCyclingBridge.Trainer
             // 速度データ(Instantaneous Speed: 0.01 km/h) は More Data (flags Bit 0) が0のとき常に先頭に存在
             if (data.Length >= offset + 2)
             {
-                // ushort rawSpeed = BitConverter.ToUInt16(data, offset); // 解析だけで今回は未使用
+                ushort rawSpeed = BitConverter.ToUInt16(data, offset);
+                double speedKmh = rawSpeed * 0.01;
+                OnSpeedReceived?.Invoke(speedKmh);
                 offset += 2;
             }
 

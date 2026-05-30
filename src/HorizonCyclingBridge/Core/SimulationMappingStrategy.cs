@@ -20,6 +20,19 @@ namespace HorizonCyclingBridge.Core
         private uint _lastTimestampMS = 0;
 
         /// <summary>
+        /// スマートローラーから送られてくる現在の瞬時物理速度 (km/h)
+        /// </summary>
+        public double TrainerSpeedKmh { get; set; } = 0.0;
+
+        /// <summary>
+        /// サスペンション姿勢変化を相殺した「真の道路勾配(%)」
+        /// </summary>
+        public double RoadGradePercent { get; set; } = 0.0;
+
+        private double _filteredThrottle = 0.0;
+        private const double THROTTLE_ALPHA = 0.08; // スロットルの滑らかさ平滑化係数 (約0.3秒で追従)
+
+        /// <summary>
         /// 目標速度の現在値 (m/s)。デバッグ表示などで利用可能
         /// </summary>
         public double TargetSpeedMps => _lastTargetSpeed;
@@ -59,7 +72,17 @@ namespace HorizonCyclingBridge.Core
             _lastTimestampMS = currentPacket.TimestampMS;
 
             // 1. 物理モデルに基づき、自転車としての目標速度 (m/s) を計算
-            double targetSpeedMps = CalculateTargetSpeed(currentPower, currentPacket.Pitch);
+            // サスペンション姿勢変化を完全に相殺した「真の道路勾配(%)」を物理エンジンに適用します
+            double targetSpeedMps = CalculateTargetSpeed(currentPower, RoadGradePercent);
+
+            // ★スマートローラーの物理速度による目標速度の底上げ（下り坂での自動滑走アシスト連動）
+            // 下り坂（RoadGradePercent < 0）において、スマートローラーがモーター等で自動で前に進む（回転する）速度信号を送ってきた場合、
+            // その速度（m/s）を自転車の目標速度の最低保証値（下限）として適用し、車のアクセル開度を自動調整します。
+            if (RoadGradePercent < 0.0 && TrainerSpeedKmh > 0.0)
+            {
+                double trainerSpeedMps = TrainerSpeedKmh / 3.6;
+                targetSpeedMps = Math.Max(targetSpeedMps, trainerSpeedMps);
+            }
 
             // 2. Forzaの現在速度 (VelocityZはローカル前方向速度) を取得
             // (後退している場合はマイナス値になるため、進行方向の絶対速度を追う)
@@ -68,6 +91,32 @@ namespace HorizonCyclingBridge.Core
             // 3. PID制御で目標速度に合わせるスロットル・ブレーキ値を計算
             ControlOutput output = _pidController.Compute((float)targetSpeedMps, currentCarSpeedMps, deltaTime);
 
+            // ★Forzaオートステアリングアシストの維持とスムーズ化（ポストプロセス）
+            // ユーザーがペダルを回している（または下り坂でローラーがアシスト回転している）間は：
+            // 1. 走行意思があるため、ゲーム内の車が急ブレーキを踏まないようにブレーキを強制的に 0% にします。
+            // 2. Forzaのオートアシスト（アクセルON時のみ自動操舵する仕様）がデッドゾーン（通常15%〜24%）に埋もれて
+            //    途切れてコースアウトするのを完璧に防ぐため、アクセルの最低底上げ保証値を 35%（0.35f）に引き上げます。
+            bool isPedaling = currentPower > 15.0 || TrainerSpeedKmh > 3.0;
+            if (isPedaling)
+            {
+                output.Brake = 0.0f;
+                output.Throttle = Math.Max(output.Throttle, 0.35f);
+            }
+
+            // ★アクセル連打・ジャダー防止用のEMAスムーズフィルタの適用（人間らしい足ペダル操作の再現）
+            // PID出力が毎フレーム激しくON/OFF変動しても、ジワーッと滑らかに追従・減衰させます。
+            _filteredThrottle = (_filteredThrottle * (1.0 - THROTTLE_ALPHA)) + (output.Throttle * THROTTLE_ALPHA);
+            output.Throttle = (float)_filteredThrottle;
+
+            // ★ブレーキ優先インターロック（安全排他制御）
+            // ブレーキが少しでも踏まれている（Brake > 0.01）場合は、アクセルを強制的に完全に0%にし、
+            // アクセルとブレーキの同時踏み状態が発生するのを完璧に防ぎます。
+            if (output.Brake > 0.01f)
+            {
+                output.Throttle = 0.0f;
+                _filteredThrottle = 0.0;
+            }
+
             return output;
         }
 
@@ -75,13 +124,15 @@ namespace HorizonCyclingBridge.Core
         /// 物理方程式: P * eta = v * (m * g * Crr * cos(θ) + m * g * sin(θ)) + Aaero * v^3 
         /// を ニュートン・ラフソン法で解き、目標速度 v (m/s) を算出します。
         /// </summary>
-        private double CalculateTargetSpeed(double power, double pitch)
+        private double CalculateTargetSpeed(double power, double roadGradePercent)
         {
             // ペダルパワーが負の場合は0に丸める
             double p = Math.Max(0.0, currentPowerCalculated(power));
 
-            double cosPitch = Math.Cos(pitch);
-            double sinPitch = Math.Sin(pitch);
+            // 勾配パーセンテージから正確に cos(θ) と sin(θ) を逆算します
+            double grade = roadGradePercent / 100.0;
+            double cosPitch = 1.0 / Math.Sqrt(1.0 + grade * grade);
+            double sinPitch = grade / Math.Sqrt(1.0 + grade * grade);
 
             // 勾配・転がり抵抗項 (B * v) の係数 B
             // B = m * g * (Crr * cos(θ) + sin(θ))

@@ -12,6 +12,7 @@ namespace HorizonCyclingBridge
         private static double _currentPower = 0.0;
         private static double _filteredGrade = 0.0;
         private static double _trainerDifficulty = 0.5; // スマートローラー負荷再現割合 (0.0〜1.0)
+        private static double _trainerSpeedKmh = 0.0;   // スマートローラーから送られる現在の物理速度 (km/h)
         
         // スマートローラーへの送信データ履歴（間引き用）
         private static double _lastSentGrade = 999.0;
@@ -98,12 +99,26 @@ namespace HorizonCyclingBridge
                 _currentPower = power;
             };
 
+            // 速度受信時のイベントハンドラ
+            trainerClient.OnSpeedReceived += (speed) =>
+            {
+                _trainerSpeedKmh = speed;
+            };
+
             // スマートローラーへの接続（タイムアウト20秒）
             bool isTrainerConnected = await trainerClient.ScanAndConnectAsync(timeoutMs: 20000);
             if (!isTrainerConnected)
             {
                 Console.WriteLine("[WARNING] Could not connect to smart trainer via BLE.");
                 Console.WriteLine("          Pedal power input will fall back to 0W. (Use Keyboard or Keyboard-emulated power for tests)");
+            }
+            else
+            {
+                // 接続成功直後に、スマートローラーの物理抵抗を「0 (完全スピンフリー)」に初期リセットします
+                // これにより、斜度0%シミュレーション時の空気抵抗発生を防ぎ、完全に軽い状態でスタートできます
+                await trainerClient.SetTargetResistanceLevelAsync(0);
+                _lastSentGrade = 0.0;
+                Console.WriteLine("[BLE] Smart trainer resistance initialized to FREE (Level 0).");
             }
 
             // C. Forza UDP テレメトリ受信サーバーの初期化 (ポート 5000)
@@ -113,7 +128,32 @@ namespace HorizonCyclingBridge
             // 3. テレメトリパケット受信時の連動ロジック (双方向ループ)
             receiver.OnPacketReceived += (packet) =>
             {
+                // C. ゲーム内のPitch(ラジアン)から斜度%を求め、スマートローラーへ負荷指示をフィードバック
+                // ★極めて重要な座標系修正：Forzaのピッチ角は「車首上げ（上り）の時にマイナス（負）」を指す右手系仕様になっています。
+                // そのため、ゲームのPitchの符号を反転（マイナスを掛ける）して、正しく「上りがプラス％、下りがマイナス％」になるようにします。
+                double rawGradePercent = -Math.Tan(packet.Pitch) * 100.0;
+                
+                // ★サスペンション姿勢変化の相殺補正（平地負荷高の解消）
+                // 1. 車が走っている時 (Speed > 3.0 km/h) は、駆動トルクや空気抵抗による車首の浮き上がり分（約 -0.9%）を定常引き算して補正します。
+                // 2. 加減速による車体の前後の沈み込み (AccelerationZ) を打ち消すため、加速度に比例した値 (AccelerationZ * 0.12) を引き算して相殺します。
+                // これにより「ノイズや姿勢変化を取り除いた、純粋な道路勾配（trueRoadGrade）」を求めます。
+                double trueRoadGrade = rawGradePercent;
+                if (packet.SpeedKmh > 3.0f)
+                {
+                    trueRoadGrade = rawGradePercent - (packet.AccelerationZ * 0.12) - 0.9;
+                }
+                else
+                {
+                    trueRoadGrade = 0.0;
+                }
+
                 // A. ペダリングパワー(W)を、選択されたStrategyでアクセル/ブレーキ値(0.0〜1.0)に変換
+                if (strategy is SimulationMappingStrategy simStrategy)
+                {
+                    simStrategy.TrainerSpeedKmh = _trainerSpeedKmh;
+                    simStrategy.RoadGradePercent = trueRoadGrade; // ★サスペンションノイズのない真の道路勾配を物理モデルへ直接インプット！
+                }
+
                 ControlOutput control = strategy.CalculateOutput(_currentPower, packet);
 
                 // B. 仮想コントローラー(vJoy)へ入力を送信
@@ -129,21 +169,15 @@ namespace HorizonCyclingBridge
                     Console.WriteLine($"\n[DEBUG-TELEMETRY] Time: {currentTimeMS} | RawPitch: {packet.Pitch:F4} rad | Accel: X:{packet.AccelerationX:F2}, Y:{packet.AccelerationY:F2}, Z:{packet.AccelerationZ:F2} | Speed: {packet.SpeedKmh:F1} km/h");
                     _lastDebugTimeMS = currentTimeMS;
                 }
-
-                // C. ゲーム内のPitch(ラジアン)から斜度%を求め、スマートローラーへ負荷指示をフィードバック
-                // ★極めて重要な座標系修正：Forzaのピッチ角は「車首上げ（上り）の時にマイナス（負）」を指す右手系仕様になっています。
-                // そのため、ゲームのPitchの符号を反転（マイナスを掛ける）して、正しく「上りがプラス％、下りがマイナス％」になるようにします。
-                double rawGradePercent = -Math.Tan(packet.Pitch) * 100.0;
-                
-                // ★サスペンション姿勢変化の相殺補正（平地負荷高の解消）
-                // 1. 車が走っている時 (Speed > 3.0 km/h) は、駆動トルクや空気抵抗による車首の浮き上がり分（約 -0.9%）を定常引き算して補正します。
-                // 2. 加減速による車体の前後の沈み込み (AccelerationZ) を打ち消すため、加速度に比例した値 (AccelerationZ * 0.12) を引き算して相殺します。
-                // これにより「ノイズや姿勢変化を取り除いた、純粋な道路勾配（trueRoadGrade）」を求めます。
-                double trueRoadGrade = rawGradePercent - (packet.AccelerationZ * 0.12) - 0.9;
                 
                 // ★負荷再現割合（Trainer Difficulty）の適用
                 // 真の道路勾配に対して難易度割合を掛けます。これにより平地（trueRoadGrade ≒ 0%）の時は難易度によらず常に0%負荷になります。
                 double difficultyGrade = trueRoadGrade * _trainerDifficulty;
+                if (trueRoadGrade < 0.0)
+                {
+                    // 下り坂は負荷の抜けすぎを防ぐためさらに半分（50%減少）にマイルド化して過度な軟化を抑制します
+                    difficultyGrade = trueRoadGrade * (_trainerDifficulty * 0.5);
+                }
 
                 double correctedGrade = difficultyGrade;
                 if (packet.SpeedKmh <= 3.0f)
@@ -194,11 +228,22 @@ namespace HorizonCyclingBridge
                         _lastSentGrade = targetIncline;
                         _lastSentTimeMS = currentTimeMS;
 
-                        // ★スマートローラーへの実際の送信コマンド値と、その時の生データを改行出力
-                        Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: {targetIncline:F1}% (Trigger: {(isZeroReset ? "ZeroReset" : "Normal")})");
-
-                        // 非同期でスマートローラーへ負荷指示を送信
-                        _ = trainerClient.SetTargetInclinationAsync(targetIncline);
+                        // ★スマートローラーへの実際の送信コマンド
+                        if (strategy is ArcadeMappingStrategy || targetIncline <= 0.0)
+                        {
+                            // アーケードモード、平地、および下り坂（targetIncline <= 0.0%）の場合は、
+                            // 斜度0%シミュレーション（速度依存の空気抵抗が高速回転時に自動発生してしまう）を完全にシャットダウンし、
+                            // 物理抵抗レベル自体を強制的に「0 (完全スピンフリー)」にして負荷を完全に解放します。
+                            // これにより、下り坂で高速回転した際に発生する激重な空気抵抗を完璧に防ぎ、スカスカで軽い滑走感を提供します。
+                            Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: FREE (OpCode 0x04, Level 0) [Descent/Flat]");
+                            _ = trainerClient.SetTargetResistanceLevelAsync(0);
+                        }
+                        else
+                        {
+                            // シミュレーションモードかつ上り坂（targetIncline > 0.0%）の場合は、斜度シミュレーションを実行します
+                            Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: {targetIncline:F1}% (Trigger: {(isZeroReset ? "ZeroReset" : "Normal")})");
+                            _ = trainerClient.SetTargetInclinationAsync(targetIncline);
+                        }
                     }
                 }
 
@@ -248,11 +293,20 @@ namespace HorizonCyclingBridge
                         {
                             _trainerDifficulty = Math.Clamp(_trainerDifficulty - 0.1, 0.0, 1.0);
                             Console.WriteLine($"\n[DIFFICULTY] Trainer Difficulty decreased to: {(_trainerDifficulty * 100.0):F0}%");
+                            _lastSentGrade = 999.0; // 送信履歴をリセットして即座の再計算・送信を強制
+                            
+                            // もし難易度が0%に達した場合は、テレメトリ受信を待つことなく即座にスマートローラーの抵抗を完全解放（フリー）にします
+                            if (_trainerDifficulty <= 0.001 && isTrainerConnected)
+                            {
+                                _ = trainerClient.SetTargetResistanceLevelAsync(0);
+                                _lastSentGrade = 0.0;
+                            }
                         }
                         else if (keyChar == '+' || keyChar == '=')
                         {
                             _trainerDifficulty = Math.Clamp(_trainerDifficulty + 0.1, 0.0, 1.0);
                             Console.WriteLine($"\n[DIFFICULTY] Trainer Difficulty increased to: {(_trainerDifficulty * 100.0):F0}%");
+                            _lastSentGrade = 999.0; // 送信履歴をリセットして即座の再計算・送信を強制
                         }
                         else if (key == ConsoleKey.T)
                         {
