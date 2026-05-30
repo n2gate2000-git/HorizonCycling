@@ -33,7 +33,7 @@ graph TD
     Game -->|3. テレメトリ ピッチ角 / 車速 / 加速度| Udp
     Udp -->|ゲーム内状態データ| Strategy
     Strategy -->|4. 目標斜度 %| Ftms
-    Ftms -->|斜度設定コマンド OpCode 0x11| Trainer
+    Ftms -->|斜度設定コマンド OpCode 0x03| Trainer
 ```
 
 ### ① 入力ループ（ペダルパワー ➔ ゲーム内アクセル）

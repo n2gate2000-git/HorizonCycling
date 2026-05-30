@@ -264,12 +264,12 @@ namespace HorizonCyclingBridge.Trainer
         {
             if (_controlPointChar == null || !IsConnected) return false;
 
-            // FTMS仕様: Set Target Inclination (OpCode 0x11)
+            // FTMS仕様: Set Target Inclination (OpCode 0x03)
             // 引数: 16-bit signed integer in units of 0.1% (-360 to 360)
             short val = (short)Math.Clamp(inclinationPercent * 10.0, -360.0, 360.0);
             byte[] cmd = new byte[]
             {
-                0x11,
+                0x03,
                 (byte)(val & 0xFF),
                 (byte)((val >> 8) & 0xFF)
             };
