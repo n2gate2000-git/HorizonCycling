@@ -49,8 +49,8 @@ namespace HorizonCyclingBridge
             }
             else
             {
-                // PIDゲイン調整値: Kp=0.6, Ki=0.15, Kd=0.05 (ゲームと自転車の追従遅延のバランス)
-                strategy = new SimulationMappingStrategy(kp: 0.6f, ki: 0.15f, kd: 0.05f);
+                // PIDゲイン調整値: Kp=1.0, Ki=0.2, Kd=0.05 (Vivio RX-Rなどの軽自動車向け、安定した追従と加速のバランス設定)
+                strategy = new SimulationMappingStrategy(kp: 1.0f, ki: 0.2f, kd: 0.05f);
                 modeName = "SIMULATION MODE";
             }
 
@@ -147,11 +147,28 @@ namespace HorizonCyclingBridge
                     trueRoadGrade = 0.0;
                 }
 
+                // ★負荷再現割合（Trainer Difficulty）の適用
+                // 真の道路勾配に対して難易度割合を掛けます。これにより平地（trueRoadGrade ≒ 0%）の時は難易度によらず常に0%負荷になります。
+                double difficultyGrade = trueRoadGrade * _trainerDifficulty;
+                if (trueRoadGrade < 0.0)
+                {
+                    // 下り坂は負荷の抜けすぎを防ぐためさらに半分（50%減少）にマイルド化して過度な軟化を抑制します
+                    difficultyGrade = trueRoadGrade * (_trainerDifficulty * 0.5);
+                }
+
+                double correctedGrade = difficultyGrade;
+                if (packet.SpeedKmh <= 3.0f)
+                {
+                    // 停車中（または極低速）は強制的に0%近辺にします
+                    correctedGrade = 0.0;
+                }
+
                 // A. ペダリングパワー(W)を、選択されたStrategyでアクセル/ブレーキ値(0.0〜1.0)に変換
                 if (strategy is SimulationMappingStrategy simStrategy)
                 {
                     simStrategy.TrainerSpeedKmh = _trainerSpeedKmh;
-                    simStrategy.RoadGradePercent = trueRoadGrade; // ★サスペンションノイズのない真の道路勾配を物理モデルへ直接インプット！
+                    simStrategy.RoadGradePercent = correctedGrade; // ★難易度が適用された勾配を物理モデル（ペダルの重さ）へインプット
+                    simStrategy.TrueRoadGradePercent = trueRoadGrade; // ★難易度無視の真の勾配（下り坂の重力加速計算用）
                 }
 
                 ControlOutput control = strategy.CalculateOutput(_currentPower, packet);
@@ -168,22 +185,6 @@ namespace HorizonCyclingBridge
                 {
                     Console.WriteLine($"\n[DEBUG-TELEMETRY] Time: {currentTimeMS} | RawPitch: {packet.Pitch:F4} rad | Accel: X:{packet.AccelerationX:F2}, Y:{packet.AccelerationY:F2}, Z:{packet.AccelerationZ:F2} | Speed: {packet.SpeedKmh:F1} km/h");
                     _lastDebugTimeMS = currentTimeMS;
-                }
-                
-                // ★負荷再現割合（Trainer Difficulty）の適用
-                // 真の道路勾配に対して難易度割合を掛けます。これにより平地（trueRoadGrade ≒ 0%）の時は難易度によらず常に0%負荷になります。
-                double difficultyGrade = trueRoadGrade * _trainerDifficulty;
-                if (trueRoadGrade < 0.0)
-                {
-                    // 下り坂は負荷の抜けすぎを防ぐためさらに半分（50%減少）にマイルド化して過度な軟化を抑制します
-                    difficultyGrade = trueRoadGrade * (_trainerDifficulty * 0.5);
-                }
-
-                double correctedGrade = difficultyGrade;
-                if (packet.SpeedKmh <= 3.0f)
-                {
-                    // 停車中（または極低速）は強制的に0%近辺にします
-                    correctedGrade = 0.0;
                 }
                 
                 // EMAフィルタを適用し、急激な段差やジャンプによる負荷変動をまろやかにする
@@ -224,6 +225,35 @@ namespace HorizonCyclingBridge
 
                         // スマートローラーが過敏に反応するのを防ぐため、値を小数点第1位に丸めます (例: 1.13% -> 1.1%)
                         targetIncline = Math.Round(targetIncline, 1);
+
+                        // ★仮想ギアダウン（車の限界スピードによる負荷軽減アシスト）
+                        // 目標速度(Target)に対して実際の車速(Car)が追いつかずアクセル全開になっている場合、
+                        // Peel P50のような非力な車が性能限界に達しているため、送信斜度を下げてペダルを自動で軽く（ローギア化）します。
+                        // これにより「必死に漕いでも車が進まず重いだけ」というフラストレーションを解消し、車速に見合った適正な軽さを提供します。
+                        if (strategy is SimulationMappingStrategy simStrat)
+                        {
+                            double targetSpd = simStrat.TargetSpeedKmh;
+                            double carSpd = packet.SpeedKmh;
+                            
+                            // 1. 仮想ギアダウン（車の限界スピードによるローギア化アシスト）
+                            if (targetSpd > 10.0 && carSpd < targetSpd * 0.95 && targetIncline > 0.0)
+                            {
+                                // 目標速度に追いついていない度合い（不足率）
+                                double deficit = 1.0 - (carSpd / targetSpd);
+                                // 少しの不足でもペダルを一気に軽く（斜度をゼロに近く）する強力なローギア化
+                                double gearMultiplier = Math.Max(0.0, 1.0 - (deficit * 4.0)); 
+                                targetIncline = targetIncline * gearMultiplier;
+                            }
+                            
+                            // 2. スマートローラー自体の「ベースの重さ」対策としての絶対上限リミッター
+                            // 難易度10%などの場合、元の坂がどれだけ激坂であっても、送信斜度の上限を低く抑える
+                            // 例: 難易度10%なら最大1.5%までに制限
+                            double maxIncline = 15.0 * _trainerDifficulty;
+                            if (targetIncline > maxIncline)
+                            {
+                                targetIncline = maxIncline;
+                            }
+                        }
 
                         _lastSentGrade = targetIncline;
                         _lastSentTimeMS = currentTimeMS;
@@ -277,7 +307,7 @@ namespace HorizonCyclingBridge
                 Console.WriteLine("  - [T] キーを押す : アクセル（Throttle 100%）を 3秒間 送信します");
                 Console.WriteLine("  - [B] キーを押す : ブレーキ（Brake 100%）を 3秒間 送信します");
                 Console.WriteLine("  終了:");
-                Console.WriteLine("  - [Q] または [Esc] キーを押す: アプリケーションを安全に終了します");
+                Console.WriteLine("  - [Q] キーを押す: アプリケーションを安全に終了します");
                 Console.WriteLine("======================================================================");
                 
                 bool running = true;
@@ -324,7 +354,7 @@ namespace HorizonCyclingBridge
                             if (isVJoyReady) vJoyController.SendInputs(0.0f, 0.0f);
                             Console.WriteLine("[TEST] Brake output stopped. Restored to telemetry control.");
                         }
-                        else if (key == ConsoleKey.Q || key == ConsoleKey.Escape)
+                        else if (key == ConsoleKey.Q)
                         {
                             running = false;
                         }

@@ -29,6 +29,11 @@ namespace HorizonCyclingBridge.Core
         /// </summary>
         public double RoadGradePercent { get; set; } = 0.0;
 
+        /// <summary>
+        /// 難易度（Trainer Difficulty）が適用されていない、ゲーム内の実際の道路勾配(%)
+        /// </summary>
+        public double TrueRoadGradePercent { get; set; } = 0.0;
+
         private double _filteredThrottle = 0.0;
         private const double THROTTLE_ALPHA = 0.08; // スロットルの滑らかさ平滑化係数 (約0.3秒で追従)
 
@@ -94,13 +99,36 @@ namespace HorizonCyclingBridge.Core
             // ★Forzaオートステアリングアシストの維持とスムーズ化（ポストプロセス）
             // ユーザーがペダルを回している（または下り坂でローラーがアシスト回転している）間は：
             // 1. 走行意思があるため、ゲーム内の車が急ブレーキを踏まないようにブレーキを強制的に 0% にします。
-            // 2. Forzaのオートアシスト（アクセルON時のみ自動操舵する仕様）がデッドゾーン（通常15%〜24%）に埋もれて
-            //    途切れてコースアウトするのを完璧に防ぐため、アクセルの最低底上げ保証値を 35%（0.35f）に引き上げます。
+            // 2. Forzaのオートアシスト（アクセルON時のみ自動操舵する仕様）がデッドゾーン（通常10%〜15%）に埋もれて
+            //    途切れてコースアウトするのを防ぎつつ、不自然な加速を抑えるため、アクセルの最低保証値を 20%（0.20f）に設定します。
             bool isPedaling = currentPower > 15.0 || TrainerSpeedKmh > 3.0;
             if (isPedaling)
             {
                 output.Brake = 0.0f;
-                output.Throttle = Math.Max(output.Throttle, 0.35f);
+                output.Throttle = Math.Max(output.Throttle, 0.20f);
+            }
+            else
+            {
+                // ペダルを止めている場合でも、明確な下り坂（TrueRoadGradePercent < -3.0）で車が惰性で下っているときは、
+                // Forzaのオートステアリングが解除されてコースアウトするのを防ぐため最低限のアクセル（20%）を維持しつつ、
+                // さらに下り坂の傾斜がきついほどアクセルを自動で追加して「自転車の重力による自然加速」を再現します。
+                // ※サスペンション補正（-0.9%）により平地でも-2%台になるため、閾値は-3.0%に設定しています。
+                if (TrueRoadGradePercent < -3.0 && currentCarSpeedMps > 1.0f)
+                {
+                    output.Brake = 0.0f;
+                    double baseThrottle = 0.20;
+                    // 難易度設定に影響されない「真の傾斜」1%につきアクセルを約5%（0.05）追加する
+                    double additionalThrottle = Math.Abs(TrueRoadGradePercent) * 0.05;
+                    // 最大80%まで自動アクセルを許可し、自転車のようにスピードが乗るようにする
+                    output.Throttle = (float)Math.Min(baseThrottle + additionalThrottle, 0.80);
+                }
+                else
+                {
+                    // 平地や上り坂でペダルを完全に止めた場合は、自転車の自然な惰性走行（コースティング）として
+                    // アクセルを強制的に 0% にし、ブレーキも踏まずに自然減速させます。
+                    output.Throttle = 0.0f;
+                    _pidController.Reset();
+                }
             }
 
             // ★アクセル連打・ジャダー防止用のEMAスムーズフィルタの適用（人間らしい足ペダル操作の再現）
