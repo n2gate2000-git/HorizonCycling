@@ -303,6 +303,7 @@ namespace HorizonCyclingBridge
                 Console.WriteLine("[CONTROLLER & KEYBOARD INSTRUCTIONS]");
                 Console.WriteLine("  - [-] キーを押す : スマートローラーの負荷再現割合を 10% 下げます");
                 Console.WriteLine("  - [+] キーを押す : スマートローラーの負荷再現割合を 10% 上げます");
+                Console.WriteLine("  - [M] キーを押す : シミュレーションとアーケードの動作モードを切り替えます");
                 Console.WriteLine("  Forza や x360ce への入力アサイン補助:");
                 Console.WriteLine("  - [T] キーを押す : アクセル（Throttle 100%）を 3秒間 送信します");
                 Console.WriteLine("  - [B] キーを押す : ブレーキ（Brake 100%）を 3秒間 送信します");
@@ -353,6 +354,22 @@ namespace HorizonCyclingBridge
                             await Task.Delay(3000);
                             if (isVJoyReady) vJoyController.SendInputs(0.0f, 0.0f);
                             Console.WriteLine("[TEST] Brake output stopped. Restored to telemetry control.");
+                        }
+                        else if (key == ConsoleKey.M)
+                        {
+                            if (strategy is SimulationMappingStrategy)
+                            {
+                                strategy = new ArcadeMappingStrategy(ftp: 200.0);
+                                modeName = "ARCADE MODE";
+                                Console.WriteLine($"\n[MODE] Switched to: {modeName}");
+                            }
+                            else
+                            {
+                                strategy = new SimulationMappingStrategy(kp: 1.0f, ki: 0.2f, kd: 0.05f);
+                                modeName = "SIMULATION MODE";
+                                Console.WriteLine($"\n[MODE] Switched to: {modeName}");
+                            }
+                            _lastSentGrade = 999.0; // 斜度送信履歴をリセットして即座の再計算・送信を強制
                         }
                         else if (key == ConsoleKey.Q)
                         {
