@@ -184,6 +184,17 @@ namespace HorizonCyclingBridge
                 if (currentTimeMS - _lastDebugTimeMS >= 1000 || _lastDebugTimeMS == 0)
                 {
                     Console.WriteLine($"\n[DEBUG-TELEMETRY] Time: {currentTimeMS} | RawPitch: {packet.Pitch:F4} rad | Accel: X:{packet.AccelerationX:F2}, Y:{packet.AccelerationY:F2}, Z:{packet.AccelerationZ:F2} | Speed: {packet.SpeedKmh:F1} km/h");
+                    
+                    // D. 連動状況のリアルタイムコンソールデバッグ画面表示
+                    double currentSpeedKmh = packet.SpeedKmh;
+                    double targetSpeedKmh = (strategy is SimulationMappingStrategy sim) ? sim.TargetSpeedKmh : 0.0;
+
+                    string speedComparison = (strategy is SimulationMappingStrategy)
+                        ? $"Target: {targetSpeedKmh:F1} km/h | Car: {currentSpeedKmh:F1} km/h"
+                        : $"Direct Accel: {(control.Throttle * 100.0):F0}%";
+
+                    Console.Write($"\r[ACTIVE] {modeName} | Pedal: {_currentPower:F0} W | {speedComparison} | Grade: {_filteredGrade:F1}% (Diff: {(_trainerDifficulty * 100.0):F0}%) | Out -> Thr: {control.Throttle:F2}, Brk: {control.Brake:F2}        ");
+
                     _lastDebugTimeMS = currentTimeMS;
                 }
                 
@@ -277,15 +288,6 @@ namespace HorizonCyclingBridge
                     }
                 }
 
-                // D. 連動状況のリアルタイムコンソールデバッグ画面表示
-                double currentSpeedKmh = packet.SpeedKmh;
-                double targetSpeedKmh = (strategy is SimulationMappingStrategy sim) ? sim.TargetSpeedKmh : 0.0;
-
-                string speedComparison = (strategy is SimulationMappingStrategy)
-                    ? $"Target: {targetSpeedKmh:F1} km/h | Car: {currentSpeedKmh:F1} km/h"
-                    : $"Direct Accel: {(control.Throttle * 100.0):F0}%";
-
-                Console.Write($"\r[ACTIVE] {modeName} | Pedal: {_currentPower:F0} W | {speedComparison} | Grade: {_filteredGrade:F1}% (Diff: {(_trainerDifficulty * 100.0):F0}%) | Out -> Thr: {control.Throttle:F2}, Brk: {control.Brake:F2}        ");
             };
 
             // 受信エラー時のログ出力
