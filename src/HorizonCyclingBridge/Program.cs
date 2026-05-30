@@ -176,7 +176,7 @@ namespace HorizonCyclingBridge
                 // B. 仮想コントローラー(vJoy)へ入力を送信
                 if (isVJoyReady)
                 {
-                    vJoyController.SendInputs(control.Throttle, control.Brake);
+                    vJoyController.SendInputs(control.Throttle);
                 }
 
                 // ★1秒に1回、Forzaの生テレメトリデータを調査用デバッグログとして改行出力
@@ -306,7 +306,6 @@ namespace HorizonCyclingBridge
                 Console.WriteLine("  - [M] キーを押す : シミュレーションとアーケードの動作モードを切り替えます");
                 Console.WriteLine("  Forza や x360ce への入力アサイン補助:");
                 Console.WriteLine("  - [T] キーを押す : アクセル（Throttle 100%）を 3秒間 送信します");
-                Console.WriteLine("  - [B] キーを押す : ブレーキ（Brake 100%）を 3秒間 送信します");
                 Console.WriteLine("  終了:");
                 Console.WriteLine("  - [Q] キーを押す: アプリケーションを安全に終了します");
                 Console.WriteLine("======================================================================");
@@ -342,18 +341,10 @@ namespace HorizonCyclingBridge
                         else if (key == ConsoleKey.T)
                         {
                             Console.WriteLine("\n[TEST] Sending THROTTLE 100% for 3 seconds...");
-                            if (isVJoyReady) vJoyController.SendInputs(1.0f, 0.0f);
+                            if (isVJoyReady) vJoyController.SendInputs(1.0f);
                             await Task.Delay(3000);
-                            if (isVJoyReady) vJoyController.SendInputs(0.0f, 0.0f);
+                            if (isVJoyReady) vJoyController.SendInputs(0.0f);
                             Console.WriteLine("[TEST] Throttle output stopped. Restored to telemetry control.");
-                        }
-                        else if (key == ConsoleKey.B)
-                        {
-                            Console.WriteLine("\n[TEST] Sending BRAKE 100% for 3 seconds...");
-                            if (isVJoyReady) vJoyController.SendInputs(0.0f, 1.0f);
-                            await Task.Delay(3000);
-                            if (isVJoyReady) vJoyController.SendInputs(0.0f, 0.0f);
-                            Console.WriteLine("[TEST] Brake output stopped. Restored to telemetry control.");
                         }
                         else if (key == ConsoleKey.M)
                         {

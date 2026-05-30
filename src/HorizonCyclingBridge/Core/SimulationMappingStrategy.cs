@@ -60,7 +60,7 @@ namespace HorizonCyclingBridge.Core
                 _pidController.Reset();
                 _lastTargetSpeed = 0.0;
                 _lastTimestampMS = currentPacket.TimestampMS;
-                return new ControlOutput { Throttle = 0.0f, Brake = 0.3f };
+                return new ControlOutput { Throttle = 0.0f, Brake = 0.0f };
             }
 
             // DeltaTime (前フレームからの秒数) の計算
@@ -135,15 +135,6 @@ namespace HorizonCyclingBridge.Core
             // PID出力が毎フレーム激しくON/OFF変動しても、ジワーッと滑らかに追従・減衰させます。
             _filteredThrottle = (_filteredThrottle * (1.0 - THROTTLE_ALPHA)) + (output.Throttle * THROTTLE_ALPHA);
             output.Throttle = (float)_filteredThrottle;
-
-            // ★ブレーキ優先インターロック（安全排他制御）
-            // ブレーキが少しでも踏まれている（Brake > 0.01）場合は、アクセルを強制的に完全に0%にし、
-            // アクセルとブレーキの同時踏み状態が発生するのを完璧に防ぎます。
-            if (output.Brake > 0.01f)
-            {
-                output.Throttle = 0.0f;
-                _filteredThrottle = 0.0;
-            }
 
             return output;
         }

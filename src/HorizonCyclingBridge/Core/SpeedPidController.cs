@@ -65,7 +65,7 @@ namespace HorizonCyclingBridge.Core
             return new ControlOutput
             {
                 Throttle = Math.Clamp(output, 0f, 1f),
-                Brake = output < 0f ? Math.Clamp(-output, 0f, 1f) : 0f
+                Brake = 0.0f
             };
         }
 

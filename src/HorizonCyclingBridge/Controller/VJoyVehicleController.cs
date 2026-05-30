@@ -103,26 +103,24 @@ namespace HorizonCyclingBridge.Controller
         }
 
         /// <summary>
-        /// アクセルとブレーキの出力値 (0.0 〜 1.0) を vJoy のジョイスティック軸 (1 〜 32768) にマッピングして送信します。
+        /// アクセルの出力値 (0.0 〜 1.0) を vJoy のジョイスティック軸 (1 〜 32768) にマッピングして送信します。
         /// </summary>
         /// <param name="throttle">アクセル開度 (0.0 to 1.0)</param>
-        /// <param name="brake">ブレーキ開度 (0.0 to 1.0)</param>
-        public void SendInputs(float throttle, float brake)
+        public void SendInputs(float throttle)
         {
             if (!_acquired) return;
 
             // 0.0〜1.0 の値を vJoy の標準範囲である 1〜32768 にマッピング
             // 32767 のスパンにマッピングして +1
             int throttleVal = 1 + (int)(Math.Clamp(throttle, 0f, 1f) * 32767);
-            int brakeVal = 1 + (int)(Math.Clamp(brake, 0f, 1f) * 32767);
 
             // 複数の汎用軸に同時にマッピングしておくことで、ゲーム側での検出性を高めます。
-            // (通常はX/Y軸、あるいはRX/RY軸などをトリガーとしてアサインします)
             _state.AxisX = throttleVal;     // アクセル
-            _state.AxisY = brakeVal;        // ブレーキ
-
             _state.AxisXRot = throttleVal;  // トリガー代用
-            _state.AxisYRot = brakeVal;     // トリガー代用
+
+            // ブレーキ用の軸（AxisY/AxisYRot）は送信対象から除外（常にブレーキ0%相当のニュートラル値1に固定）
+            _state.AxisY = 1;
+            _state.AxisYRot = 1;
 
             UpdateVJD(_deviceId, ref _state);
         }

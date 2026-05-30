@@ -28,7 +28,7 @@ graph TD
     %% データフロー
     Trainer -->|1. パワーW / 速度| Ftms
     Ftms -->|パワー / ローラー速度| Strategy
-    Strategy -->|2. アクセル / ブレーキ| vJoy
+    Strategy -->|2. アクセル| vJoy
     vJoy -->|仮想ジョイスティック入力| Game
     Game -->|3. テレメトリ ピッチ角 / 車速 / 加速度| Udp
     Udp -->|ゲーム内状態データ| Strategy
@@ -39,7 +39,7 @@ graph TD
 ### ① 入力ループ（ペダルパワー ➔ ゲーム内アクセル）
 1. スマートローラーから **ペダリングパワー（W）** および **ローラーの物理速度（km/h）** をBluetooth LE経由でリアルタイムに取得します。
 2. 取得したパワーに基づき、**自転車物理モデル**を用いて「本来自転車であれば出るはずの目標速度（Target Speed）」をリアルタイムに計算します。
-3. 計算された目標速度と、ゲーム内から受信した**現在の車の速度（Car Speed）**を比較し、**PID制御**によって目標速度に追従するための最適な「アクセル（Throttle）量」および「ブレーキ（Brake）量」を算出します。
+3. 計算された目標速度と、ゲーム内から受信した**現在の車の速度（Car Speed）**を比較し、**PID制御**によって目標速度に追従するための最適な「アクセル（Throttle）量」を算出します。
 4. 算出した入力値を仮想ジョイスティック（vJoy）を介してゲームに送信し、ゲーム内の車を走らせます。
 
 ### ② フィードバックループ（ゲーム内斜度 ➔ スマートローラー負荷抵抗）
@@ -57,11 +57,11 @@ graph TD
 | ファイルパス | クラス / インターフェース | 主要な役割 |
 | :--- | :--- | :--- |
 | [`Program.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Program.cs) | `Program` | メインエントリーポイント。各クラスの初期化、メインループの制御、キーボード入力処理、BLE送信の間引き・フィルタリング、スマートローラー難易度設定。 |
-| [`Core/IPowerMappingStrategy.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/IPowerMappingStrategy.cs) | `IPowerMappingStrategy` | パワーとテレメトリからアクセル・ブレーキ出力を計算するための共通インターフェース。 |
+| [`Core/IPowerMappingStrategy.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/IPowerMappingStrategy.cs) | `IPowerMappingStrategy` | パワーとテレメトリからアクセル出力を計算するための共通インターフェース。 |
 | [`Core/ArcadeMappingStrategy.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/ArcadeMappingStrategy.cs) | `ArcadeMappingStrategy` | アーケードモード用戦略。ペダルパワーをFTP（基準パワー）で割り、アクセル開度（0〜100%）にダイレクトにマッピングするシンプルなロジック。 |
 | [`Core/SimulationMappingStrategy.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/SimulationMappingStrategy.cs) | `SimulationMappingStrategy` | シミュレーションモード用戦略。自転車物理モデル、目標速度算出（ニュートン法による3次方程式求解）、ゼロパワー時挙動、下り坂重力加速エミュレーション。 |
 | [`Core/SpeedPidController.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/SpeedPidController.cs) | `SpeedPidController` | 車速を目標速度に追従させるためのPID制御エンジン。アンチワインドアップ（積分飽和制限）を内蔵。 |
-| [`Core/ControlOutput.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/ControlOutput.cs) | `ControlOutput` | 計算されたアクセル（Throttle: 0.0〜1.0）とブレーキ（Brake: 0.0〜1.0）を保持するデータ構造体。 |
+| [`Core/ControlOutput.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/ControlOutput.cs) | `ControlOutput` | 計算されたアクセル（Throttle: 0.0〜1.0、および互換用ブレーキ値）を保持するデータ構造体。 |
 | [`Trainer/FtmsClient.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Trainer/FtmsClient.cs) | `FtmsClient` | Windows BLE API を使用した、スマートローラートレーナーとのGATT通信クライアント。データ（パワー・ケイデンス・速度）受信と、負荷（斜度・抵抗レベル）指令送信。 |
 | [`Telemetry/ForzaDataPacket.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Telemetry/ForzaDataPacket.cs) | `ForzaDataPacket` | Forza Motorsport から送られるUDPテレメトリパケット（リトルエンディアン仕様）を解析・構造体化するパースクラス。 |
 | [`Telemetry/ForzaUdpReceiver.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Telemetry/ForzaUdpReceiver.cs) | `ForzaUdpReceiver` | 指定ポート（デフォルト：5000）で非同期UDP待ち受けを行い、受信したデータをパケットクラスに流す受信サーバー。 |
@@ -149,11 +149,11 @@ $$G_{true} = \text{RawGradePercent} - (\text{AccelerationZ} \times 0.12) - 0.9$$
 ```mermaid
 flowchart TD
     Power{ペダルパワーは0Wか？}
-    Power -->|No (ペダリング中)| Normal[通常PID制御<br/>最低アクセル20%保証<br/>ブレーキ強制0%]
+    Power -->|No (ペダリング中)| Normal[通常PID制御<br/>最低アクセル20%保証]
     Power -->|Yes (足を止めた)| Grade{真の道路勾配<br/>TrueRoadGradePercent < -3.0% か？}
     
     Grade -->|No (平地・上り坂)| Coast[平地/上り 惰性走行<br/>・アクセル強制0%<br/>・PIDリセット<br/>・自然に速度低下]
-    Grade -->|Yes (下り坂)| Descent[下り坂 重力自動滑走<br/>・ブレーキ強制0%<br/>・自動アクセル送信<br/>・傾斜比例加速]
+    Grade -->|Yes (下り坂)| Descent[下り坂 重力自動滑走<br/>・自動アクセル送信<br/>・傾斜比例加速]
 ```
 
 #### ① 平地・上り坂でのゼロパワー惰性走行
@@ -166,7 +166,6 @@ flowchart TD
 実車の自転車では、下り坂に入るとペダルを回さなくても自重（重力）によって自動で加速します。また、レースゲーム側の「アクセルON時のみ自動操舵を行う」というオートアシスト仕様を維持し、下り坂で足を止めても車がコースアウトするのを防ぐため、以下の自動アクセル機構を備えています。
 
 道路勾配が明確な下り坂（`TrueRoadGradePercent < -3.0%`）であり、かつゲーム内の車が動いている場合：
-*   ブレーキを強制的に `0%` に固定します。
 *   最低保証値としてのベースアクセル `20%` に対し、**難易度に影響されない「素の道路勾配（絶対値）」**に比例した出力を自動で上乗せします。
 
 $$\text{Throttle}_{descent} = \min\left(0.20 + |\text{TrueRoadGradePercent}| \times 0.05,\, 0.80\right)$$
@@ -298,7 +297,6 @@ private const double THROTTLE_ALPHA = 0.08;
 | **`[` - `]` キー** | 負荷再現割合（Difficulty）の調整 | `-` キーで難易度を 10% 下げ、`+` キーで 10% 上げます（0% 〜 100% の範囲）。難易度を変更すると、スマートローラーへ即座に補正された新しい斜度が再送信されます。難易度が `0%` に達した場合は、即座に抵抗レベル `0`（完全スピンフリー）に固定されます。 |
 | **`M` キー** | 動作モードの動的切り替え | 「シミュレーションモード」と「アーケードモード」を交互に切り替えます。切り替え時、現在のペダリング状態やスマートローラーの負荷抵抗が即座に最新モードで更新されます。 |
 | **`T` キー** | アクセル動作テスト（3秒間） | vJoyを介して、アクセル開度 100% を3秒間強制送信します。Forza側でコントローラーの設定やアサインが正常に行われているか、ペダルを漕がずにテストする際に使用します。 |
-| **`B` キー** | ブレーキ動作テスト（3秒間） | vJoyを介して、ブレーキ開度 100% を3秒間強制送信します。ブレーキ入力のアサインテスト用です。 |
 | **`Q` キー** | アプリケーションの安全な終了 | 実行中のUDP受信サーバーを停止し、スマートローラーとのBLE接続を安全に切断（GATTセッションの解放）して、コンソールを閉じます。**※Escキー等による不意の強制終了を防止し、BLEセッションのクリーンアップ漏れを防ぐ設計となっています。** |
 
 ---
