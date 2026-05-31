@@ -13,6 +13,7 @@ namespace HorizonCyclingBridge
         private static double _filteredGrade = 0.0;
         private static double _trainerDifficulty = 0.5; // スマートローラー負荷再現割合 (0.0〜1.0)
         private static double _trainerSpeedKmh = 0.0;   // スマートローラーから送られる現在の物理速度 (km/h)
+        private static bool _isTestingThrottle = false; // ★アクセル動作テスト中フラグ
         
         // スマートローラーへの送信データ履歴（間引き用）
         private static double _lastSentGrade = 999.0;
@@ -174,7 +175,8 @@ namespace HorizonCyclingBridge
                 ControlOutput control = strategy.CalculateOutput(_currentPower, packet);
 
                 // B. 仮想コントローラー(vJoy)へ入力を送信
-                if (isVJoyReady)
+                // テスト送信中 (_isTestingThrottle) は、テレメトリ受信による上書きを防止します
+                if (isVJoyReady && !_isTestingThrottle)
                 {
                     vJoyController.SendInputs(control.Throttle);
                 }
@@ -270,9 +272,9 @@ namespace HorizonCyclingBridge
                         _lastSentTimeMS = currentTimeMS;
 
                         // ★スマートローラーへの実際の送信コマンド
-                        if (strategy is ArcadeMappingStrategy || targetIncline <= 0.0)
+                        if (targetIncline <= 0.0)
                         {
-                            // アーケードモード、平地、および下り坂（targetIncline <= 0.0%）の場合は、
+                            // 平地、および下り坂（targetIncline <= 0.0%）の場合は、
                             // 斜度0%シミュレーション（速度依存の空気抵抗が高速回転時に自動発生してしまう）を完全にシャットダウンし、
                             // 物理抵抗レベル自体を強制的に「0 (完全スピンフリー)」にして負荷を完全に解放します。
                             // これにより、下り坂で高速回転した際に発生する激重な空気抵抗を完璧に防ぎ、スカスカで軽い滑走感を提供します。
@@ -283,7 +285,7 @@ namespace HorizonCyclingBridge
                         {
                             // シミュレーションモードかつ上り坂（targetIncline > 0.0%）の場合は、斜度シミュレーションを実行します
                             Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: {targetIncline:F1}% (Trigger: {(isZeroReset ? "ZeroReset" : "Normal")})");
-                            _ = trainerClient.SetTargetInclinationAsync(targetIncline);
+                            _ = trainerClient.SetIndoorBikeSimulationParametersAsync(targetIncline);
                         }
                     }
                 }
@@ -343,9 +345,11 @@ namespace HorizonCyclingBridge
                         else if (key == ConsoleKey.T)
                         {
                             Console.WriteLine("\n[TEST] Sending THROTTLE 100% for 3 seconds...");
+                            _isTestingThrottle = true;
                             if (isVJoyReady) vJoyController.SendInputs(1.0f);
                             await Task.Delay(3000);
                             if (isVJoyReady) vJoyController.SendInputs(0.0f);
+                            _isTestingThrottle = false;
                             Console.WriteLine("[TEST] Throttle output stopped. Restored to telemetry control.");
                         }
                         else if (key == ConsoleKey.M)

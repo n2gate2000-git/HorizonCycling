@@ -287,6 +287,54 @@ namespace HorizonCyclingBridge.Trainer
         }
 
         /// <summary>
+        /// スマートローラーに対して、シミュレーションパラメータ（風速、斜度、転がり抵抗、空気抵抗係数）を一括送信します。
+        /// これにより、Zwift等のアプリと同様に、スマートローラーが正確な物理負荷（坂道の重さ）を計算・再現できるようになります。
+        /// </summary>
+        /// <param name="inclinationPercent">道路斜度（パーセンテージ、例: 3.5% なら 3.5、下り坂 -2.0% なら -2.0）</param>
+        /// <param name="crr">転がり抵抗係数（デフォルト: 0.004）</param>
+        /// <param name="cw">空気抵抗係数（kg/m、デフォルト: 0.51）</param>
+        /// <returns>送信成否</returns>
+        public async Task<bool> SetIndoorBikeSimulationParametersAsync(double inclinationPercent, double crr = 0.004, double cw = 0.51)
+        {
+            if (_controlPointChar == null || !IsConnected) return false;
+
+            // FTMS仕様: Set Indoor Bike Simulation Parameters (OpCode 0x11)
+            // ペイロード:
+            // 1. OpCode: 0x11 (1 byte)
+            // 2. Wind Speed: SINT16 in units of 0.001 m/s (2 bytes) -> 0 に固定
+            // 3. Grade: SINT16 in units of 0.01% (2 bytes) -> inclinationPercent * 100
+            // 4. Crr: UINT8 in units of 0.0001 (1 byte) -> crr * 10000
+            // 5. Cw: UINT8 in units of 0.01 kg/m (1 byte) -> cw * 100
+
+            short windSpeedRaw = 0;
+            short gradeRaw = (short)Math.Clamp(inclinationPercent * 100.0, -3600.0, 3600.0);
+            byte crrRaw = (byte)Math.Clamp(crr * 10000.0, 0.0, 255.0);
+            byte cwRaw = (byte)Math.Clamp(cw * 100.0, 0.0, 255.0);
+
+            byte[] cmd = new byte[]
+            {
+                0x11,
+                (byte)(windSpeedRaw & 0xFF),
+                (byte)((windSpeedRaw >> 8) & 0xFF),
+                (byte)(gradeRaw & 0xFF),
+                (byte)((gradeRaw >> 8) & 0xFF),
+                crrRaw,
+                cwRaw
+            };
+
+            try
+            {
+                var result = await _controlPointChar.WriteValueAsync(cmd.AsBuffer(), GattWriteOption.WriteWithResponse);
+                return result == GattCommunicationStatus.Success;
+            }
+            catch (Exception ex)
+            {
+                OnStatusMessage?.Invoke($"[BLE] Simulation parameters update failed: {ex.Message}");
+                return false;
+            }
+        }
+
+        /// <summary>
         /// スマートローラーの物理抵抗レベルを設定します。
         /// 0 を設定すると、速度依存の空気抵抗シミュレーションがオフになり、完全に負荷が解放されます（スピンフリー）。
         /// </summary>
