@@ -168,7 +168,7 @@ namespace HorizonCyclingBridge
                 if (strategy is SimulationMappingStrategy simStrategy)
                 {
                     simStrategy.TrainerSpeedKmh = _trainerSpeedKmh;
-                    simStrategy.RoadGradePercent = correctedGrade; // ★難易度が適用された勾配を物理モデル（ペダルの重さ）へインプット
+                    simStrategy.RoadGradePercent = difficultyGrade; // ★極低速補正（0%化）を適用する前の、本来の難易度適用後勾配を物理モデルへインプット（デッドロック防止）
                     simStrategy.TrueRoadGradePercent = trueRoadGrade; // ★難易度無視の真の勾配（下り坂の重力加速計算用）
                 }
 
