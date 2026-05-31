@@ -33,7 +33,8 @@
 ehthumbs.db
 Thumbs.db
 Desktop.ini
-
+HorizonCyclingBridge-v0.1.zip
+tools/
 ## User-specific / Local Configuration
 *.local.json
 appsettings.Development.json
