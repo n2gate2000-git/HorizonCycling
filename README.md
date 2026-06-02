@@ -270,4 +270,10 @@
 
 より詳細な仕様については、`docs` フォルダにある仕様書ドキュメントを参照してください。
 
-* **詳細仕様書**: [docs/20260530-HorizonCycling仕様書.md](docs/Horizon6連動仕様書-20260522.md)
+* **詳細仕様書**: [docs/20260530-HorizonCycling仕様書.md](docs/20260530-HorizonCycling仕様書.md)
+
+---
+
+## 📄 ライセンス (License)
+
+本プロジェクトは **MIT ライセンス** の下で公開されています。詳細については、プロジェクトに含まれる [LICENSE](LICENSE) ファイルを参照してください。
