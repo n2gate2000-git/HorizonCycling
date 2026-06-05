@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using HorizonCyclingBridge.Core;
 using HorizonCyclingBridge.Telemetry;
@@ -33,6 +35,41 @@ namespace HorizonCyclingBridge
             Console.WriteLine("        HorizonCyclingBridge: Smart Trainer & Forza 6 Dual-Bridge     ");
             Console.WriteLine("======================================================================");
 
+            // 0. 引数解析とコンフィグのロード
+            bool setupMode = args.Contains("--setup-sensors");
+            AppConfig? config = null;
+
+            for (int i = 0; i < args.Length; i++)
+            {
+                if (args[i] == "--power" && i + 1 < args.Length)
+                {
+                    string macStr = args[i + 1].Replace(":", "");
+                    if (ulong.TryParse(macStr, System.Globalization.NumberStyles.HexNumber, null, out ulong mac))
+                    {
+                        config = new AppConfig { PowerSourceType = SensorType.CyclingPower, PowerSourceMacAddress = mac };
+                        Console.WriteLine($"[INFO] CLI override: Power Meter MAC {mac:X}");
+                    }
+                }
+            }
+
+            if (config == null && !setupMode)
+            {
+                config = ConfigManager.Load();
+                if (config.PowerSourceType == SensorType.None)
+                {
+                    setupMode = true;
+                }
+                else
+                {
+                    Console.WriteLine($"[INFO] Loaded config: {config.PowerSourceType} ({config.PowerSourceMacAddress:X})");
+                }
+            }
+
+            if (setupMode)
+            {
+                config = await RunSetupSensorsAsync();
+            }
+
             // 1. 動作モードの選択
             Console.WriteLine("\n[MODE SELECTION]");
             Console.WriteLine(" 1. Arcade Mode (Pedal Power -> Direct Throttle Mapping)");
@@ -50,7 +87,7 @@ namespace HorizonCyclingBridge
             }
             else
             {
-                // PIDゲイン調整値: Kp=1.0, Ki=0.2, Kd=0.05 (Vivio RX-Rなどの軽自動車向け、安定した追従と加速のバランス設定)
+                // PIDゲイン調整値: Kp=1.0, Ki=0.2, Kd=0.05
                 strategy = new SimulationMappingStrategy(kp: 1.0f, ki: 0.2f, kd: 0.05f);
                 modeName = "SIMULATION MODE";
             }
@@ -84,60 +121,52 @@ namespace HorizonCyclingBridge
             if (!isVJoyReady)
             {
                 Console.WriteLine("[WARNING] vJoy failed to initialize. Controller output emulation is DISABLED.");
-                Console.WriteLine("          (The bridge will run in dry-run mode without driving the in-game car)");
             }
 
+            // B. BLE デバイスの接続
+            FtmsClient? ftmsClient = null;
+            CyclingPowerClient? cpClient = null;
+            bool isBleConnected = false;
 
-            // B. BLEスマートローラートレーナーの接続と初期化
-            using var trainerClient = new FtmsClient();
-            
-            // BLEログのコンソール出力アタッチ
-            trainerClient.OnStatusMessage += (msg) => Console.WriteLine(msg);
-            
-            // パワー受信時のイベントハンドラ
-            trainerClient.OnPowerReceived += (power) =>
+            if (config != null && config.PowerSourceType == SensorType.Ftms)
             {
-                _currentPower = power;
-            };
+                ftmsClient = new FtmsClient();
+                ftmsClient.OnStatusMessage += msg => Console.WriteLine(msg);
+                ftmsClient.OnPowerReceived += power => _currentPower = power;
+                ftmsClient.OnSpeedReceived += speed => _trainerSpeedKmh = speed;
 
-            // 速度受信時のイベントハンドラ
-            trainerClient.OnSpeedReceived += (speed) =>
-            {
-                _trainerSpeedKmh = speed;
-            };
-
-            // スマートローラーへの接続（タイムアウト20秒）
-            bool isTrainerConnected = await trainerClient.ScanAndConnectAsync(timeoutMs: 20000);
-            if (!isTrainerConnected)
-            {
-                Console.WriteLine("[WARNING] Could not connect to smart trainer via BLE.");
-                Console.WriteLine("          Pedal power input will fall back to 0W. (Use Keyboard or Keyboard-emulated power for tests)");
+                isBleConnected = await ftmsClient.ScanAndConnectAsync(20000, config.PowerSourceMacAddress);
+                if (isBleConnected)
+                {
+                    await ftmsClient.SetTargetResistanceLevelAsync(0);
+                    _lastSentGrade = 0.0;
+                    Console.WriteLine("[BLE] Smart trainer resistance initialized to FREE (Level 0).");
+                }
             }
-            else
+            else if (config != null && config.PowerSourceType == SensorType.CyclingPower)
             {
-                // 接続成功直後に、スマートローラーの物理抵抗を「0 (完全スピンフリー)」に初期リセットします
-                // これにより、斜度0%シミュレーション時の空気抵抗発生を防ぎ、完全に軽い状態でスタートできます
-                await trainerClient.SetTargetResistanceLevelAsync(0);
-                _lastSentGrade = 0.0;
-                Console.WriteLine("[BLE] Smart trainer resistance initialized to FREE (Level 0).");
+                cpClient = new CyclingPowerClient();
+                cpClient.OnStatusMessage += msg => Console.WriteLine(msg);
+                cpClient.OnPowerReceived += power => _currentPower = power;
+
+                isBleConnected = await cpClient.ScanAndConnectAsync(20000, config.PowerSourceMacAddress);
             }
 
-            // C. Forza UDP テレメトリ受信サーバーの初期化 (ポート 5000)
+            if (!isBleConnected)
+            {
+                Console.WriteLine("[WARNING] Could not connect to BLE device.");
+                Console.WriteLine("          Pedal power input will fall back to 0W.");
+            }
+
+            // C. Forza UDP テレメトリ受信サーバーの初期化
             int port = 5000;
             var receiver = new ForzaUdpReceiver(port);
 
-            // 3. テレメトリパケット受信時の連動ロジック (双方向ループ)
+            // 3. テレメトリパケット受信時の連動ロジック
             receiver.OnPacketReceived += (packet) =>
             {
-                // C. ゲーム内のPitch(ラジアン)から斜度%を求め、スマートローラーへ負荷指示をフィードバック
-                // ★極めて重要な座標系修正：Forzaのピッチ角は「車首上げ（上り）の時にマイナス（負）」を指す右手系仕様になっています。
-                // そのため、ゲームのPitchの符号を反転（マイナスを掛ける）して、正しく「上りがプラス％、下りがマイナス％」になるようにします。
                 double rawGradePercent = -Math.Tan(packet.Pitch) * 100.0;
                 
-                // ★サスペンション姿勢変化の相殺補正（平地負荷高の解消）
-                // 1. 車が走っている時 (Speed > 3.0 km/h) は、駆動トルクや空気抵抗による車首の浮き上がり分（約 -0.9%）を定常引き算して補正します。
-                // 2. 加減速による車体の前後の沈み込み (AccelerationZ) を打ち消すため、加速度に比例した値 (AccelerationZ * 0.12) を引き算して相殺します。
-                // これにより「ノイズや姿勢変化を取り除いた、純粋な道路勾配（trueRoadGrade）」を求めます。
                 double trueRoadGrade = rawGradePercent;
                 if (packet.SpeedKmh > 3.0f)
                 {
@@ -148,46 +177,37 @@ namespace HorizonCyclingBridge
                     trueRoadGrade = 0.0;
                 }
 
-                // ★負荷再現割合（Trainer Difficulty）の適用
-                // 真の道路勾配に対して難易度割合を掛けます。これにより平地（trueRoadGrade ≒ 0%）の時は難易度によらず常に0%負荷になります。
                 double difficultyGrade = trueRoadGrade * _trainerDifficulty;
                 if (trueRoadGrade < 0.0)
                 {
-                    // 下り坂は負荷の抜けすぎを防ぐためさらに半分（50%減少）にマイルド化して過度な軟化を抑制します
                     difficultyGrade = trueRoadGrade * (_trainerDifficulty * 0.5);
                 }
 
                 double correctedGrade = difficultyGrade;
                 if (packet.SpeedKmh <= 3.0f)
                 {
-                    // 停車中（または極低速）は強制的に0%近辺にします
                     correctedGrade = 0.0;
                 }
 
-                // A. ペダリングパワー(W)を、選択されたStrategyでアクセル/ブレーキ値(0.0〜1.0)に変換
                 if (strategy is SimulationMappingStrategy simStrategy)
                 {
                     simStrategy.TrainerSpeedKmh = _trainerSpeedKmh;
-                    simStrategy.RoadGradePercent = difficultyGrade; // ★極低速補正（0%化）を適用する前の、本来の難易度適用後勾配を物理モデルへインプット（デッドロック防止）
-                    simStrategy.TrueRoadGradePercent = trueRoadGrade; // ★難易度無視の真の勾配（下り坂の重力加速計算用）
+                    simStrategy.RoadGradePercent = difficultyGrade; 
+                    simStrategy.TrueRoadGradePercent = trueRoadGrade; 
                 }
 
                 ControlOutput control = strategy.CalculateOutput(_currentPower, packet);
 
-                // B. 仮想コントローラー(vJoy)へ入力を送信
-                // テスト送信中 (_isTestingThrottle) は、テレメトリ受信による上書きを防止します
                 if (isVJoyReady && !_isTestingThrottle)
                 {
                     vJoyController.SendInputs(control.Throttle);
                 }
 
-                // ★1秒に1回、Forzaの生テレメトリデータを調査用デバッグログとして改行出力
                 uint currentTimeMS = packet.TimestampMS;
                 if (currentTimeMS - _lastDebugTimeMS >= 1000 || _lastDebugTimeMS == 0)
                 {
                     Console.WriteLine($"\n[DEBUG-TELEMETRY] Time: {currentTimeMS} | RawPitch: {packet.Pitch:F4} rad | Accel: X:{packet.AccelerationX:F2}, Y:{packet.AccelerationY:F2}, Z:{packet.AccelerationZ:F2} | Speed: {packet.SpeedKmh:F1} km/h");
                     
-                    // D. 連動状況のリアルタイムコンソールデバッグ画面表示
                     double currentSpeedKmh = packet.SpeedKmh;
                     double targetSpeedKmh = (strategy is SimulationMappingStrategy sim) ? sim.TargetSpeedKmh : 0.0;
 
@@ -200,19 +220,14 @@ namespace HorizonCyclingBridge
                     _lastDebugTimeMS = currentTimeMS;
                 }
                 
-                // EMAフィルタを適用し、急激な段差やジャンプによる負荷変動をまろやかにする
                 _filteredGrade = (_filteredGrade * (1.0 - EMA_ALPHA)) + (correctedGrade * EMA_ALPHA);
 
-                if (isTrainerConnected && packet.IsRaceOn)
+                // スマートローラーが接続されている場合のみ、物理抵抗をフィードバックする
+                if (isBleConnected && packet.IsRaceOn && ftmsClient != null && ftmsClient.IsConnected)
                 {
-                    // ★BLE送信の「不感帯（デッドバンド）＆ 長時間デバウンス ＆ ゼロ自動リセット」
                     long timeDiff = (long)currentTimeMS - (long)_lastSentTimeMS;
                     double gradeDiff = Math.Abs(_filteredGrade - _lastSentGrade);
 
-                    // 1. 前回の送信から 1500ms (1.5秒) 以上経過し、かつ 0.8% 以上の明確な斜度変化があること (不感帯の適用)
-                    // 2. または、平地に完全に戻りかけた時 (Math.Abs(FilteredGrade) < 0.3% かつ 前回の送信値が 0 でない) の強制ゼロリセット
-                    // 3. または、初回送信であること
-                    // (★バグ修正：_filteredGradeがマイナス[下り坂]の時に常にゼロリセットが暴発するのを防ぐため、絶対値 Math.Abs を取ります)
                     bool isZeroReset = Math.Abs(_filteredGrade) < 0.3 && _lastSentGrade != 0.0 && _lastSentGrade != 999.0;
                     bool isSignificantChange = timeDiff >= 1500 && gradeDiff >= 0.8;
 
@@ -222,12 +237,10 @@ namespace HorizonCyclingBridge
 
                         if (isZeroReset)
                         {
-                            // 平地に戻った場合は完全に0%でリセット
                             targetIncline = 0.0;
                         }
                         else
                         {
-                            // 1回あたりの最大変化率（スルーレート）を ±2.0% に制限し、自然な斜度変化にします
                             if (_lastSentGrade != 999.0)
                             {
                                 double maxStep = 2.0;
@@ -236,31 +249,20 @@ namespace HorizonCyclingBridge
                             }
                         }
 
-                        // スマートローラーが過敏に反応するのを防ぐため、値を小数点第1位に丸めます (例: 1.13% -> 1.1%)
                         targetIncline = Math.Round(targetIncline, 1);
 
-                        // ★仮想ギアダウン（車の限界スピードによる負荷軽減アシスト）
-                        // 目標速度(Target)に対して実際の車速(Car)が追いつかずアクセル全開になっている場合、
-                        // Peel P50のような非力な車が性能限界に達しているため、送信斜度を下げてペダルを自動で軽く（ローギア化）します。
-                        // これにより「必死に漕いでも車が進まず重いだけ」というフラストレーションを解消し、車速に見合った適正な軽さを提供します。
                         if (strategy is SimulationMappingStrategy simStrat)
                         {
                             double targetSpd = simStrat.TargetSpeedKmh;
                             double carSpd = packet.SpeedKmh;
                             
-                            // 1. 仮想ギアダウン（車の限界スピードによるローギア化アシスト）
                             if (targetSpd > 10.0 && carSpd < targetSpd * 0.95 && targetIncline > 0.0)
                             {
-                                // 目標速度に追いついていない度合い（不足率）
                                 double deficit = 1.0 - (carSpd / targetSpd);
-                                // 少しの不足でもペダルを一気に軽く（斜度をゼロに近く）する強力なローギア化
                                 double gearMultiplier = Math.Max(0.0, 1.0 - (deficit * 4.0)); 
                                 targetIncline = targetIncline * gearMultiplier;
                             }
                             
-                            // 2. スマートローラー自体の「ベースの重さ」対策としての絶対上限リミッター
-                            // 難易度10%などの場合、元の坂がどれだけ激坂であっても、送信斜度の上限を低く抑える
-                            // 例: 難易度10%なら最大1.5%までに制限
                             double maxIncline = 15.0 * _trainerDifficulty;
                             if (targetIncline > maxIncline)
                             {
@@ -271,28 +273,21 @@ namespace HorizonCyclingBridge
                         _lastSentGrade = targetIncline;
                         _lastSentTimeMS = currentTimeMS;
 
-                        // ★スマートローラーへの実際の送信コマンド
                         if (targetIncline <= 0.0)
                         {
-                            // 平地、および下り坂（targetIncline <= 0.0%）の場合は、
-                            // 斜度0%シミュレーション（速度依存の空気抵抗が高速回転時に自動発生してしまう）を完全にシャットダウンし、
-                            // 物理抵抗レベル自体を強制的に「0 (完全スピンフリー)」にして負荷を完全に解放します。
-                            // これにより、下り坂で高速回転した際に発生する激重な空気抵抗を完璧に防ぎ、スカスカで軽い滑走感を提供します。
                             Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: FREE (OpCode 0x04, Level 0) [Descent/Flat]");
-                            _ = trainerClient.SetTargetResistanceLevelAsync(0);
+                            _ = ftmsClient.SetTargetResistanceLevelAsync(0);
                         }
                         else
                         {
-                            // シミュレーションモードかつ上り坂（targetIncline > 0.0%）の場合は、斜度シミュレーションを実行します
                             Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: {targetIncline:F1}% (Trigger: {(isZeroReset ? "ZeroReset" : "Normal")})");
-                            _ = trainerClient.SetIndoorBikeSimulationParametersAsync(targetIncline);
+                            _ = ftmsClient.SetIndoorBikeSimulationParametersAsync(targetIncline);
                         }
                     }
                 }
 
             };
 
-            // 受信エラー時のログ出力
             receiver.OnError += (ex) =>
             {
                 Console.WriteLine($"\n[ERROR] Telemetry receiver encountered error: {ex.Message}");
@@ -308,7 +303,6 @@ namespace HorizonCyclingBridge
                 Console.WriteLine("  - [-] キーを押す : スマートローラーの負荷再現割合を 10% 下げます");
                 Console.WriteLine("  - [+] キーを押す : スマートローラーの負荷再現割合を 10% 上げます");
                 Console.WriteLine("  - [M] キーを押す : シミュレーションとアーケードの動作モードを切り替えます");
-                Console.WriteLine("  Forza や x360ce への入力アサイン補助:");
                 Console.WriteLine("  - [T] キーを押す : アクセル（Throttle 100%）を 3秒間 送信します");
                 Console.WriteLine("  終了:");
                 Console.WriteLine("  - [Q] キーを押す: アプリケーションを安全に終了します");
@@ -327,12 +321,11 @@ namespace HorizonCyclingBridge
                         {
                             _trainerDifficulty = Math.Clamp(_trainerDifficulty - 0.1, 0.0, 1.0);
                             Console.WriteLine($"\n[DIFFICULTY] Trainer Difficulty decreased to: {(_trainerDifficulty * 100.0):F0}%");
-                            _lastSentGrade = 999.0; // 送信履歴をリセットして即座の再計算・送信を強制
+                            _lastSentGrade = 999.0; 
                             
-                            // もし難易度が0%に達した場合は、テレメトリ受信を待つことなく即座にスマートローラーの抵抗を完全解放（フリー）にします
-                            if (_trainerDifficulty <= 0.001 && isTrainerConnected)
+                            if (_trainerDifficulty <= 0.001 && ftmsClient != null && ftmsClient.IsConnected)
                             {
-                                _ = trainerClient.SetTargetResistanceLevelAsync(0);
+                                _ = ftmsClient.SetTargetResistanceLevelAsync(0);
                                 _lastSentGrade = 0.0;
                             }
                         }
@@ -340,7 +333,7 @@ namespace HorizonCyclingBridge
                         {
                             _trainerDifficulty = Math.Clamp(_trainerDifficulty + 0.1, 0.0, 1.0);
                             Console.WriteLine($"\n[DIFFICULTY] Trainer Difficulty increased to: {(_trainerDifficulty * 100.0):F0}%");
-                            _lastSentGrade = 999.0; // 送信履歴をリセットして即座の再計算・送信を強制
+                            _lastSentGrade = 999.0; 
                         }
                         else if (key == ConsoleKey.T)
                         {
@@ -366,7 +359,7 @@ namespace HorizonCyclingBridge
                                 modeName = "SIMULATION MODE";
                                 Console.WriteLine($"\n[MODE] Switched to: {modeName}");
                             }
-                            _lastSentGrade = 999.0; // 斜度送信履歴をリセットして即座の再計算・送信を強制
+                            _lastSentGrade = 999.0; 
                         }
                         else if (key == ConsoleKey.Q)
                         {
@@ -383,10 +376,101 @@ namespace HorizonCyclingBridge
             finally
             {
                 receiver.Stop();
-                trainerClient.Disconnect();
+                ftmsClient?.Disconnect();
+                cpClient?.Disconnect();
                 Console.WriteLine("\n[BRIDGE] Sessions ended. Bluetooth and UDP connections successfully released.");
                 Console.WriteLine("======================================================================");
             }
+        }
+
+        private static async Task<AppConfig> RunSetupSensorsAsync()
+        {
+            Console.WriteLine("\n[SETUP] Scanning for BLE devices (FTMS and Cycling Power)... (10 seconds)");
+            var foundDevices = new List<(ulong Address, string Name, SensorType Type)>();
+            
+            // 1. Windowsにペアリング済み（またはシステムが記憶している）デバイスから検索
+            try
+            {
+                var ftmsSelector = Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceService.GetDeviceSelectorFromUuid(Guid.Parse("00001826-0000-1000-8000-00805f9b34fb"));
+                var ftmsDevices = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(ftmsSelector);
+                foreach (var d in ftmsDevices)
+                {
+                    var bleDevice = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromIdAsync(d.Id);
+                    if (bleDevice != null && !foundDevices.Any(x => x.Address == bleDevice.BluetoothAddress))
+                    {
+                        foundDevices.Add((bleDevice.BluetoothAddress, bleDevice.Name, SensorType.Ftms));
+                        Console.WriteLine($"  [{foundDevices.Count}] {SensorType.Ftms}: {bleDevice.Name} ({bleDevice.BluetoothAddress:X}) [Paired]");
+                    }
+                }
+
+                var powerSelector = Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceService.GetDeviceSelectorFromUuid(Guid.Parse("00001818-0000-1000-8000-00805f9b34fb"));
+                var powerDevices = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(powerSelector);
+                foreach (var d in powerDevices)
+                {
+                    var bleDevice = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromIdAsync(d.Id);
+                    if (bleDevice != null && !foundDevices.Any(x => x.Address == bleDevice.BluetoothAddress))
+                    {
+                        foundDevices.Add((bleDevice.BluetoothAddress, bleDevice.Name, SensorType.CyclingPower));
+                        Console.WriteLine($"  [{foundDevices.Count}] {SensorType.CyclingPower}: {bleDevice.Name} ({bleDevice.BluetoothAddress:X}) [Paired]");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SETUP] Paired device query failed: {ex.Message}");
+            }
+
+            // 2. ペアリングされていない新しいデバイスをアドバタイズメントから検索
+            var watcher = new Windows.Devices.Bluetooth.Advertisement.BluetoothLEAdvertisementWatcher();
+            // FTMS
+            watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(Guid.Parse("00001826-0000-1000-8000-00805f9b34fb"));
+            // Cycling Power
+            watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(Guid.Parse("00001818-0000-1000-8000-00805f9b34fb"));
+
+            watcher.Received += (s, e) =>
+            {
+                lock (foundDevices)
+                {
+                    if (!foundDevices.Any(d => d.Address == e.BluetoothAddress))
+                    {
+                        string name = string.IsNullOrEmpty(e.Advertisement.LocalName) ? "Unknown" : e.Advertisement.LocalName;
+                        SensorType type = e.Advertisement.ServiceUuids.Contains(Guid.Parse("00001826-0000-1000-8000-00805f9b34fb")) 
+                                          ? SensorType.Ftms : SensorType.CyclingPower;
+                        foundDevices.Add((e.BluetoothAddress, name, type));
+                        Console.WriteLine($"  [{foundDevices.Count}] {type}: {name} ({e.BluetoothAddress:X}) [Advertising]");
+                    }
+                }
+            };
+
+            watcher.Start();
+            await Task.Delay(10000);
+            watcher.Stop();
+
+            Console.WriteLine("\n[SETUP] Scan complete.");
+            if (foundDevices.Count == 0)
+            {
+                Console.WriteLine("No devices found. Falling back to default (FTMS any).");
+                return new AppConfig();
+            }
+
+            Console.Write("Select device for POWER (Enter number, or 0 to skip): ");
+            string input = Console.ReadLine() ?? "0";
+            if (int.TryParse(input, out int idx) && idx > 0 && idx <= foundDevices.Count)
+            {
+                var selected = foundDevices[idx - 1];
+                var config = new AppConfig
+                {
+                    PowerSourceType = selected.Type,
+                    PowerSourceMacAddress = selected.Address,
+                    PowerSourceName = selected.Name
+                };
+                ConfigManager.Save(config);
+                Console.WriteLine($"[SETUP] Configuration saved to config.json. Selected: {selected.Name} ({selected.Address:X})");
+                return config;
+            }
+
+            Console.WriteLine("[SETUP] Setup skipped or invalid selection. Falling back to default.");
+            return new AppConfig();
         }
     }
 }

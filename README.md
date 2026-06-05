@@ -56,8 +56,10 @@
 
 ### 1. ハードウェア要件
 * **Windows OS PC**: Windows 10 または 11（Bluetooth LE 機能が搭載されていること）
-* **FTMS対応スマートローラートレーナー**: BLE（Bluetooth Low Energy）の標準FTMSプロトコルに準拠したスマートローラー。
-  * *動作確認済み機材*: **CYCPLUS T2**、Wahoo Kickr、Tacx Neo、Zwift Hub等
+* **入力ソースデバイス（以下のいずれか）**:
+  * **FTMS対応スマートローラートレーナー**: BLE（Bluetooth Low Energy）の標準FTMSプロトコルに準拠したスマートローラー。ゲームの地形に合わせた自動負荷調整（フィードバック）がフルに機能します。
+    * *動作確認済み機材*: **CYCPLUS T2**、Wahoo Kickr、Tacx Neo、Zwift Hub等
+  * **BLEパワーメーター**: Cycling Power Profile（UUID: 0x1818）に準拠したパワーメーター。非連動の固定ローラーと組み合わせてペダリング入力をゲームに反映できます（※この場合、自動負荷調整は行われませんが、ペダリングパワーに対する物理シミュレーションはフル活用されます）。
   * *注意*: Bluetooth LE接続のみ対応しています。ANT+通信には対応していません。
 * **対応ゲーム**: UDPデータアウトプット（テレメトリ送信）機能を備えたレースゲーム（例：Forza Horizon6でのみ動作確認済み）
 
@@ -169,17 +171,21 @@
 
 ### ステップ 5: 本アプリケーションのダウンロードと起動（リリースパッケージ版）
 本アプリを実行するために、GitLabなどの配布ページに公開されているビルド済みのRelease用モジュール（zip形式）を使用します。
-1. GitLab等の配布ページから、zip圧縮されたRelease用モジュール（例：`HorizonCyclingBridge-v0.1.zip` などのリリースパッケージ）をダウンロードします。
+1. GitLab等の配布ページから、zip圧縮されたRelease用モジュール（例：`HorizonCyclingBridge-v0.2.zip` などのリリースパッケージ）をダウンロードします。
 2. ダウンロードしたzipファイルを、PC上の任意のフォルダ（例：デスクトップや任意の開発フォルダ）に解凍します。
 3. 解凍したフォルダ（`HorizonCyclingBridge.exe` が存在するフォルダ）の直下に、**「ステップ 2」でコピーした `vJoyInterface.dll` が正しく貼り付けられていること**を確認します。
 4. スマートローラーの電源を入れます。スマートフォン等の他のアプリ（Zwiftやメーカーの専用アプリ等）とスマートローラーのBluetooth接続が切れている（ペアリング待機状態である）ことを確認してください。
 5. 解凍したフォルダ内にある **`HorizonCyclingBridge.exe`** をダブルクリックして起動します。
 6. 起動すると、コマンドプロンプトのようなコンソール画面（黒い画面）が開き、初期設定プロンプトが表示されます。
+   * **[初回起動時のデバイスセットアップ (CLI)]**
+     * 初回起動時（`config.json` がない場合）、自動的に周囲のBLEデバイス（FTMSおよびパワーメーター）のスキャンが10秒間行われます（※WindowsのBluetooth設定でペアリング済みのデバイスも自動検出されます）。
+     * スキャン完了後、見つかったデバイスの番号を入力してパワーソースを選択します。
+     * 選択した設定は保存され、次回以降は自動的にそのデバイスへ接続されます。（※デバイスを変更したい場合は、コマンドライン引数 `--setup-sensors` を付けて起動し直してください）。
    * **[MODE SELECTION]** (動作モードの選択)
      * `1`（Arcade）または `2`（Simulation）。空エンターで `2` (シミュレーション: 推奨) が選択されます。
    * **[TRAINER DIFFICULTY SELECTION]** (スマートローラーの負荷難易度)
-     * ローラーの負荷再現割合（0%〜100%）を入力します。空エンターで `50%` に設定されます。（※最初は `10%` や `20%` などの低い値から始めることを強く推奨します。ペダルが重すぎて回せなくなるのを防ぎます）。
-7. 初期設定が完了すると、自動的にスマートローラーのスキャンが始まり、BLE FTMS接続が確立されます。
+     * ローラーの負荷再現割合（0%〜100%）を入力します。空エンターで `50%` に設定されます。（※最初は `10%` や `20%` などの低い値から始めることを強く推奨します。パワーメーター単体使用時は影響しません）。
+7. 初期設定が完了すると、自動的に選択したデバイスへのBLE接続が確立されます。
    * **【スマートローラーとBLE接続がうまくいかない場合】**
      本アプリを起動してもスマートローラーが検知されない（スキャンが終わらない、または接続エラーになる）場合は、以下の手順をお試しください。
      1. Windowsの **「設定」 ➔ 「Bluetooth とその他のデバイス」** を開きます。
@@ -192,20 +198,28 @@
             HorizonCyclingBridge: Smart Trainer & Forza 6 Dual-Bridge
     ======================================================================
 
+    [SETUP] Scanning for BLE devices (FTMS and Cycling Power)... (10 seconds)
+      [1] Ftms: T2 13991 (E547C9BAB968) [Paired]
+      [2] CyclingPower: 41883-5 (FAE232F8A94E) [Paired]
+
+    [SETUP] Scan complete.
+    Select device for POWER (Enter number, or 0 to skip): 1
+    [SETUP] Configuration saved to config.json. Selected: T2 13991 (E547C9BAB968)
+
     [MODE SELECTION]
     1. Arcade Mode (Pedal Power -> Direct Throttle Mapping)
     2. Simulation Mode (Pedal Power + Pitch -> Speed Tracking via PID)
-    Select mode (1 or 2, default is 2):
+    Select mode (1 or 2, default is 2): 2
 
     [INFO] Selected Mode: SIMULATION MODE
 
     [TRAINER DIFFICULTY SELECTION]
-    Enter Trainer Difficulty (0% to 100%, default is 50%):
+    Enter Trainer Difficulty (0% to 100%, default is 50%): 50
     [INFO] Trainer Difficulty set to: 50%
 
     [INITIALIZING CORE MODULES]
     [vJoy] Successfully acquired and reset vJoy device 1.
-    [BLE] Scanning for FTMS Smart Trainer. Please make sure the trainer is powered on and pairing-ready...
+    [BLE] Scanning for FTMS Smart Trainer (Target: E547C9BAB968). Please make sure the trainer is powered on and pairing-ready...
     [BLE] Scanning stopped.
     [BLE] Found FTMS Trainer: 'T2 13991' Address: E547C9BAB968
     [BLE] Querying GATT Services from T2 13991...
@@ -214,7 +228,7 @@
     [BLE] Enabled Indications on Trainer Control Point.
     [BLE] Successfully acquired Trainer resistance control.
     [BLE] Connection to 'T2 13991' completely established. Ride Ready!
-    [BLE] Target resistance level update failed:
+    [BLE] Target resistance level update failed: 
     [BLE] Smart trainer resistance initialized to FREE (Level 0).
 
     [BRIDGE] Middle-ware bridge is now fully ACTIVE. Have a nice virtual ride!
@@ -223,16 +237,20 @@
       - [-] キーを押す : スマートローラーの負荷再現割合を 10% 下げます
       - [+] キーを押す : スマートローラーの負荷再現割合を 10% 上げます
       - [M] キーを押す : シミュレーションとアーケードの動作モードを切り替えます
-      Forza や x360ce への入力アサイン補助:
       - [T] キーを押す : アクセル（Throttle 100%）を 3秒間 送信します
       終了:
       - [Q] キーを押す: アプリケーションを安全に終了します
     ======================================================================
     [UDP] Listening for Forza telemetry on port 5000...
 
-    [DEBUG-TELEMETRY] Time: 211963265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
+    [DEBUG-TELEMETRY] Time: 57346265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
     [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00
-    [DEBUG-TELEMETRY] Time: 211964265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
+    [DEBUG-TELEMETRY] Time: 57347265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
+    [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00        
+    [DEBUG-TELEMETRY] Time: 57348265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
+    [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00        
+    [DEBUG-TELEMETRY] Time: 57349265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
+    [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00    
     ```
 
 ---

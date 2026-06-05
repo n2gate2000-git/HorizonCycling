@@ -12,11 +12,12 @@
 ```mermaid
 graph TD
     %% ユーザーとハードウェア
-    User([ユーザー]) <-->|ペダリング / 負荷抵抗| Trainer[スマートローラー BLE]
+    User([ユーザー]) <-->|ペダリング / 自動負荷| Hardware[スマートローラー または パワーメーター]
     
     %% ミドルウェアブリッジ内部
     subgraph HorizonCyclingBridge [HorizonCyclingBridge 本ミドルウェア]
-        Ftms[FtmsClient<br/>BLE通信]
+        Ble[FtmsClient / CyclingPowerClient<br/>BLE通信]
+        Config[ConfigManager<br/>設定管理]
         Strategy[Simulation / Arcade Strategy<br/>物理シミュレーション & PID制御]
         vJoy[VJoyVehicleController<br/>仮想入力]
         Udp[ForzaUdpReceiver<br/>テレメトリ受信]
@@ -26,14 +27,15 @@ graph TD
     Game[Forza Motorsport ゲーム本体]
     
     %% データフロー
-    Trainer -->|1. パワーW / 速度| Ftms
-    Ftms -->|パワー / ローラー速度| Strategy
+    Hardware -->|1. パワーW / 速度| Ble
+    Ble -->|パワー / ローラー速度| Strategy
     Strategy -->|2. アクセル| vJoy
     vJoy -->|仮想ジョイスティック入力| Game
     Game -->|3. テレメトリ ピッチ角 / 車速 / 加速度| Udp
     Udp -->|ゲーム内状態データ| Strategy
-    Strategy -->|4. 目標斜度 %| Ftms
-    Ftms -->|斜度設定コマンド OpCode 0x03| Trainer
+    Strategy -->|4. 目標斜度 % FTMS接続時のみ| Ble
+    Ble -->|斜度設定コマンド FTMSのみ| Hardware
+    Config -.->|起動時にデバイス指定| Ble
 ```
 
 ### ① 入力ループ（ペダルパワー ➔ ゲーム内アクセル）
@@ -96,13 +98,15 @@ graph TD
 
 | ファイルパス | クラス / インターフェース | 主要な役割 |
 | :--- | :--- | :--- |
-| [`Program.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Program.cs) | `Program` | メインエントリーポイント。各クラスの初期化、メインループの制御、キーボード入力処理、BLE送信の間引き・フィルタリング、スマートローラー難易度設定。 |
+| [`Program.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Program.cs) | `Program` | メインエントリーポイント。各クラスの初期化、CLI・対話型セットアッププロンプト、BLE送信の間引き・フィルタリング。 |
+| [`Core/Config.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/Config.cs) | `AppConfig`, `ConfigManager` | 使用するデバイス設定（FTMSやパワーメーターの種別、MACアドレス等）の `config.json` への保存・自動読み込み。 |
 | [`Core/IPowerMappingStrategy.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/IPowerMappingStrategy.cs) | `IPowerMappingStrategy` | パワーとテレメトリからアクセル出力を計算するための共通インターフェース。 |
 | [`Core/ArcadeMappingStrategy.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/ArcadeMappingStrategy.cs) | `ArcadeMappingStrategy` | アーケードモード用戦略。ペダルパワーをFTP（基準パワー）で割り、アクセル開度（0〜100%）にダイレクトにマッピングするシンプルなロジック。 |
 | [`Core/SimulationMappingStrategy.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/SimulationMappingStrategy.cs) | `SimulationMappingStrategy` | シミュレーションモード用戦略。自転車物理モデル、目標速度算出（ニュートン法による3次方程式求解）、ゼロパワー時挙動、下り坂重力加速エミュレーション。 |
 | [`Core/SpeedPidController.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/SpeedPidController.cs) | `SpeedPidController` | 車速を目標速度に追従させるためのPID制御エンジン。アンチワインドアップ（積分飽和制限）を内蔵。 |
 | [`Core/ControlOutput.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Core/ControlOutput.cs) | `ControlOutput` | 計算されたアクセル（Throttle: 0.0〜1.0、および互換用ブレーキ値）を保持するデータ構造体。 |
-| [`Trainer/FtmsClient.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Trainer/FtmsClient.cs) | `FtmsClient` | Windows BLE API を使用した、スマートローラートレーナーとのGATT通信クライアント。データ（パワー・ケイデンス・速度）受信と、負荷（斜度・抵抗レベル）指令送信。 |
+| [`Trainer/FtmsClient.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Trainer/FtmsClient.cs) | `FtmsClient` | スマートローラートレーナーとのBLE GATT通信クライアント（FTMSプロトコル対応）。パワー受信および負荷（斜度）送信を担う。 |
+| [`Trainer/CyclingPowerClient.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Trainer/CyclingPowerClient.cs) | `CyclingPowerClient` | スマートローラーを持たないユーザー向けに、単体のパワーメーター（Cycling Power Profile: 0x1818）と通信してパワーデータを受信するクライアント。 |
 | [`Telemetry/ForzaDataPacket.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Telemetry/ForzaDataPacket.cs) | `ForzaDataPacket` | Forza Motorsport から送られるUDPテレメトリパケット（リトルエンディアン仕様）を解析・構造体化するパースクラス。 |
 | [`Telemetry/ForzaUdpReceiver.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Telemetry/ForzaUdpReceiver.cs) | `ForzaUdpReceiver` | 指定ポート（デフォルト：5000）で非同期UDP待ち受けを行い、受信したデータをパケットクラスに流す受信サーバー。 |
 | [`Controller/VJoyVehicleController.cs`](file:///d:/develop/HorizonCycling/src/HorizonCyclingBridge/Controller/VJoyVehicleController.cs) | `VJoyVehicleController` | C++製 `vJoyInterface.dll` を P/Invoke (DLL Import) で呼び出し、仮想的なジョイスティック軸信号としてゲームにキー追従出力を送るデバイスコントローラー。 |

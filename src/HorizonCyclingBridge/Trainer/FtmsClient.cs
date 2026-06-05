@@ -47,12 +47,15 @@ namespace HorizonCyclingBridge.Trainer
         /// </summary>
         public bool IsConnected => _device != null && _device.ConnectionStatus == BluetoothConnectionStatus.Connected;
 
+        private ulong _targetAddress = 0;
+
         /// <summary>
-        /// 周辺のFTMSスマートローラーをスキャンし、最初に見つかったデバイスに自動接続します。
+        /// 周辺のFTMSスマートローラーをスキャンし、接続します。targetAddressが指定されている場合はそのデバイスのみに接続します。
         /// </summary>
         /// <param name="timeoutMs">スキャンタイムアウト時間 (ミリ秒)</param>
+        /// <param name="targetAddress">接続対象のMACアドレス（0の場合は最初に見つかったデバイス）</param>
         /// <returns>接続が成功した場合は真</returns>
-        public async Task<bool> ScanAndConnectAsync(int timeoutMs = 20000)
+        public async Task<bool> ScanAndConnectAsync(int timeoutMs = 20000, ulong targetAddress = 0)
         {
             if (IsConnected)
             {
@@ -60,6 +63,7 @@ namespace HorizonCyclingBridge.Trainer
                 return true;
             }
 
+            _targetAddress = targetAddress;
             _connectTcs = new TaskCompletionSource<bool>();
             
             // BLEアドバタイズメント監視のセットアップ
@@ -70,7 +74,8 @@ namespace HorizonCyclingBridge.Trainer
             _watcher.Received += Watcher_Received;
             _watcher.Stopped += Watcher_Stopped;
 
-            OnStatusMessage?.Invoke("[BLE] Scanning for FTMS Smart Trainer. Please make sure the trainer is powered on and pairing-ready...");
+            string targetStr = _targetAddress == 0 ? "any" : $"{_targetAddress:X}";
+            OnStatusMessage?.Invoke($"[BLE] Scanning for FTMS Smart Trainer (Target: {targetStr}). Please make sure the trainer is powered on and pairing-ready...");
             _watcher.Start();
 
             // タイムアウト時の自動停止タスク
@@ -89,6 +94,11 @@ namespace HorizonCyclingBridge.Trainer
 
         private async void Watcher_Received(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args)
         {
+            if (_targetAddress != 0 && args.BluetoothAddress != _targetAddress)
+            {
+                return; // Target specified but doesn't match
+            }
+
             // デバイスが見つかったら即座にスキャンを停止
             StopScanning();
 
