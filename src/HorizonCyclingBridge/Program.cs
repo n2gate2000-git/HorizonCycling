@@ -21,12 +21,11 @@ namespace HorizonCyclingBridge
         private static double _lastSentGrade = 999.0;
         private static uint _lastSentTimeMS = 0;
         
-        // 調査用デバッグログの間隔制御用
-        private static uint _lastDebugTimeMS = 0;
-        
         // 移動平均（EMA）フィルタの平滑化係数
-        // 0.15 から 0.03 に引き下げて、加減速によるノイズ（リアの沈み込み等）を強力にカットします
         private const double EMA_ALPHA = 0.03;
+
+        // 固定画面表示ダッシュボード管理インスタンス
+        private static readonly ConsoleDashboard _dashboard = new ConsoleDashboard();
 
         static async Task Main(string[] args)
         {
@@ -92,8 +91,6 @@ namespace HorizonCyclingBridge
                 modeName = "SIMULATION MODE";
             }
 
-            Console.WriteLine($"\n[INFO] Selected Mode: {modeName}");
-
             // 1.5. 負荷再現割合 (Trainer Difficulty) の選択
             Console.WriteLine("\n[TRAINER DIFFICULTY SELECTION]");
             Console.Write(" Enter Trainer Difficulty (0% to 100%, default is 50%): ");
@@ -110,18 +107,20 @@ namespace HorizonCyclingBridge
             {
                 _trainerDifficulty = 0.5;
             }
-            Console.WriteLine($"[INFO] Trainer Difficulty set to: {(_trainerDifficulty * 100.0):F0}%");
+
+            // ダッシュボード初期化
+            _dashboard.ModeName = modeName;
+            _dashboard.IsArcadeMode = (strategy is ArcadeMappingStrategy);
+            _dashboard.InitializeLayout();
+            _dashboard.AddLog($"Selected Mode: {modeName}");
+            _dashboard.AddLog($"Trainer Difficulty set to: {(_trainerDifficulty * 100.0):F0}%");
 
             // 2. 各連携モジュールの初期化
-            Console.WriteLine("\n[INITIALIZING CORE MODULES]");
-            
             // A. vJoy 仮想コントローラーの初期化
             using var vJoyController = new VJoyVehicleController(1);
+            vJoyController.OnStatusMessage += msg => _dashboard.AddLog(msg);
             bool isVJoyReady = vJoyController.Initialize();
-            if (!isVJoyReady)
-            {
-                Console.WriteLine("[WARNING] vJoy failed to initialize. Controller output emulation is DISABLED.");
-            }
+            _dashboard.IsVJoyActive = isVJoyReady;
 
             // B. BLE デバイスの接続
             FtmsClient? ftmsClient = null;
@@ -131,36 +130,52 @@ namespace HorizonCyclingBridge
             if (config != null && config.PowerSourceType == SensorType.Ftms)
             {
                 ftmsClient = new FtmsClient();
-                ftmsClient.OnStatusMessage += msg => Console.WriteLine(msg);
+                ftmsClient.OnStatusMessage += msg => _dashboard.AddLog($"[BLE] {msg}");
                 ftmsClient.OnPowerReceived += power => _currentPower = power;
                 ftmsClient.OnSpeedReceived += speed => _trainerSpeedKmh = speed;
 
+                _dashboard.BleStatus = $"Connecting (FTMS MAC: {config.PowerSourceMacAddress:X})...";
                 isBleConnected = await ftmsClient.ScanAndConnectAsync(20000, config.PowerSourceMacAddress);
                 if (isBleConnected)
                 {
                     await ftmsClient.SetTargetResistanceLevelAsync(0);
                     _lastSentGrade = 0.0;
-                    Console.WriteLine("[BLE] Smart trainer resistance initialized to FREE (Level 0).");
+                    _dashboard.BleStatus = $"Connected (FTMS: {config.PowerSourceMacAddress:X})";
+                    _dashboard.AddLog("[BLE] Smart trainer resistance set to FREE (Level 0).");
+                }
+                else
+                {
+                    _dashboard.BleStatus = "Connection Failed (FTMS)";
                 }
             }
             else if (config != null && config.PowerSourceType == SensorType.CyclingPower)
             {
                 cpClient = new CyclingPowerClient();
-                cpClient.OnStatusMessage += msg => Console.WriteLine(msg);
+                cpClient.OnStatusMessage += msg => _dashboard.AddLog($"[BLE] {msg}");
                 cpClient.OnPowerReceived += power => _currentPower = power;
 
+                _dashboard.BleStatus = $"Connecting (PowerMeter MAC: {config.PowerSourceMacAddress:X})...";
                 isBleConnected = await cpClient.ScanAndConnectAsync(20000, config.PowerSourceMacAddress);
+                if (isBleConnected)
+                {
+                    _dashboard.BleStatus = $"Connected (PowerMeter: {config.PowerSourceMacAddress:X})";
+                    _dashboard.AddLog("[BLE] Cycling Power Meter connected.");
+                }
+                else
+                {
+                    _dashboard.BleStatus = "Connection Failed (PowerMeter)";
+                }
             }
-
-            if (!isBleConnected)
+            else
             {
-                Console.WriteLine("[WARNING] Could not connect to BLE device.");
-                Console.WriteLine("          Pedal power input will fall back to 0W.");
+                _dashboard.BleStatus = "Not Connected (Fallback 0W)";
+                _dashboard.AddLog("[WARNING] Could not connect to BLE device. Fallback 0W.");
             }
 
             // C. Forza UDP テレメトリ受信サーバーの初期化
             int port = 5000;
             var receiver = new ForzaUdpReceiver(port);
+            receiver.OnStatusMessage += msg => _dashboard.AddLog(msg);
 
             // 3. テレメトリパケット受信時の連動ロジック
             receiver.OnPacketReceived += (packet) =>
@@ -204,22 +219,21 @@ namespace HorizonCyclingBridge
                 }
 
                 uint currentTimeMS = packet.TimestampMS;
-                if (currentTimeMS - _lastDebugTimeMS >= 1000 || _lastDebugTimeMS == 0)
-                {
-                    Console.WriteLine($"\n[DEBUG-TELEMETRY] Time: {currentTimeMS} | RawPitch: {packet.Pitch:F4} rad | Accel: X:{packet.AccelerationX:F2}, Y:{packet.AccelerationY:F2}, Z:{packet.AccelerationZ:F2} | Speed: {packet.SpeedKmh:F1} km/h");
-                    
-                    double currentSpeedKmh = packet.SpeedKmh;
-                    double targetSpeedKmh = (strategy is SimulationMappingStrategy sim) ? sim.TargetSpeedKmh : 0.0;
+                double currentSpeedKmh = packet.SpeedKmh;
+                double targetSpeedKmh = (strategy is SimulationMappingStrategy sim) ? sim.TargetSpeedKmh : 0.0;
 
-                    string speedComparison = (strategy is SimulationMappingStrategy)
-                        ? $"Target: {targetSpeedKmh:F1} km/h | Car: {currentSpeedKmh:F1} km/h"
-                        : $"Direct Accel: {(control.Throttle * 100.0):F0}%";
+                // ダッシュボード更新
+                _dashboard.UpdateMetrics(
+                    power: _currentPower,
+                    targetSpeed: targetSpeedKmh,
+                    carSpeed: currentSpeedKmh,
+                    rawGrade: _filteredGrade,
+                    sentGrade: _lastSentGrade == 999.0 ? 0.0 : _lastSentGrade,
+                    difficulty: _trainerDifficulty,
+                    throttle: control.Throttle,
+                    brake: control.Brake
+                );
 
-                    Console.Write($"\r[ACTIVE] {modeName} | Pedal: {_currentPower:F0} W | {speedComparison} | Grade: {_filteredGrade:F1}% (Diff: {(_trainerDifficulty * 100.0):F0}%) | Out -> Thr: {control.Throttle:F2}, Brk: {control.Brake:F2}        ");
-
-                    _lastDebugTimeMS = currentTimeMS;
-                }
-                
                 _filteredGrade = (_filteredGrade * (1.0 - EMA_ALPHA)) + (correctedGrade * EMA_ALPHA);
 
                 // スマートローラーが接続されている場合のみ、物理抵抗をフィードバックする
@@ -275,12 +289,12 @@ namespace HorizonCyclingBridge
 
                         if (targetIncline <= 0.0)
                         {
-                            Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: FREE (OpCode 0x04, Level 0) [Descent/Flat]");
+                            _dashboard.AddLog("[BLE-SEND] Sent FREE (Level 0)");
                             _ = ftmsClient.SetTargetResistanceLevelAsync(0);
                         }
                         else
                         {
-                            Console.WriteLine($"\n[DEBUG-BLE-SEND] Time: {currentTimeMS} | Filtered: {_filteredGrade:F2}% | SentToTrainer: {targetIncline:F1}% (Trigger: {(isZeroReset ? "ZeroReset" : "Normal")})");
+                            _dashboard.AddLog($"[BLE-SEND] Sent Grade {targetIncline:F1}%");
                             _ = ftmsClient.SetIndoorBikeSimulationParametersAsync(targetIncline);
                         }
                     }
@@ -290,23 +304,15 @@ namespace HorizonCyclingBridge
 
             receiver.OnError += (ex) =>
             {
-                Console.WriteLine($"\n[ERROR] Telemetry receiver encountered error: {ex.Message}");
+                _dashboard.AddLog($"[ERROR] Telemetry error: {ex.Message}");
             };
 
             // 4. システムの実行稼働
             try
             {
                 receiver.Start();
-                Console.WriteLine("\n[BRIDGE] Middle-ware bridge is now fully ACTIVE. Have a nice virtual ride!");
-                Console.WriteLine("======================================================================");
-                Console.WriteLine("[CONTROLLER & KEYBOARD INSTRUCTIONS]");
-                Console.WriteLine("  - [-] キーを押す : スマートローラーの負荷再現割合を 10% 下げます");
-                Console.WriteLine("  - [+] キーを押す : スマートローラーの負荷再現割合を 10% 上げます");
-                Console.WriteLine("  - [M] キーを押す : シミュレーションとアーケードの動作モードを切り替えます");
-                Console.WriteLine("  - [T] キーを押す : アクセル（Throttle 100%）を 3秒間 送信します");
-                Console.WriteLine("  終了:");
-                Console.WriteLine("  - [Q] キーを押す: アプリケーションを安全に終了します");
-                Console.WriteLine("======================================================================");
+                _dashboard.IsTelemetryActive = true;
+                _dashboard.AddLog("[BRIDGE] Middle-ware bridge is now ACTIVE.");
                 
                 bool running = true;
                 while (running)
@@ -320,7 +326,7 @@ namespace HorizonCyclingBridge
                         if (keyChar == '-' || keyChar == '_')
                         {
                             _trainerDifficulty = Math.Clamp(_trainerDifficulty - 0.1, 0.0, 1.0);
-                            Console.WriteLine($"\n[DIFFICULTY] Trainer Difficulty decreased to: {(_trainerDifficulty * 100.0):F0}%");
+                            _dashboard.AddLog($"Difficulty decreased to: {(_trainerDifficulty * 100.0):F0}%");
                             _lastSentGrade = 999.0; 
                             
                             if (_trainerDifficulty <= 0.001 && ftmsClient != null && ftmsClient.IsConnected)
@@ -332,18 +338,18 @@ namespace HorizonCyclingBridge
                         else if (keyChar == '+' || keyChar == '=')
                         {
                             _trainerDifficulty = Math.Clamp(_trainerDifficulty + 0.1, 0.0, 1.0);
-                            Console.WriteLine($"\n[DIFFICULTY] Trainer Difficulty increased to: {(_trainerDifficulty * 100.0):F0}%");
+                            _dashboard.AddLog($"Difficulty increased to: {(_trainerDifficulty * 100.0):F0}%");
                             _lastSentGrade = 999.0; 
                         }
                         else if (key == ConsoleKey.T)
                         {
-                            Console.WriteLine("\n[TEST] Sending THROTTLE 100% for 3 seconds...");
+                            _dashboard.AddLog("[TEST] Sending THROTTLE 100% (3 seconds)...");
                             _isTestingThrottle = true;
                             if (isVJoyReady) vJoyController.SendInputs(1.0f);
                             await Task.Delay(3000);
                             if (isVJoyReady) vJoyController.SendInputs(0.0f);
                             _isTestingThrottle = false;
-                            Console.WriteLine("[TEST] Throttle output stopped. Restored to telemetry control.");
+                            _dashboard.AddLog("[TEST] Throttle output stopped.");
                         }
                         else if (key == ConsoleKey.M)
                         {
@@ -351,14 +357,15 @@ namespace HorizonCyclingBridge
                             {
                                 strategy = new ArcadeMappingStrategy(ftp: 200.0);
                                 modeName = "ARCADE MODE";
-                                Console.WriteLine($"\n[MODE] Switched to: {modeName}");
                             }
                             else
                             {
                                 strategy = new SimulationMappingStrategy(kp: 1.0f, ki: 0.2f, kd: 0.05f);
                                 modeName = "SIMULATION MODE";
-                                Console.WriteLine($"\n[MODE] Switched to: {modeName}");
                             }
+                            _dashboard.ModeName = modeName;
+                            _dashboard.IsArcadeMode = (strategy is ArcadeMappingStrategy);
+                            _dashboard.AddLog($"Switched mode to: {modeName}");
                             _lastSentGrade = 999.0; 
                         }
                         else if (key == ConsoleKey.Q)
@@ -371,15 +378,14 @@ namespace HorizonCyclingBridge
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[FATAL] Application crash: {ex.Message}");
+                _dashboard.AddLog($"[FATAL] Application crash: {ex.Message}");
             }
             finally
             {
                 receiver.Stop();
                 ftmsClient?.Disconnect();
                 cpClient?.Disconnect();
-                Console.WriteLine("\n[BRIDGE] Sessions ended. Bluetooth and UDP connections successfully released.");
-                Console.WriteLine("======================================================================");
+                _dashboard.Cleanup();
             }
         }
 

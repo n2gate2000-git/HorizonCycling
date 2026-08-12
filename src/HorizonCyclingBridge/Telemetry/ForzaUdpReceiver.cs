@@ -14,6 +14,11 @@ namespace HorizonCyclingBridge.Telemetry
         private Task? _receiveTask;
 
         /// <summary>
+        /// ステータスメッセージが発生したときに発生するイベント
+        /// </summary>
+        public event Action<string>? OnStatusMessage;
+
+        /// <summary>
         /// テレメトリパケットを正常に受信しパースしたときに発生するイベント
         /// </summary>
         public event Action<ForzaDataPacket>? OnPacketReceived;
@@ -40,7 +45,7 @@ namespace HorizonCyclingBridge.Telemetry
         {
             if (IsRunning)
             {
-                Console.WriteLine("[UDP] Receiver is already running.");
+                OnStatusMessage?.Invoke("[UDP] Receiver is already running.");
                 return;
             }
 
@@ -62,12 +67,12 @@ namespace HorizonCyclingBridge.Telemetry
             _udpClient?.Close();
             _udpClient = null;
             _receiveTask = null;
-            Console.WriteLine("[UDP] Receiver stopped.");
+            OnStatusMessage?.Invoke("[UDP] Receiver stopped.");
         }
 
         private async Task ReceiveLoop(CancellationToken token)
         {
-            Console.WriteLine($"[UDP] Listening for Forza telemetry on port {_port}...");
+            OnStatusMessage?.Invoke($"[UDP] Listening for Forza telemetry on port {_port}...");
 
             try
             {
@@ -92,7 +97,7 @@ namespace HorizonCyclingBridge.Telemetry
             }
             catch (OperationCanceledException)
             {
-                Console.WriteLine("[UDP] Listening canceled.");
+                OnStatusMessage?.Invoke("[UDP] Listening canceled.");
             }
             catch (Exception ex)
             {

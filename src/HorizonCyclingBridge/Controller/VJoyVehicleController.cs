@@ -58,6 +58,11 @@ namespace HorizonCyclingBridge.Controller
         private bool _acquired;
         private JoystickState _state;
 
+        /// <summary>
+        /// ステータスメッセージ通知イベント
+        /// </summary>
+        public event Action<string>? OnStatusMessage;
+
         public bool IsAcquired => _acquired;
 
         public VJoyVehicleController(uint deviceId = 1)
@@ -75,29 +80,29 @@ namespace HorizonCyclingBridge.Controller
             {
                 if (!vJoyEnabled())
                 {
-                    Console.WriteLine("[vJoy] vJoy driver is not enabled/installed on this system.");
+                    OnStatusMessage?.Invoke("[vJoy] vJoy driver is not enabled/installed on this system.");
                     return false;
                 }
 
                 _acquired = AcquireVJD(_deviceId);
                 if (!_acquired)
                 {
-                    Console.WriteLine($"[vJoy] Failed to acquire vJoy device {_deviceId}. It might be used by another app.");
+                    OnStatusMessage?.Invoke($"[vJoy] Failed to acquire vJoy device {_deviceId}. It might be used by another app.");
                     return false;
                 }
 
                 ResetVJD(_deviceId);
-                Console.WriteLine($"[vJoy] Successfully acquired and reset vJoy device {_deviceId}.");
+                OnStatusMessage?.Invoke($"[vJoy] Successfully acquired and reset vJoy device {_deviceId}.");
                 return true;
             }
             catch (DllNotFoundException)
             {
-                Console.WriteLine("[vJoy] ERROR: vJoyInterface.dll not found. Please install vJoy or place the DLL in the execution folder.");
+                OnStatusMessage?.Invoke("[vJoy] ERROR: vJoyInterface.dll not found. Please install vJoy or place the DLL in the execution folder.");
                 return false;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[vJoy] ERROR: Initialization failed: {ex.Message}");
+                OnStatusMessage?.Invoke($"[vJoy] ERROR: Initialization failed: {ex.Message}");
                 return false;
             }
         }
@@ -111,14 +116,10 @@ namespace HorizonCyclingBridge.Controller
             if (!_acquired) return;
 
             // 0.0〜1.0 の値を vJoy の標準範囲である 1〜32768 にマッピング
-            // 32767 のスパンにマッピングして +1
             int throttleVal = 1 + (int)(Math.Clamp(throttle, 0f, 1f) * 32767);
 
-            // 複数の汎用軸に同時にマッピングしておくことで、ゲーム側での検出性を高めます。
             _state.AxisX = throttleVal;     // アクセル
             _state.AxisXRot = throttleVal;  // トリガー代用
-
-            // ブレーキ用の軸（AxisY/AxisYRot）は送信対象から除外（常にブレーキ0%相当のニュートラル値1に固定）
             _state.AxisY = 1;
             _state.AxisYRot = 1;
 
@@ -135,7 +136,7 @@ namespace HorizonCyclingBridge.Controller
                 ResetVJD(_deviceId);
                 RelinquishVJD(_deviceId);
                 _acquired = false;
-                Console.WriteLine($"[vJoy] Relinquished vJoy device {_deviceId}.");
+                OnStatusMessage?.Invoke($"[vJoy] Relinquished vJoy device {_deviceId}.");
             }
         }
     }
