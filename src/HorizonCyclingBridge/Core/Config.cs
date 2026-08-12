@@ -17,6 +17,8 @@ namespace HorizonCyclingBridge.Core
         public SensorType PowerSourceType { get; set; } = SensorType.None;
         public ulong PowerSourceMacAddress { get; set; } = 0;
         public string PowerSourceName { get; set; } = string.Empty;
+        public int DefaultMode { get; set; } = 2;
+        public double TrainerDifficulty { get; set; } = 0.5;
     }
 
     public static class ConfigManager

@@ -31,12 +31,12 @@ namespace HorizonCyclingBridge
         {
             Console.Clear();
             Console.WriteLine("======================================================================");
-            Console.WriteLine("        HorizonCyclingBridge: Smart Trainer & Forza 6 Dual-Bridge     ");
+            Console.WriteLine("     HorizonCyclingBridge v0.3: Smart Trainer & Forza 6 Dual-Bridge   ");
             Console.WriteLine("======================================================================");
 
             // 0. 引数解析とコンフィグのロード
             bool setupMode = args.Contains("--setup-sensors");
-            AppConfig? config = null;
+            AppConfig config = ConfigManager.Load();
 
             for (int i = 0; i < args.Length; i++)
             {
@@ -45,41 +45,53 @@ namespace HorizonCyclingBridge
                     string macStr = args[i + 1].Replace(":", "");
                     if (ulong.TryParse(macStr, System.Globalization.NumberStyles.HexNumber, null, out ulong mac))
                     {
-                        config = new AppConfig { PowerSourceType = SensorType.CyclingPower, PowerSourceMacAddress = mac };
+                        config.PowerSourceType = SensorType.CyclingPower;
+                        config.PowerSourceMacAddress = mac;
                         Console.WriteLine($"[INFO] CLI override: Power Meter MAC {mac:X}");
                     }
                 }
             }
 
-            if (config == null && !setupMode)
+            if (config.PowerSourceType == SensorType.None)
             {
-                config = ConfigManager.Load();
-                if (config.PowerSourceType == SensorType.None)
-                {
-                    setupMode = true;
-                }
-                else
-                {
-                    Console.WriteLine($"[INFO] Loaded config: {config.PowerSourceType} ({config.PowerSourceMacAddress:X})");
-                }
+                setupMode = true;
+            }
+            else if (!setupMode)
+            {
+                Console.WriteLine($"[INFO] Loaded config: {config.PowerSourceType} ({config.PowerSourceMacAddress:X})");
             }
 
             if (setupMode)
             {
-                config = await RunSetupSensorsAsync();
+                config = await RunSetupSensorsAsync(config);
             }
 
             // 1. 動作モードの選択
+            int defaultMode = (config.DefaultMode == 1 || config.DefaultMode == 2) ? config.DefaultMode : 2;
             Console.WriteLine("\n[MODE SELECTION]");
             Console.WriteLine(" 1. Arcade Mode (Pedal Power -> Direct Throttle Mapping)");
             Console.WriteLine(" 2. Simulation Mode (Pedal Power + Pitch -> Speed Tracking via PID)");
-            Console.Write(" Select mode (1 or 2, default is 2): ");
-            string input = Console.ReadLine() ?? "2";
+            Console.Write($" Select mode (1 or 2, default is {defaultMode}): ");
+            string input = Console.ReadLine() ?? "";
             
             IPowerMappingStrategy strategy;
             string modeName;
+            int selectedMode;
 
             if (input.Trim() == "1")
+            {
+                selectedMode = 1;
+            }
+            else if (input.Trim() == "2")
+            {
+                selectedMode = 2;
+            }
+            else
+            {
+                selectedMode = defaultMode;
+            }
+
+            if (selectedMode == 1)
             {
                 strategy = new ArcadeMappingStrategy(ftp: 200.0); // 基準FTP: 200W
                 modeName = "ARCADE MODE";
@@ -91,13 +103,23 @@ namespace HorizonCyclingBridge
                 modeName = "SIMULATION MODE";
             }
 
+            if (config.DefaultMode != selectedMode)
+            {
+                config.DefaultMode = selectedMode;
+                ConfigManager.Save(config);
+            }
+
             // 1.5. 負荷再現割合 (Trainer Difficulty) の選択
+            double defaultDiff = config.TrainerDifficulty;
+            if (defaultDiff < 0.0 || defaultDiff > 1.0) defaultDiff = 0.5;
+            int defaultDiffPercent = (int)Math.Round(defaultDiff * 100.0);
+
             Console.WriteLine("\n[TRAINER DIFFICULTY SELECTION]");
-            Console.Write(" Enter Trainer Difficulty (0% to 100%, default is 50%): ");
+            Console.Write($" Enter Trainer Difficulty (0% to 100%, default is {defaultDiffPercent}%): ");
             string diffInput = Console.ReadLine() ?? "";
             if (string.IsNullOrWhiteSpace(diffInput))
             {
-                _trainerDifficulty = 0.5;
+                _trainerDifficulty = defaultDiff;
             }
             else if (double.TryParse(diffInput, out double parsedDiff))
             {
@@ -105,7 +127,13 @@ namespace HorizonCyclingBridge
             }
             else
             {
-                _trainerDifficulty = 0.5;
+                _trainerDifficulty = defaultDiff;
+            }
+
+            if (Math.Abs(config.TrainerDifficulty - _trainerDifficulty) > 0.0001)
+            {
+                config.TrainerDifficulty = _trainerDifficulty;
+                ConfigManager.Save(config);
             }
 
             // ダッシュボード初期化
@@ -329,6 +357,9 @@ namespace HorizonCyclingBridge
                             _dashboard.AddLog($"Difficulty decreased to: {(_trainerDifficulty * 100.0):F0}%");
                             _lastSentGrade = 999.0; 
                             
+                            config!.TrainerDifficulty = _trainerDifficulty;
+                            ConfigManager.Save(config!);
+
                             if (_trainerDifficulty <= 0.001 && ftmsClient != null && ftmsClient.IsConnected)
                             {
                                 _ = ftmsClient.SetTargetResistanceLevelAsync(0);
@@ -340,6 +371,9 @@ namespace HorizonCyclingBridge
                             _trainerDifficulty = Math.Clamp(_trainerDifficulty + 0.1, 0.0, 1.0);
                             _dashboard.AddLog($"Difficulty increased to: {(_trainerDifficulty * 100.0):F0}%");
                             _lastSentGrade = 999.0; 
+                            
+                            config!.TrainerDifficulty = _trainerDifficulty;
+                            ConfigManager.Save(config!);
                         }
                         else if (key == ConsoleKey.T)
                         {
@@ -353,20 +387,26 @@ namespace HorizonCyclingBridge
                         }
                         else if (key == ConsoleKey.M)
                         {
+                            int newMode;
                             if (strategy is SimulationMappingStrategy)
                             {
                                 strategy = new ArcadeMappingStrategy(ftp: 200.0);
                                 modeName = "ARCADE MODE";
+                                newMode = 1;
                             }
                             else
                             {
                                 strategy = new SimulationMappingStrategy(kp: 1.0f, ki: 0.2f, kd: 0.05f);
                                 modeName = "SIMULATION MODE";
+                                newMode = 2;
                             }
                             _dashboard.ModeName = modeName;
                             _dashboard.IsArcadeMode = (strategy is ArcadeMappingStrategy);
                             _dashboard.AddLog($"Switched mode to: {modeName}");
                             _lastSentGrade = 999.0; 
+
+                            config!.DefaultMode = newMode;
+                            ConfigManager.Save(config!);
                         }
                         else if (key == ConsoleKey.Q)
                         {
@@ -389,8 +429,9 @@ namespace HorizonCyclingBridge
             }
         }
 
-        private static async Task<AppConfig> RunSetupSensorsAsync()
+        private static async Task<AppConfig> RunSetupSensorsAsync(AppConfig existingConfig)
         {
+            var config = existingConfig;
             Console.WriteLine("\n[SETUP] Scanning for BLE devices (FTMS and Cycling Power)... (10 seconds)");
             var foundDevices = new List<(ulong Address, string Name, SensorType Type)>();
             
@@ -456,7 +497,7 @@ namespace HorizonCyclingBridge
             if (foundDevices.Count == 0)
             {
                 Console.WriteLine("No devices found. Falling back to default (FTMS any).");
-                return new AppConfig();
+                return config;
             }
 
             Console.Write("Select device for POWER (Enter number, or 0 to skip): ");
@@ -464,19 +505,17 @@ namespace HorizonCyclingBridge
             if (int.TryParse(input, out int idx) && idx > 0 && idx <= foundDevices.Count)
             {
                 var selected = foundDevices[idx - 1];
-                var config = new AppConfig
-                {
-                    PowerSourceType = selected.Type,
-                    PowerSourceMacAddress = selected.Address,
-                    PowerSourceName = selected.Name
-                };
+                config.PowerSourceType = selected.Type;
+                config.PowerSourceMacAddress = selected.Address;
+                config.PowerSourceName = selected.Name;
+
                 ConfigManager.Save(config);
                 Console.WriteLine($"[SETUP] Configuration saved to config.json. Selected: {selected.Name} ({selected.Address:X})");
                 return config;
             }
 
             Console.WriteLine("[SETUP] Setup skipped or invalid selection. Falling back to default.");
-            return new AppConfig();
+            return config;
         }
     }
 }
