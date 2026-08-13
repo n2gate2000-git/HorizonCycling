@@ -32,7 +32,7 @@ namespace HorizonCyclingBridge
         {
             Console.Clear();
             Console.WriteLine("======================================================================");
-            Console.WriteLine("     HorizonCyclingBridge v0.3: Smart Trainer & Forza 6 Dual-Bridge   ");
+            Console.WriteLine("     HorizonCyclingBridge v0.4: Smart Trainer & Forza 6 Dual-Bridge   ");
             Console.WriteLine("======================================================================");
 
             // 0. 引数解析とコンフィグのロード
