@@ -19,6 +19,7 @@ namespace HorizonCyclingBridge.Core
         public string PowerSourceName { get; set; } = string.Empty;
         public int DefaultMode { get; set; } = 2;
         public double TrainerDifficulty { get; set; } = 0.5;
+        public double Ftp { get; set; } = 200.0;
     }
 
     public static class ConfigManager

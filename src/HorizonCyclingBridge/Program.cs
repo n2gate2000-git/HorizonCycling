@@ -32,7 +32,7 @@ namespace HorizonCyclingBridge
         {
             Console.Clear();
             Console.WriteLine("======================================================================");
-            Console.WriteLine("     HorizonCyclingBridge v0.4: Smart Trainer & Forza 6 Dual-Bridge   ");
+            Console.WriteLine("     HorizonCyclingBridge v0.5: Smart Trainer & Forza 6 Dual-Bridge   ");
             Console.WriteLine("======================================================================");
 
             // 0. 引数解析とコンフィグのロード
@@ -59,7 +59,7 @@ namespace HorizonCyclingBridge
             }
             else if (!setupMode)
             {
-                Console.WriteLine($"[INFO] Loaded config: {config.PowerSourceType} ({config.PowerSourceMacAddress:X})");
+                Console.WriteLine($"[INFO] Loaded config: {config.PowerSourceType} ({config.PowerSourceMacAddress:X}), FTP: {config.Ftp}W");
             }
 
             if (setupMode)
@@ -94,7 +94,7 @@ namespace HorizonCyclingBridge
 
             if (selectedMode == 1)
             {
-                strategy = new ArcadeMappingStrategy(ftp: 200.0); // 基準FTP: 200W
+                strategy = new ArcadeMappingStrategy(ftp: config.Ftp); // 基準FTP: config.Ftp (デフォルト200W)
                 modeName = "ARCADE MODE";
             }
             else
@@ -509,25 +509,36 @@ namespace HorizonCyclingBridge
             Console.WriteLine("\n[SETUP] Scan complete.");
             if (foundDevices.Count == 0)
             {
-                Console.WriteLine("No devices found. Falling back to default (FTMS any).");
-                return config;
+                Console.WriteLine("No devices found during scan.");
             }
-
-            Console.Write("Select device for POWER (Enter number, or 0 to skip): ");
-            string input = Console.ReadLine() ?? "0";
-            if (int.TryParse(input, out int idx) && idx > 0 && idx <= foundDevices.Count)
+            else
             {
-                var selected = foundDevices[idx - 1];
-                config.PowerSourceType = selected.Type;
-                config.PowerSourceMacAddress = selected.Address;
-                config.PowerSourceName = selected.Name;
-
-                ConfigManager.Save(config);
-                Console.WriteLine($"[SETUP] Configuration saved to config.json. Selected: {selected.Name} ({selected.Address:X})");
-                return config;
+                Console.Write("Select device for POWER (Enter number, or 0 to skip): ");
+                string input = Console.ReadLine() ?? "0";
+                if (int.TryParse(input, out int idx) && idx > 0 && idx <= foundDevices.Count)
+                {
+                    var selected = foundDevices[idx - 1];
+                    config.PowerSourceType = selected.Type;
+                    config.PowerSourceMacAddress = selected.Address;
+                    config.PowerSourceName = selected.Name;
+                }
+                else
+                {
+                    Console.WriteLine("[SETUP] Device selection skipped or invalid. Retaining current sensor settings.");
+                }
             }
 
-            Console.WriteLine("[SETUP] Setup skipped or invalid selection. Falling back to default.");
+            // 3. FTP (Functional Threshold Power) 設定
+            Console.WriteLine("\n[SETUP] Functional Threshold Power (FTP) Setting");
+            Console.Write($"Enter your target FTP in Watts (default/current is {config.Ftp}W): ");
+            string ftpInput = Console.ReadLine() ?? "";
+            if (double.TryParse(ftpInput.Trim(), out double userFtp) && userFtp > 0)
+            {
+                config.Ftp = userFtp;
+            }
+
+            ConfigManager.Save(config);
+            Console.WriteLine($"[SETUP] Configuration saved to config.json. Selected Power Sensor: {config.PowerSourceName}, FTP: {config.Ftp}W");
             return config;
         }
     }
