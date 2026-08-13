@@ -18,6 +18,16 @@
 
 ---
 
+## 📜 変更履歴 (Changelog)
+
+### v0.3
+* **コンソール出力の位置固定化（ダッシュボード化）**
+  画面スクロールによるログ流れを防止し、システムステータス、走行データ（パワー・速度・勾配・アクセル開度など）、操作キーガイド、直近ログ枠を固定位置に描画する画面固定型ダッシュボードUIを実装。
+* **動作モード・負荷難易度の次回デフォルト値保持**
+  前回選択された「動作モード（Simulation / Arcade）」および「スマートローラー負荷難易度（Trainer Difficulty）」を `config.json` に保存し、次回起動時にデフォルト値として自動読み込みする機能を追加。
+
+---
+
 ## 🚀 主な機能と特徴
 
 ### 1. ２つの動作モード
@@ -47,6 +57,12 @@
   Forzaのテレメトリ姿勢角に含まれる、車の加速・減速時のノイズや空気抵抗によるフロントの浮き（約 -0.9% 程度の定常オフセット）を数学的に相殺し、平地を走っている時はペダルが完全にフラット（0%）になるよう補正します。
 * **漕ぎ出し発進アシスト＆激坂デッドロック防止**
   坂道の途中で停車または極低速（3.0 km/h以下）になった際、スマートローラーの重い斜度負荷を強制的に `0%` に解放し、軽い漕ぎ出しでのスムーズな発進をアシストします。また、自転車物理エンジンには本来の斜度を伝える疎結合設計により、アシストによるペダル解放状態からの登坂デッドロックを完全に防止しています。
+
+### 3. 視認性と操作性を高めるUI＆設定保持
+* **画面固定型コンソールダッシュボード**
+  システムステータス、ペダルパワー(W)、速度(km/h)、道路勾配(%)、アクセル・ブレーキ開度(%)などを画面上の決まった位置に常時表示・更新します。ログ表示枠は最小化され、キー操作ガイドも固定配置され、ライディング中の視認性が向上しています。
+* **モードと負荷難易度の次回自動引き継ぎ**
+  起動時に選択した「動作モード（Simulation / Arcade）」や「負荷難易度（Difficulty）」が `config.json` に自動保存され、次回起動時のデフォルト値として読み込まれます。
 
 ---
 
@@ -174,7 +190,7 @@
 
 ### ステップ 5: 本アプリケーションのダウンロードと起動（リリースパッケージ版）
 本アプリを実行するために、GitLabなどの配布ページに公開されているビルド済みのRelease用モジュール（zip形式）を使用します。
-1. GitLab等の配布ページから、zip圧縮されたRelease用モジュール（例：`HorizonCyclingBridge-v0.2.zip` などのリリースパッケージ）をダウンロードします。
+1. GitLab等の配布ページから、zip圧縮されたRelease用モジュール（例：`HorizonCyclingBridge-v0.3.zip` などのリリースパッケージ）をダウンロードします。
 2. ダウンロードしたzipファイルを、PC上の任意のフォルダ（例：デスクトップや任意の開発フォルダ）に解凍します。
 3. 解凍したフォルダ（`HorizonCyclingBridge.exe` が存在するフォルダ）の直下に、**「ステップ 2」でコピーした `vJoyInterface.dll` が正しく貼り付けられていること**を確認します。
 4. スマートローラーの電源を入れます。スマートフォン等の他のアプリ（Zwiftやメーカーの専用アプリ等）とスマートローラーのBluetooth接続が切れている（ペアリング待機状態である）ことを確認してください。
@@ -185,75 +201,44 @@
      * スキャン完了後、見つかったデバイスの番号を入力してパワーソースを選択します。
      * 選択した設定は保存され、次回以降は自動的にそのデバイスへ接続されます。（※デバイスを変更したい場合は、コマンドライン引数 `--setup-sensors` を付けて起動し直してください）。
    * **[MODE SELECTION]** (動作モードの選択)
-     * `1`（Arcade）または `2`（Simulation）。空エンターで `2` (シミュレーション: 推奨) が選択されます。
+     * `1`（Arcade）または `2`（Simulation）。空エンターで前回選択したモード（初回デフォルトは `2`: シミュレーション）が適用されます。
    * **[TRAINER DIFFICULTY SELECTION]** (スマートローラーの負荷難易度)
-     * ローラーの負荷再現割合（0%〜100%）を入力します。空エンターで `50%` に設定されます。（※最初は `10%` や `20%` などの低い値から始めることを強く推奨します。パワーメーター単体使用時は影響しません）。
+     * ローラーの負荷再現割合（0%〜100%）を入力します。空エンターで前回設定した負荷難易度（初回デフォルトは `50%`）が適用されます。（※最初は `10%` や `20%` などの低い値から始めることを強く推奨します。パワーメーター単体使用時は影響しません）。
 7. 初期設定が完了すると、自動的に選択したデバイスへのBLE接続が確立されます。
    * **【スマートローラーとBLE接続がうまくいかない場合】**
      本アプリを起動してもスマートローラーが検知されない（スキャンが終わらない、または接続エラーになる）場合は、以下の手順をお試しください。
      1. Windowsの **「設定」 ➔ 「Bluetooth とその他のデバイス」** を開きます。
      2. **「デバイスの追加」** をクリックし、スマートローラー（BLEデバイス）をWindowsシステムにあらかじめペアリング（接続・登録）しておきます。
      3. PC側のBluetooth機能がオンになっていること、および他の機器（スマートフォンやタブレットなど）がスマートローラーとBluetooth接続中でない（接続を掴みっぱなしにしていない）ことを再度確認してください。
-8. 接続に成功し以下のようなログが表示されたら準備完了です。Forzaゲーム内でレースやフリーランを開始すると、双方向連動が自動的にアクティブになります！
+8. 接続に成功すると、画面が位置固定型のダッシュボード表示に切り替わり準備完了です。Forzaゲーム内でレースやフリーランを開始すると、双方向連動が自動的にアクティブになります！
 
-    ```log
-    ======================================================================
-            HorizonCyclingBridge: Smart Trainer & Forza 6 Dual-Bridge
-    ======================================================================
-
-    [SETUP] Scanning for BLE devices (FTMS and Cycling Power)... (10 seconds)
-      [1] Ftms: T2 13991 (E547C9BAB968) [Paired]
-      [2] CyclingPower: 41883-5 (FAE232F8A94E) [Paired]
-
-    [SETUP] Scan complete.
-    Select device for POWER (Enter number, or 0 to skip): 1
-    [SETUP] Configuration saved to config.json. Selected: T2 13991 (E547C9BAB968)
-
-    [MODE SELECTION]
-    1. Arcade Mode (Pedal Power -> Direct Throttle Mapping)
-    2. Simulation Mode (Pedal Power + Pitch -> Speed Tracking via PID)
-    Select mode (1 or 2, default is 2): 2
-
-    [INFO] Selected Mode: SIMULATION MODE
-
-    [TRAINER DIFFICULTY SELECTION]
-    Enter Trainer Difficulty (0% to 100%, default is 50%): 50
-    [INFO] Trainer Difficulty set to: 50%
-
-    [INITIALIZING CORE MODULES]
-    [vJoy] Successfully acquired and reset vJoy device 1.
-    [BLE] Scanning for FTMS Smart Trainer (Target: E547C9BAB968). Please make sure the trainer is powered on and pairing-ready...
-    [BLE] Scanning stopped.
-    [BLE] Found FTMS Trainer: 'T2 13991' Address: E547C9BAB968
-    [BLE] Querying GATT Services from T2 13991...
-    [BLE] Connection status changed: Connected
-    [BLE] Subscribed to Indoor Bike Data telemetry notification.
-    [BLE] Enabled Indications on Trainer Control Point.
-    [BLE] Successfully acquired Trainer resistance control.
-    [BLE] Connection to 'T2 13991' completely established. Ride Ready!
-    [BLE] Target resistance level update failed: 
-    [BLE] Smart trainer resistance initialized to FREE (Level 0).
-
-    [BRIDGE] Middle-ware bridge is now fully ACTIVE. Have a nice virtual ride!
-    ======================================================================
-    [CONTROLLER & KEYBOARD INSTRUCTIONS]
-      - [-] キーを押す : スマートローラーの負荷再現割合を 10% 下げます
-      - [+] キーを押す : スマートローラーの負荷再現割合を 10% 上げます
-      - [M] キーを押す : シミュレーションとアーケードの動作モードを切り替えます
-      - [T] キーを押す : アクセル（Throttle 100%）を 3秒間 送信します
-      終了:
-      - [Q] キーを押す: アプリケーションを安全に終了します
-    ======================================================================
-    [UDP] Listening for Forza telemetry on port 5000...
-
-    [DEBUG-TELEMETRY] Time: 57346265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
-    [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00
-    [DEBUG-TELEMETRY] Time: 57347265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
-    [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00        
-    [DEBUG-TELEMETRY] Time: 57348265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
-    [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00        
-    [DEBUG-TELEMETRY] Time: 57349265 | RawPitch: 0.0000 rad | Accel: X:0.00, Y:0.00, Z:0.00 | Speed: 0.0 km/h
-    [ACTIVE] SIMULATION MODE | Pedal: 0 W | Target: 0.0 km/h | Car: 0.0 km/h | Grade: 0.0% (Diff: 50%) | Out -> Thr: 0.00, Brk: 0.00    
+    ```text
+    ===============================================================================
+      HorizonCyclingBridge - Smart Trainer & Forza 6 Dual-Bridge
+    ===============================================================================
+     [SYSTEM STATUS]
+      Mode             : SIMULATION MODE
+      BLE Device       : Connected (FTMS: E547C9BAB968)
+      vJoy Controller  : ACTIVE (Device 1)
+      Telemetry Status : ACTIVE (Port 5000)
+    -------------------------------------------------------------------------------
+     [REALTIME METRICS]
+      Pedal Power      :   215 W           | Speed (Target/Car) : 32.5 / 31.8 km/h
+      Road Grade (Raw) :   +4.2 %          | Road Grade (Sent)  : +2.1 %
+      Difficulty       :    50 %           | Out (Thr / Brk)    :  85% /   0%
+    -------------------------------------------------------------------------------
+     [CONTROLLER INSTRUCTIONS]
+      [-] / [+] : Change Difficulty (±10%)   |  [M] : Switch Mode (Sim/Arcade)
+      [T]       : Test Throttle (3 seconds)  |  [Q] : Quit Application
+    -------------------------------------------------------------------------------
+     [RECENT LOGS]
+      [12:04:15] Selected Mode: SIMULATION MODE
+      [12:04:15] Trainer Difficulty set to: 50%
+      [12:04:15] [vJoy] Successfully acquired and reset vJoy device 1.
+      [12:04:16] [BLE] Smart trainer resistance set to FREE (Level 0).
+      [12:04:16] [BLE] Connection to 'T2 13991' completely established. Ride Ready!
+      [12:04:17] [BRIDGE] Telemetry loop started.
+    ===============================================================================
     ```
 
 ---
@@ -264,9 +249,9 @@
 
 |   キー操作   | 機能                         | 動作の詳細                                                                                                                                        |
 | :----------: | :--------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------ |
-| **`-` キー** | 負荷難易度を 10% 下げる      | スマートローラーの負荷再現割合（Difficulty）を 10% 減少させます。変更は即座にスマートローラーへ反映されます（最小 0%）。                          |
-| **`+` キー** | 負荷難易度を 10% 上げる      | 負荷再現割合を 10% 増加させます（最大 100%）。                                                                                                    |
-| **`M` キー** | 動作モードの動的切り替え     | 「シミュレーションモード」と「アーケードモード」を交互に瞬時に切り替えます。走行中いつでもフィーリングを切り替え可能です。                        |
+| **`-` キー** | 負荷難易度を 10% 下げる      | スマートローラーの負荷再現割合（Difficulty）を 10% 減少させます。変更は即座にスマートローラーとダッシュボード画面へ反映され、`config.json` に保存されます（最小 0%）。 |
+| **`+` キー** | 負荷難易度を 10% 上げる      | 負荷再現割合を 10% 増加させます。変更は即座にスマートローラーとダッシュボード画面へ反映され、`config.json` に保存されます（最大 100%）。 |
+| **`M` キー** | 動作モードの動的切り替え     | 「シミュレーションモード」と「アーケードモード」を交互に瞬時に切り替えます。変更は即座にダッシュボード画面へ反映され、`config.json` に保存されます。 |
 | **`T` キー** | アクセル動作テスト（3秒）    | vJoyを介して、アクセル開度 100% を3秒間強制送信します。ゲーム側のキーアサインやx360ceの認識テストに使用します。                                   |
 | **`Q` キー** | アプリケーションの安全な終了 | 実行中のUDPレシーバーを停止し、スマートローラーとのBLE接続（GATTセッション）を安全にクリーンアップして終了します。※不意の切断を防ぐ安全設計です。 |
 
