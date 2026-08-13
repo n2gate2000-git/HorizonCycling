@@ -38,7 +38,10 @@ namespace HorizonCyclingBridge.Core
         private const double THROTTLE_ALPHA = 0.08; // スロットルの滑らかさ平滑化係数 (約0.3秒で追従)
 
         private double _filteredBrake = 0.0;
-        private const double BRAKE_RAMP_ALPHA = 0.04; // ★ブレーキ作動時の滑らかなランプアップ平滑化係数 (約0.8〜1.0秒かけてジワーッと100%へ到達)
+        private bool _isBrakingActive = false;
+        private bool _hasLogged100Percent = false;
+
+        public Action<string>? OnDebugLog { get; set; }
 
         /// <summary>
         /// 目標速度の現在値 (m/s)。デバッグ表示などで利用可能
@@ -65,6 +68,8 @@ namespace HorizonCyclingBridge.Core
                 _lastTimestampMS = currentPacket.TimestampMS;
                 _filteredThrottle = 0.0;
                 _filteredBrake = 0.0;
+                _isBrakingActive = false;
+                _hasLogged100Percent = false;
                 return new ControlOutput { Throttle = 0.0f, Brake = 0.0f };
             }
 
@@ -101,80 +106,74 @@ namespace HorizonCyclingBridge.Core
             // 3. PID制御で目標速度に合わせるスロットル・ブレーキ値を計算
             ControlOutput output = _pidController.Compute((float)targetSpeedMps, currentCarSpeedMps, deltaTime);
 
-            // ★地形適応型 3ゾーン・ペダルパワー制御 (Terrain-Aware Control)
+            // ★ブレーキ状態管理（ステートマシン）
+            // 【根本原因の修正】ブレーキ作動中に isDownhill が変動しても、ブレーキ状態を絶対にリセットしない。
+            // ブレーキ解除条件は「ユーザーが意識してしっかり漕ぎ出した（> 15W）」の一つだけ。
             bool isPedalingHard = currentPower > 15.0;
-            bool isFeathering = currentPower >= 1.0 && currentPower <= 15.0;
             bool isDownhill = TrueRoadGradePercent < -3.0;
-
-            float targetBrake = 0.0f;
 
             if (isPedalingHard)
             {
-                // 1. しっかり漕ぐ (>15W): 加速・速度維持モード
-                targetBrake = 0.0f;
-                output.Throttle = Math.Max(output.Throttle, 0.20f);
-            }
-            else if (isFeathering)
-            {
-                if (isDownhill)
+                // ★ブレーキ解除の唯一の条件: しっかり漕ぐ (>15W)
+                if (_isBrakingActive)
                 {
-                    // 2-A. 下り坂で軽く足を回す (1W〜15W): 【下り坂ブレーキ】
-                    output.Throttle = 0.0f;
-                    _pidController.Reset();
+                    _isBrakingActive = false;
+                    _filteredBrake = 0.0;
+                    _hasLogged100Percent = false;
+                    OnDebugLog?.Invoke($"[BRAKE] OFF -> Pedaling ({currentPower:F1}W)");
+                }
+                output.Throttle = Math.Max(output.Throttle, 0.20f);
+                output.Brake = 0.0f;
+            }
+            else if (_isBrakingActive)
+            {
+                // ★ブレーキ作動中: 何があっても（isDownhillが変動しても）ブレーキを継続
+                // 2.0秒かけて 0% -> 100% へ単調増加し、100%に達したらそのまま100%を維持
+                _filteredBrake += (1.0 / 1.3) * deltaTime;
+                _filteredBrake = Math.Clamp(_filteredBrake, 0.0, 1.0);
 
-                    if (currentPacket != null && currentPacket.IsRaceOn && currentPacket.VelocityZ > 0.2f && currentPacket.SpeedKmh > 1.0f)
-                    {
-                        targetBrake = Math.Clamp(currentPacket.SpeedKmh / 10.0f, 0.15f, 1.0f);
-                    }
+                if (_filteredBrake >= 1.0 && !_hasLogged100Percent)
+                {
+                    _hasLogged100Percent = true;
+                    OnDebugLog?.Invoke($"[BRAKE] 100% Held -> Spd={currentPacket.SpeedKmh:F1}km/h");
+                }
+
+                // 車速 3.0 km/h 超のときのみブレーキ信号を出力、3.0 km/h 以下ではブレーキ信号を停止
+                if (currentPacket.SpeedKmh > 5.0f && currentPacket.VelocityZ > 0.1f)
+                {
+                    output.Brake = (float)_filteredBrake;
                 }
                 else
                 {
-                    // 2-B. 平地・上り坂で軽く足を回す (1W〜15W): 【平地惰性走行（コースティング）】
-                    output.Throttle = 0.0f;
-                    targetBrake = 0.0f;
-                    _pidController.Reset();
+                    output.Brake = 0.0f;
                 }
+
+                output.Throttle = 0.0f;
+                _filteredThrottle = 0.0;
+                _pidController.Reset();
             }
             else
             {
-                // 3. ペダル完全停止 (<1W / 0W)
-                if (isDownhill && currentCarSpeedMps > 1.0f)
+                // ★ブレーキ非作動中 (ペダル <= 15W): 新たにブレーキを開始するかどうか判定
+                if (isDownhill && currentPower < 1.0)
                 {
-                    // 3-A. 下り坂で足を止める (0W): 【下り坂自動滑走（オートグライド）】
-                    targetBrake = 0.0f;
+                    // 下り坂で足を止める (0W): 下り坂自動滑走（オートグライド）→ ブレーキ開始しない
                     double baseThrottle = 0.20;
                     double additionalThrottle = Math.Abs(TrueRoadGradePercent) * 0.05;
                     output.Throttle = (float)Math.Min(baseThrottle + additionalThrottle, 0.80);
+                    output.Brake = 0.0f;
                 }
                 else
                 {
-                    // 3-B. 平地・上り坂で足を止める (0W): 【平地車両停止ブレーキ】
+                    // 平地/上り坂で足を止める、または下り坂でペダリング中 → ブレーキ新規開始
+                    _isBrakingActive = true;
+                    _filteredBrake = 0.0;
+                    _hasLogged100Percent = false;
+                    OnDebugLog?.Invoke($"[BRAKE] ON -> P={currentPower:F1}W, Spd={currentPacket.SpeedKmh:F1}km/h, Grade={TrueRoadGradePercent:F1}%");
                     output.Throttle = 0.0f;
+                    output.Brake = 0.0f;
                     _pidController.Reset();
-
-                    if (currentPacket != null && currentPacket.IsRaceOn && currentPacket.VelocityZ > 0.2f && currentPacket.SpeedKmh > 1.0f)
-                    {
-                        targetBrake = Math.Clamp(currentPacket.SpeedKmh / 10.0f, 0.15f, 1.0f);
-                    }
                 }
-            }
-
-            // ★ブレーキ作動時の「じわ〜っと100%」ランプアップ平滑化フィルタ
-            if (targetBrake > 0.0f)
-            {
-                // ブレーキが作動した場合は、EMAフィルタでジワーッと滑らかにビルドアップ（約0.8〜1.0秒でターゲット値に連動）
-                _filteredBrake = (_filteredBrake * (1.0 - BRAKE_RAMP_ALPHA)) + (targetBrake * BRAKE_RAMP_ALPHA);
-                output.Brake = (float)Math.Clamp(_filteredBrake, 0.0, targetBrake);
-
-                // ブレーキ中はスロットルを即座にゼロリセット
-                _filteredThrottle = 0.0;
-                output.Throttle = 0.0f;
-            }
-            else
-            {
-                // ブレーキ解除時は即座にブレーキフィルタをリセットし、ペダリング開始時の応答性を確保
-                _filteredBrake = 0.0;
-                output.Brake = 0.0f;
 
                 _filteredThrottle = (_filteredThrottle * (1.0 - THROTTLE_ALPHA)) + (output.Throttle * THROTTLE_ALPHA);
                 output.Throttle = (float)_filteredThrottle;

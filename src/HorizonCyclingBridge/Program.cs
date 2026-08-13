@@ -138,6 +138,7 @@ namespace HorizonCyclingBridge
             }
 
             // ダッシュボード初期化
+            strategy.OnDebugLog = msg => _dashboard.AddLog(msg);
             _dashboard.ModeName = modeName;
             _dashboard.IsArcadeMode = (strategy is ArcadeMappingStrategy);
             _dashboard.InitializeLayout();
@@ -411,6 +412,7 @@ namespace HorizonCyclingBridge
                                 modeName = "SIMULATION MODE";
                                 newMode = 2;
                             }
+                            strategy.OnDebugLog = msg => _dashboard.AddLog(msg);
                             _dashboard.ModeName = modeName;
                             _dashboard.IsArcadeMode = (strategy is ArcadeMappingStrategy);
                             _dashboard.AddLog($"Switched mode to: {modeName}");

@@ -4,6 +4,8 @@ namespace HorizonCyclingBridge.Core
 {
     public interface IPowerMappingStrategy
     {
+        Action<string>? OnDebugLog { get; set; }
+
         /// <summary>
         /// 現在のスマートローラーの出力（W）とForzaから取得した最新のパケットデータを渡し、
         /// 仮想コントローラーに送信するべきアクセル・ブレーキ値を計算します。

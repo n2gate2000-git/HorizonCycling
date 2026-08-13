@@ -7,7 +7,10 @@ namespace HorizonCyclingBridge.Core
     {
         private readonly double _ftp;
         private double _filteredBrake = 0.0;
-        private const double BRAKE_RAMP_ALPHA = 0.04; // ブレーキランプアップ平滑化係数
+        private bool _isBrakingActive = false;
+        private bool _hasLogged100Percent = false;
+
+        public Action<string>? OnDebugLog { get; set; }
 
         /// <summary>
         /// アーケードマッピング戦略を初期化します。
@@ -25,9 +28,7 @@ namespace HorizonCyclingBridge.Core
         public ControlOutput CalculateOutput(double currentPower, ForzaDataPacket currentPacket)
         {
             double power = Math.Max(0.0, currentPower);
-
             bool isPedalingHard = power > 15.0;
-            bool isFeathering = power >= 1.0 && power <= 15.0;
 
             double pitchGrade = (currentPacket != null && currentPacket.IsRaceOn) 
                 ? -Math.Tan(currentPacket.Pitch) * 100.0 
@@ -35,62 +36,62 @@ namespace HorizonCyclingBridge.Core
             bool isDownhill = pitchGrade < -3.0;
 
             float throttle = 0.0f;
-            float targetBrake = 0.0f;
+            float finalBrake = 0.0f;
 
             if (isPedalingHard)
             {
-                // しっかり漕ぐ (>15W): パワー/FTP でアクセル開度算出
+                // ★ブレーキ解除の唯一の条件: しっかり漕ぐ (>15W)
                 throttle = Math.Clamp((float)(power / _ftp), 0.0f, 1.0f);
-                targetBrake = 0.0f;
+                if (_isBrakingActive)
+                {
+                    _isBrakingActive = false;
+                    _filteredBrake = 0.0;
+                    _hasLogged100Percent = false;
+                    OnDebugLog?.Invoke($"[ARCADE BRAKE] OFF -> Pedaling ({power:F1}W)");
+                }
+                finalBrake = 0.0f;
             }
-            else if (isFeathering)
+            else if (_isBrakingActive)
             {
-                if (isDownhill)
-                {
-                    // 下り坂で軽く足を回す (1〜15W): 下り坂減速ブレーキ
-                    if (currentPacket != null && currentPacket.IsRaceOn && currentPacket.VelocityZ > 0.2f && currentPacket.SpeedKmh > 1.0f)
-                    {
-                        targetBrake = Math.Clamp(currentPacket.SpeedKmh / 10.0f, 0.15f, 1.0f);
-                    }
-                }
-                else
-                {
-                    // 平地で軽く足を回す (1〜15W): 平地惰性走行（コースティング）
-                    throttle = 0.0f;
-                    targetBrake = 0.0f;
-                }
-            }
-            else
-            {
-                // ペダル完全停止 (<1W / 0W)
-                if (isDownhill && currentPacket != null && currentPacket.SpeedKmh > 1.0f)
-                {
-                    // 下り坂で足を止める (0W): 下り坂自動滑走（オートグライド）
-                    throttle = 0.20f;
-                    targetBrake = 0.0f;
-                }
-                else
-                {
-                    // 平地・上り坂で足を止める (0W): 平地車両停止ブレーキ
-                    if (currentPacket != null && currentPacket.IsRaceOn && currentPacket.VelocityZ > 0.2f && currentPacket.SpeedKmh > 1.0f)
-                    {
-                        targetBrake = Math.Clamp(currentPacket.SpeedKmh / 10.0f, 0.15f, 1.0f);
-                    }
-                }
-            }
+                // ★ブレーキ作動中: isDownhillが変動してもブレーキを絶対に継続
+                _filteredBrake += (1.0 / 1.2) * 0.016;
+                _filteredBrake = Math.Clamp(_filteredBrake, 0.0, 1.0);
 
-            // ブレーキ滑らかランプアップフィルタ
-            float finalBrake = 0.0f;
-            if (targetBrake > 0.0f)
-            {
-                _filteredBrake = (_filteredBrake * (1.0 - BRAKE_RAMP_ALPHA)) + (targetBrake * BRAKE_RAMP_ALPHA);
-                finalBrake = (float)Math.Clamp(_filteredBrake, 0.0, targetBrake);
+                if (_filteredBrake >= 1.0 && !_hasLogged100Percent)
+                {
+                    _hasLogged100Percent = true;
+                    OnDebugLog?.Invoke($"[ARCADE BRAKE] 100% Held -> Spd={currentPacket?.SpeedKmh:F1}km/h");
+                }
+
+                if (currentPacket != null && currentPacket.SpeedKmh > 8.0f && currentPacket.VelocityZ > 0.1f)
+                {
+                    finalBrake = (float)_filteredBrake;
+                }
+                else
+                {
+                    finalBrake = 0.0f;
+                }
                 throttle = 0.0f;
             }
             else
             {
-                _filteredBrake = 0.0;
-                finalBrake = 0.0f;
+                // ★ブレーキ非作動中: 新たにブレーキを開始するかどうか判定
+                if (isDownhill && power < 1.0)
+                {
+                    // 下り坂で足を止める (0W): 下り坂自動滑走 → ブレーキ開始しない
+                    throttle = 0.20f;
+                    finalBrake = 0.0f;
+                }
+                else
+                {
+                    // 平地/上り坂で足を止める → ブレーキ新規開始
+                    _isBrakingActive = true;
+                    _filteredBrake = 0.0;
+                    _hasLogged100Percent = false;
+                    OnDebugLog?.Invoke($"[ARCADE BRAKE] ON -> P={power:F1}W, Spd={currentPacket?.SpeedKmh:F1}km/h");
+                    throttle = 0.0f;
+                    finalBrake = 0.0f;
+                }
             }
 
             return new ControlOutput { Throttle = throttle, Brake = finalBrake };
