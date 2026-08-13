@@ -16,6 +16,7 @@ namespace HorizonCyclingBridge
         private static double _trainerDifficulty = 0.5; // スマートローラー負荷再現割合 (0.0〜1.0)
         private static double _trainerSpeedKmh = 0.0;   // スマートローラーから送られる現在の物理速度 (km/h)
         private static bool _isTestingThrottle = false; // ★アクセル動作テスト中フラグ
+        private static bool _isTestingBrake = false;    // ★ブレーキ動作テスト中フラグ
         
         // スマートローラーへの送信データ履歴（間引き用）
         private static double _lastSentGrade = 999.0;
@@ -241,9 +242,9 @@ namespace HorizonCyclingBridge
 
                 ControlOutput control = strategy.CalculateOutput(_currentPower, packet);
 
-                if (isVJoyReady && !_isTestingThrottle)
+                if (isVJoyReady && !_isTestingThrottle && !_isTestingBrake)
                 {
-                    vJoyController.SendInputs(control.Throttle);
+                    vJoyController.SendInputs(control.Throttle, control.Brake);
                 }
 
                 uint currentTimeMS = packet.TimestampMS;
@@ -379,11 +380,21 @@ namespace HorizonCyclingBridge
                         {
                             _dashboard.AddLog("[TEST] Sending THROTTLE 100% (3 seconds)...");
                             _isTestingThrottle = true;
-                            if (isVJoyReady) vJoyController.SendInputs(1.0f);
+                            if (isVJoyReady) vJoyController.SendInputs(1.0f, 0.0f);
                             await Task.Delay(3000);
-                            if (isVJoyReady) vJoyController.SendInputs(0.0f);
+                            if (isVJoyReady) vJoyController.SendInputs(0.0f, 0.0f);
                             _isTestingThrottle = false;
                             _dashboard.AddLog("[TEST] Throttle output stopped.");
+                        }
+                        else if (key == ConsoleKey.B || key == ConsoleKey.Spacebar)
+                        {
+                            _dashboard.AddLog("[TEST] Sending BRAKE 100% Emergency (3 seconds)...");
+                            _isTestingBrake = true;
+                            if (isVJoyReady) vJoyController.SendInputs(0.0f, 1.0f);
+                            await Task.Delay(3000);
+                            if (isVJoyReady) vJoyController.SendInputs(0.0f, 0.0f);
+                            _isTestingBrake = false;
+                            _dashboard.AddLog("[TEST] Emergency Brake output released.");
                         }
                         else if (key == ConsoleKey.M)
                         {

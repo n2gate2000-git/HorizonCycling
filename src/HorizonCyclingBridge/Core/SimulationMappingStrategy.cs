@@ -37,6 +37,9 @@ namespace HorizonCyclingBridge.Core
         private double _filteredThrottle = 0.0;
         private const double THROTTLE_ALPHA = 0.08; // スロットルの滑らかさ平滑化係数 (約0.3秒で追従)
 
+        private double _filteredBrake = 0.0;
+        private const double BRAKE_RAMP_ALPHA = 0.04; // ★ブレーキ作動時の滑らかなランプアップ平滑化係数 (約0.8〜1.0秒かけてジワーッと100%へ到達)
+
         /// <summary>
         /// 目標速度の現在値 (m/s)。デバッグ表示などで利用可能
         /// </summary>
@@ -60,6 +63,8 @@ namespace HorizonCyclingBridge.Core
                 _pidController.Reset();
                 _lastTargetSpeed = 0.0;
                 _lastTimestampMS = currentPacket.TimestampMS;
+                _filteredThrottle = 0.0;
+                _filteredBrake = 0.0;
                 return new ControlOutput { Throttle = 0.0f, Brake = 0.0f };
             }
 
@@ -96,45 +101,84 @@ namespace HorizonCyclingBridge.Core
             // 3. PID制御で目標速度に合わせるスロットル・ブレーキ値を計算
             ControlOutput output = _pidController.Compute((float)targetSpeedMps, currentCarSpeedMps, deltaTime);
 
-            // ★Forzaオートステアリングアシストの維持とスムーズ化（ポストプロセス）
-            // ユーザーがペダルを回している（または下り坂でローラーがアシスト回転している）間は：
-            // 1. 走行意思があるため、ゲーム内の車が急ブレーキを踏まないようにブレーキを強制的に 0% にします。
-            // 2. Forzaのオートアシスト（アクセルON時のみ自動操舵する仕様）がデッドゾーン（通常10%〜15%）に埋もれて
-            //    途切れてコースアウトするのを防ぎつつ、不自然な加速を抑えるため、アクセルの最低保証値を 20%（0.20f）に設定します。
-            bool isPedaling = currentPower > 15.0 || TrainerSpeedKmh > 3.0;
-            if (isPedaling)
+            // ★地形適応型 3ゾーン・ペダルパワー制御 (Terrain-Aware Control)
+            bool isPedalingHard = currentPower > 15.0;
+            bool isFeathering = currentPower >= 1.0 && currentPower <= 15.0;
+            bool isDownhill = TrueRoadGradePercent < -3.0;
+
+            float targetBrake = 0.0f;
+
+            if (isPedalingHard)
             {
-                output.Brake = 0.0f;
+                // 1. しっかり漕ぐ (>15W): 加速・速度維持モード
+                targetBrake = 0.0f;
                 output.Throttle = Math.Max(output.Throttle, 0.20f);
+            }
+            else if (isFeathering)
+            {
+                if (isDownhill)
+                {
+                    // 2-A. 下り坂で軽く足を回す (1W〜15W): 【下り坂ブレーキ】
+                    output.Throttle = 0.0f;
+                    _pidController.Reset();
+
+                    if (currentPacket != null && currentPacket.IsRaceOn && currentPacket.VelocityZ > 0.2f && currentPacket.SpeedKmh > 1.0f)
+                    {
+                        targetBrake = Math.Clamp(currentPacket.SpeedKmh / 10.0f, 0.15f, 1.0f);
+                    }
+                }
+                else
+                {
+                    // 2-B. 平地・上り坂で軽く足を回す (1W〜15W): 【平地惰性走行（コースティング）】
+                    output.Throttle = 0.0f;
+                    targetBrake = 0.0f;
+                    _pidController.Reset();
+                }
             }
             else
             {
-                // ペダルを止めている場合でも、明確な下り坂（TrueRoadGradePercent < -3.0）で車が惰性で下っているときは、
-                // Forzaのオートステアリングが解除されてコースアウトするのを防ぐため最低限のアクセル（20%）を維持しつつ、
-                // さらに下り坂の傾斜がきついほどアクセルを自動で追加して「自転車の重力による自然加速」を再現します。
-                // ※サスペンション補正（-0.9%）により平地でも-2%台になるため、閾値は-3.0%に設定しています。
-                if (TrueRoadGradePercent < -3.0 && currentCarSpeedMps > 1.0f)
+                // 3. ペダル完全停止 (<1W / 0W)
+                if (isDownhill && currentCarSpeedMps > 1.0f)
                 {
-                    output.Brake = 0.0f;
+                    // 3-A. 下り坂で足を止める (0W): 【下り坂自動滑走（オートグライド）】
+                    targetBrake = 0.0f;
                     double baseThrottle = 0.20;
-                    // 難易度設定に影響されない「真の傾斜」1%につきアクセルを約5%（0.05）追加する
                     double additionalThrottle = Math.Abs(TrueRoadGradePercent) * 0.05;
-                    // 最大80%まで自動アクセルを許可し、自転車のようにスピードが乗るようにする
                     output.Throttle = (float)Math.Min(baseThrottle + additionalThrottle, 0.80);
                 }
                 else
                 {
-                    // 平地や上り坂でペダルを完全に止めた場合は、自転車の自然な惰性走行（コースティング）として
-                    // アクセルを強制的に 0% にし、ブレーキも踏まずに自然減速させます。
+                    // 3-B. 平地・上り坂で足を止める (0W): 【平地車両停止ブレーキ】
                     output.Throttle = 0.0f;
                     _pidController.Reset();
+
+                    if (currentPacket != null && currentPacket.IsRaceOn && currentPacket.VelocityZ > 0.2f && currentPacket.SpeedKmh > 1.0f)
+                    {
+                        targetBrake = Math.Clamp(currentPacket.SpeedKmh / 10.0f, 0.15f, 1.0f);
+                    }
                 }
             }
 
-            // ★アクセル連打・ジャダー防止用のEMAスムーズフィルタの適用（人間らしい足ペダル操作の再現）
-            // PID出力が毎フレーム激しくON/OFF変動しても、ジワーッと滑らかに追従・減衰させます。
-            _filteredThrottle = (_filteredThrottle * (1.0 - THROTTLE_ALPHA)) + (output.Throttle * THROTTLE_ALPHA);
-            output.Throttle = (float)_filteredThrottle;
+            // ★ブレーキ作動時の「じわ〜っと100%」ランプアップ平滑化フィルタ
+            if (targetBrake > 0.0f)
+            {
+                // ブレーキが作動した場合は、EMAフィルタでジワーッと滑らかにビルドアップ（約0.8〜1.0秒でターゲット値に連動）
+                _filteredBrake = (_filteredBrake * (1.0 - BRAKE_RAMP_ALPHA)) + (targetBrake * BRAKE_RAMP_ALPHA);
+                output.Brake = (float)Math.Clamp(_filteredBrake, 0.0, targetBrake);
+
+                // ブレーキ中はスロットルを即座にゼロリセット
+                _filteredThrottle = 0.0;
+                output.Throttle = 0.0f;
+            }
+            else
+            {
+                // ブレーキ解除時は即座にブレーキフィルタをリセットし、ペダリング開始時の応答性を確保
+                _filteredBrake = 0.0;
+                output.Brake = 0.0f;
+
+                _filteredThrottle = (_filteredThrottle * (1.0 - THROTTLE_ALPHA)) + (output.Throttle * THROTTLE_ALPHA);
+                output.Throttle = (float)_filteredThrottle;
+            }
 
             return output;
         }

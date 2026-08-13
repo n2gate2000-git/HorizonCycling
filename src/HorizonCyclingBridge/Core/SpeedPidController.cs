@@ -62,10 +62,13 @@ namespace HorizonCyclingBridge.Core
 
             // 出力をアクセル(0〜1)とブレーキ(0〜1)にマッピングして返却します。
             // 正の出力はアクセル（ブレーキは0）、負の出力はブレーキ（アクセルは0）とします。
+            float throttle = output > 0f ? Math.Clamp(output, 0f, 1f) : 0f;
+            float brake = output < 0f ? Math.Clamp(-output, 0f, 1f) : 0f;
+
             return new ControlOutput
             {
-                Throttle = Math.Clamp(output, 0f, 1f),
-                Brake = 0.0f
+                Throttle = throttle,
+                Brake = brake
             };
         }
 
