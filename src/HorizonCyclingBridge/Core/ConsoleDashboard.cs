@@ -8,7 +8,7 @@ namespace HorizonCyclingBridge.Core
         private readonly object _lockObj = new object();
         private readonly Queue<string> _logBuffer = new Queue<string>();
         private const int MAX_LOG_COUNT = 6;
-        private const int LOG_START_Y = 19;
+        private const int LOG_START_Y = 21;
         private const int LINE_WIDTH = 79; // 80列目への自動改行を防止するため79文字でクランプ
 
         // システムステータス
@@ -16,6 +16,7 @@ namespace HorizonCyclingBridge.Core
         private string _bleStatus = "Disconnected";
         private bool _isVJoyActive = false;
         private bool _isTelemetryActive = false;
+        private bool _pedalBrakeEnabled = true;
 
         // リアルタイムメトリクス
         private double _currentPower = 0.0;
@@ -50,6 +51,12 @@ namespace HorizonCyclingBridge.Core
         {
             get => _isTelemetryActive;
             set { _isTelemetryActive = value; UpdateSystemStatus(); }
+        }
+
+        public bool PedalBrakeEnabled
+        {
+            get => _pedalBrakeEnabled;
+            set { _pedalBrakeEnabled = value; UpdateSystemStatus(); }
         }
 
         public bool IsArcadeMode
@@ -118,7 +125,7 @@ namespace HorizonCyclingBridge.Core
             {
                 try
                 {
-                    Console.SetCursorPosition(0, 25);
+                    Console.SetCursorPosition(0, 28);
                     Console.CursorVisible = true;
                     Console.WriteLine("\n[BRIDGE] Dashboard stopped.");
                 }
@@ -142,22 +149,24 @@ namespace HorizonCyclingBridge.Core
             WriteAt(0, 5, "  BLE Device       : ");
             WriteAt(0, 6, "  vJoy Controller  : ");
             WriteAt(0, 7, "  Telemetry Status : ");
-            WriteAt(0, 8, sep);
-            WriteAt(0, 9, " [REALTIME METRICS]");
-            WriteAt(0, 10, "  Pedal Power      :           | Speed (Target/Car) :");
-            WriteAt(0, 11, "  Road Grade (Raw) :           | Road Grade (Sent)  :");
-            WriteAt(0, 12, "  Difficulty       :           | Out (Thr / Brk)    :");
-            WriteAt(0, 13, sep);
-            WriteAt(0, 14, " [CONTROLLER INSTRUCTIONS]");
-            WriteAt(0, 15, "  [-] / [+] : Change Difficulty (±10%)   |  [M] : Switch Mode (Sim/Arcade)");
-            WriteAt(0, 16, "  [T]       : Test Throttle (3 seconds)  |  [Q] : Quit Application");
-            WriteAt(0, 17, sep);
-            WriteAt(0, 18, " [RECENT LOGS]");
+            WriteAt(0, 8, "  Pedal Brake      : ");
+            WriteAt(0, 9, sep);
+            WriteAt(0, 10, " [REALTIME METRICS]");
+            WriteAt(0, 11, "  Pedal Power      :           | Speed (Target/Car) :");
+            WriteAt(0, 12, "  Road Grade (Raw) :           | Road Grade (Sent)  :");
+            WriteAt(0, 13, "  Difficulty       :           | Out (Thr / Brk)    :");
+            WriteAt(0, 14, sep);
+            WriteAt(0, 15, " [CONTROLLER INSTRUCTIONS]");
+            WriteAt(0, 16, "  [-] / [+] : Change Difficulty (±10%)   |  [M] : Switch Mode (Sim/Arcade)");
+            WriteAt(0, 17, "  [T]       : Test Throttle (3 seconds)  |  [B] : Toggle Pedal Brake ON/OFF");
+            WriteAt(0, 18, "  [Space]   : Emergency Brake test (3s)  |  [Q] : Quit Application");
+            WriteAt(0, 19, sep);
+            WriteAt(0, 20, " [RECENT LOGS]");
             for (int i = 0; i < MAX_LOG_COUNT; i++)
             {
                 WriteAt(0, LOG_START_Y + i, "".PadRight(LINE_WIDTH));
             }
-            WriteAt(0, 25, bar);
+            WriteAt(0, 27, bar);
         }
 
         private void UpdateSystemStatus()
@@ -174,30 +183,31 @@ namespace HorizonCyclingBridge.Core
             WriteAt(21, 5, _bleStatus.PadRight(55));
             WriteAt(21, 6, (_isVJoyActive ? "ACTIVE (Device 1)" : "DISABLED").PadRight(55));
             WriteAt(21, 7, (_isTelemetryActive ? "ACTIVE (Port 5000)" : "INITIALIZING...").PadRight(55));
+            WriteAt(21, 8, (_pedalBrakeEnabled ? "ON  (Brake when stop pedaling)" : "OFF (Coast/Free when stop pedaling)").PadRight(55));
         }
 
         private void UpdateMetricsLocked()
         {
             // Pedal Power
-            WriteAt(21, 10, $"{_currentPower,5:F0} W ");
+            WriteAt(21, 11, $"{_currentPower,5:F0} W ");
             
             // Speed
             if (_isArcadeMode)
             {
-                WriteAt(56, 10, $"Direct {(_throttle * 100.0),3:F0}%      ");
+                WriteAt(56, 11, $"Direct {(_throttle * 100.0),3:F0}%      ");
             }
             else
             {
-                WriteAt(56, 10, $"{_targetSpeedKmh,5:F1} / {_carSpeedKmh,5:F1} km/h");
+                WriteAt(56, 11, $"{_targetSpeedKmh,5:F1} / {_carSpeedKmh,5:F1} km/h");
             }
 
             // Road Grade
-            WriteAt(21, 11, $"{_rawGrade,+5:F1} % ");
-            WriteAt(56, 11, $"{_sentGrade,+5:F1} % ");
+            WriteAt(21, 12, $"{_rawGrade,+5:F1} % ");
+            WriteAt(56, 12, $"{_sentGrade,+5:F1} % ");
 
             // Difficulty & Out
-            WriteAt(21, 12, $"{(_difficulty * 100.0),5:F0} % ");
-            WriteAt(56, 12, $"{(_throttle * 100.0),3:F0}% / {(_brake * 100.0),3:F0}%");
+            WriteAt(21, 13, $"{(_difficulty * 100.0),5:F0} % ");
+            WriteAt(56, 13, $"{(_throttle * 100.0),3:F0}% / {(_brake * 100.0),3:F0}%");
         }
 
         private void RedrawLogsLocked()

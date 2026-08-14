@@ -10,6 +10,11 @@ namespace HorizonCyclingBridge.Core
         private bool _isBrakingActive = false;
         private bool _hasLogged100Percent = false;
 
+        /// <summary>
+        /// ペダルを止めたときに自動ブレーキをかけるかどうかを制御するフラグ
+        /// </summary>
+        public bool PedalBrakeEnabled { get; set; } = true;
+
         public Action<string>? OnDebugLog { get; set; }
 
         /// <summary>
@@ -51,7 +56,7 @@ namespace HorizonCyclingBridge.Core
                 }
                 finalBrake = 0.0f;
             }
-            else if (_isBrakingActive)
+            else if (_isBrakingActive && PedalBrakeEnabled)
             {
                 // ★ブレーキ作動中: isDownhillが変動してもブレーキを絶対に継続
                 _filteredBrake += (1.0 / 1.2) * 0.016;
@@ -73,9 +78,21 @@ namespace HorizonCyclingBridge.Core
                 }
                 throttle = 0.0f;
             }
+            else if (!PedalBrakeEnabled)
+            {
+                // ★ブレーキ無効モード: 作動中のブレーキをリセットし、足を止めても何もしない
+                if (_isBrakingActive)
+                {
+                    _isBrakingActive = false;
+                    _filteredBrake = 0.0;
+                    _hasLogged100Percent = false;
+                }
+                throttle = 0.0f;
+                finalBrake = 0.0f;
+            }
             else
             {
-                // ★ブレーキ非作動中: 新たにブレーキを開始するかどうか判定
+                // ★ブレーキ有効モード・非作動中: 新たにブレーキを開始するかどうか判定
                 if (isDownhill && power < 1.0)
                 {
                     // 下り坂で足を止める (0W): 下り坂自動滑走 → ブレーキ開始しない

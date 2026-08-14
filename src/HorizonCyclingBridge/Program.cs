@@ -32,7 +32,7 @@ namespace HorizonCyclingBridge
         {
             Console.Clear();
             Console.WriteLine("======================================================================");
-            Console.WriteLine("     HorizonCyclingBridge v0.5: Smart Trainer & Forza 6 Dual-Bridge   ");
+            Console.WriteLine("     HorizonCyclingBridge v0.6: Smart Trainer & Forza 6 Dual-Bridge   ");
             Console.WriteLine("======================================================================");
 
             // 0. 引数解析とコンフィグのロード
@@ -144,6 +144,11 @@ namespace HorizonCyclingBridge
             _dashboard.InitializeLayout();
             _dashboard.AddLog($"Selected Mode: {modeName}");
             _dashboard.AddLog($"Trainer Difficulty set to: {(_trainerDifficulty * 100.0):F0}%");
+
+            // ブレーキ設定をconfigから読み込んで適用
+            strategy.PedalBrakeEnabled = config.PedalBrakeEnabled;
+            _dashboard.PedalBrakeEnabled = config.PedalBrakeEnabled;
+            _dashboard.AddLog($"Pedal Brake: {(config.PedalBrakeEnabled ? "ON" : "OFF")}");
 
             // 2. 各連携モジュールの初期化
             // A. vJoy 仮想コントローラーの初期化
@@ -387,7 +392,18 @@ namespace HorizonCyclingBridge
                             _isTestingThrottle = false;
                             _dashboard.AddLog("[TEST] Throttle output stopped.");
                         }
-                        else if (key == ConsoleKey.B || key == ConsoleKey.Spacebar)
+                        else if (key == ConsoleKey.B)
+                        {
+                            // ペダルブレーキ ON/OFF 切り替え
+                            bool newBrakeState = !strategy.PedalBrakeEnabled;
+                            strategy.PedalBrakeEnabled = newBrakeState;
+                            _dashboard.PedalBrakeEnabled = newBrakeState;
+                            _dashboard.AddLog($"Pedal Brake toggled: {(newBrakeState ? "ON" : "OFF")}");
+
+                            config!.PedalBrakeEnabled = newBrakeState;
+                            ConfigManager.Save(config!);
+                        }
+                        else if (key == ConsoleKey.Spacebar)
                         {
                             _dashboard.AddLog("[TEST] Sending BRAKE 100% Emergency (3 seconds)...");
                             _isTestingBrake = true;
@@ -399,6 +415,7 @@ namespace HorizonCyclingBridge
                         }
                         else if (key == ConsoleKey.M)
                         {
+                            bool currentBrakeState = strategy.PedalBrakeEnabled; // ブレーキ設定を保存
                             int newMode;
                             if (strategy is SimulationMappingStrategy)
                             {
@@ -413,6 +430,7 @@ namespace HorizonCyclingBridge
                                 newMode = 2;
                             }
                             strategy.OnDebugLog = msg => _dashboard.AddLog(msg);
+                            strategy.PedalBrakeEnabled = currentBrakeState; // ブレーキ設定を引き継ぎ
                             _dashboard.ModeName = modeName;
                             _dashboard.IsArcadeMode = (strategy is ArcadeMappingStrategy);
                             _dashboard.AddLog($"Switched mode to: {modeName}");

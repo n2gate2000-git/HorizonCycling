@@ -20,6 +20,14 @@
 
 ## 📜 変更履歴 (Changelog)
 
+### v0.6
+* **ペダルブレーキ動作のON/OFF切り替え機能の追加**
+  ペダルを止めたときに自動ブレーキをかける動作（v0.4で追加）と、ブレーキをかけない従来の動作を、実行中に `B` キーで即時切り替えできるようになりました。
+  * **デフォルト動作**: `config.json` がない初回起動時はブレーキなし（従来動作）がデフォルト。
+  * **設定の永続化**: 切り替えた設定は即座に `config.json` に保存され、次回起動時のデフォルト動作として引き継がれます。
+  * **ダッシュボード表示**: `[SYSTEM STATUS]` に `Pedal Brake` 欄が追加され、現在のブレーキ設定（ON/OFF）が常時表示されます。
+  * **キー操作の変更**: `B` キーをペダルブレーキのON/OFFトグルに変更。緊急ブレーキテスト（3秒）は `Space` キーに移動しました。
+
 ### v0.5
 * **基準FTP（Functional Threshold Power）の設定および次回自動保持**
   初回セットアップ画面（`--setup-sensors`）において、ユーザー固有の基準FTP（W）を入力・設定できるプロンプトを追加。
@@ -30,7 +38,7 @@
   ペダル入力(W)のみで「加速」「コースティング」「ブレーキ」を直感的に制御する3ゾーン制御システムを実装。
   * **平地・上り坂**: 脚を止める(0W)とアクティブブレーキが作動し、前方の車や障害物への衝突を防止。
   * **下り坂**: 脚を止める(0W)と重力による自然滑走（オートグライド）、軽く足を回す(1〜15W)と下り坂ブレーキが作動。
-  * **キーボード緊急ブレーキ**: `Space` キーまたは `B` キーで即座に100%緊急ブレーキを作動。
+  * **キーボード緊急ブレーキ**: `Space` キーで即座に100%緊急ブレーキを作動（`B` キーはv0.6よりペダルブレーキON/OFFトグルに変更）。
   * **vJoyブレーキ軸連動**: vJoy の `Axis Y` をブレーキ軸として出力。
 
 ### v0.3
@@ -237,6 +245,7 @@
       BLE Device       : Connected (FTMS: E547C9BAB968)
       vJoy Controller  : ACTIVE (Device 1)
       Telemetry Status : ACTIVE (Port 5000)
+      Pedal Brake      : OFF (Coast/Free when stop pedaling)
     -------------------------------------------------------------------------------
      [REALTIME METRICS]
       Pedal Power      :   215 W           | Speed (Target/Car) : 32.5 / 31.8 km/h
@@ -245,15 +254,16 @@
     -------------------------------------------------------------------------------
      [CONTROLLER INSTRUCTIONS]
       [-] / [+] : Change Difficulty (±10%)   |  [M] : Switch Mode (Sim/Arcade)
-      [T]       : Test Throttle (3 seconds)  |  [Q] : Quit Application
+      [T]       : Test Throttle (3 seconds)  |  [B] : Toggle Pedal Brake ON/OFF
+      [Space]   : Emergency Brake test (3s)  |  [Q] : Quit Application
     -------------------------------------------------------------------------------
      [RECENT LOGS]
       [12:04:15] Selected Mode: SIMULATION MODE
       [12:04:15] Trainer Difficulty set to: 50%
-      [12:04:15] [vJoy] Successfully acquired and reset vJoy device 1.
-      [12:04:16] [BLE] Smart trainer resistance set to FREE (Level 0).
-      [12:04:16] [BLE] Connection to 'T2 13991' completely established. Ride Ready!
-      [12:04:17] [BRIDGE] Telemetry loop started.
+      [12:04:15] Pedal Brake: OFF
+      [12:04:16] [vJoy] Successfully acquired and reset vJoy device 1.
+      [12:04:17] [BLE] Smart trainer resistance set to FREE (Level 0).
+      [12:04:18] [BLE] Connection to 'T2 13991' completely established. Ride Ready!
     ===============================================================================
     ```
 
@@ -268,7 +278,9 @@
 | **`-` キー** | 負荷難易度を 10% 下げる      | スマートローラーの負荷再現割合（Difficulty）を 10% 減少させます。変更は即座にスマートローラーとダッシュボード画面へ反映され、`config.json` に保存されます（最小 0%）。 |
 | **`+` キー** | 負荷難易度を 10% 上げる      | 負荷再現割合を 10% 増加させます。変更は即座にスマートローラーとダッシュボード画面へ反映され、`config.json` に保存されます（最大 100%）。 |
 | **`M` キー** | 動作モードの動的切り替え     | 「シミュレーションモード」と「アーケードモード」を交互に瞬時に切り替えます。変更は即座にダッシュボード画面へ反映され、`config.json` に保存されます。 |
+| **`B` キー** | ペダルブレーキのON/OFF切り替え | ペダルを止めたときに自動ブレーキをかける動作を ON/OFF 切り替えます。変更は即座にダッシュボード `Pedal Brake` 欄へ反映され、`config.json` に保存されます。 |
 | **`T` キー** | アクセル動作テスト（3秒）    | vJoyを介して、アクセル開度 100% を3秒間強制送信します。ゲーム側のキーアサインやx360ceの認識テストに使用します。                                   |
+| **`Space` キー** | 緊急ブレーキテスト（3秒）    | vJoyを介して、ブレーキ開度 100% を3秒間強制送信します。ゲーム側のブレーキキーアサインやx360ceの認識テストに使用します。                              |
 | **`Q` キー** | アプリケーションの安全な終了 | 実行中のUDPレシーバーを停止し、スマートローラーとのBLE接続（GATTセッション）を安全にクリーンアップして終了します。※不意の切断を防ぐ安全設計です。 |
 
 ---

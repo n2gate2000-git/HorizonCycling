@@ -20,6 +20,7 @@ namespace HorizonCyclingBridge.Core
         public int DefaultMode { get; set; } = 2;
         public double TrainerDifficulty { get; set; } = 0.5;
         public double Ftp { get; set; } = 200.0;
+        public bool PedalBrakeEnabled { get; set; } = false; // ペダルブレーキ有効フラグ（デフォルトOFF）
     }
 
     public static class ConfigManager

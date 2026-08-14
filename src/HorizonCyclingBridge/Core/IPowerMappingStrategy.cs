@@ -7,6 +7,11 @@ namespace HorizonCyclingBridge.Core
         Action<string>? OnDebugLog { get; set; }
 
         /// <summary>
+        /// ペダルを止めたときに自動ブレーキをかけるかどうかを制御するフラグ
+        /// </summary>
+        bool PedalBrakeEnabled { get; set; }
+
+        /// <summary>
         /// 現在のスマートローラーの出力（W）とForzaから取得した最新のパケットデータを渡し、
         /// 仮想コントローラーに送信するべきアクセル・ブレーキ値を計算します。
         /// </summary>
