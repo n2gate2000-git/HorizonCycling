@@ -2,12 +2,11 @@
 
 スマートローラートレーナーとレースゲームを双方向で接続し、現実のペダリングによるゲーム内の車の運転と、ゲーム内の地形変化（斜度）に応じたローラー負荷の自動再現を両立する、.NET 8.0 ベースの Windows 用中継アプリケーション（ミドルウェア）です。
 
-![alt text](docs/structure.png)
-
+![alt text](docs/HorizonCyclingImage.jpg)
 
 実走感にこだわった物理シミュレーションと、ゲームの自動操舵アシストを活かすためのインテリジェントなアシスト機能を搭載しており、没入感の高いバーチャルサイクリング体験を提供します。
 
-![alt text](<docs/Forza Horizon 6 Screenshot 2026.06.02 - 21.30.57.35.jpg>)
+![alt text](docs/structure.png)
 
 ---
 
