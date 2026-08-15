@@ -1,6 +1,6 @@
 # Smart Trainer Bridge (HorizonCycling)
 
-スマートローラートレーナーとレースゲームを双方向で接続し、現実のペダリングによるゲーム内の車の運転と、ゲーム内の地形変化（斜度）に応じたローラー負荷の自動再現を両立する、.NET 8.0 ベースの Windows 用中継アプリケーション（ミドルウェア）です。
+スマートローラートレーナーとレースゲーム（Forza Horizon 6）を双方向で接続し、現実のペダリングによるゲーム内の車の運転と、ゲーム内の地形変化（斜度）に応じたローラー負荷の自動再現を両立する、.NET 8.0 ベースの Windows 用中継アプリケーション（ミドルウェア）です。
 
 <div align="center">
   <img src="docs/HorizonCyclingImage.jpg" alt="alt text" width="50%">
