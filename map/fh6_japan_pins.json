@@ -1,0 +1,702 @@
+[
+  {
+    "@type": "ListItem",
+    "position": 1,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -54.00673325733176,
+        "longitude": -32.688228469153444
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 2,
+    "item": {
+      "@type": "Place",
+      "name": "Tempura 位置 2",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるTempuraの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -55.4262314109387,
+        "longitude": -33.01689294131026
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 3,
+    "item": {
+      "@type": "Place",
+      "name": "Rainbow Bridge Descent",
+      "description": "Japan Map for Forza Horizon 6のEventsエリアにあるStreet Racing Eventの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -55.195464874097574,
+        "longitude": -37.218899753431145
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 4,
+    "item": {
+      "@type": "Place",
+      "name": "Tempura 位置 4",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるTempuraの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -51.85639500474775,
+        "longitude": -42.26316149462434
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 5,
+    "item": {
+      "@type": "Place",
+      "name": "3000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -54.03525355958618,
+        "longitude": -37.64126830559178
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 6,
+    "item": {
+      "@type": "Place",
+      "name": "Curry Rice 位置 6",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるCurry Riceの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -48.07568747697217,
+        "longitude": -41.69228077984525
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 7,
+    "item": {
+      "@type": "Place",
+      "name": "Minami Chase",
+      "description": "Japan Map for Forza Horizon 6のEventsエリアにあるStreet Racing Eventの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -35.198164150459554,
+        "longitude": -45.19180799078512
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 8,
+    "item": {
+      "@type": "Place",
+      "name": "Curry Rice 位置 8",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるCurry Riceの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -33.24149883750823,
+        "longitude": -44.22261386179281
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 9,
+    "item": {
+      "@type": "Place",
+      "name": "Ramen 位置 9",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるRamenの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -29.735995122927356,
+        "longitude": -39.14461967628813
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 10,
+    "item": {
+      "@type": "Place",
+      "name": "Matsumi Climb",
+      "description": "Japan Map for Forza Horizon 6のEventsエリアにあるStreet Racing Eventの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -16.141696108791507,
+        "longitude": -39.52204376009888
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 11,
+    "item": {
+      "@type": "Place",
+      "name": "Ramen 位置 11",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるRamenの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -14.092104544098902,
+        "longitude": -38.75954649465834
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 12,
+    "item": {
+      "@type": "Place",
+      "name": "Shirakawa Circuit",
+      "description": "Japan Map for Forza Horizon 6のEventsエリアにあるRoad Racing Eventの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 7.77386442737226,
+        "longitude": 22.826858559153465
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 13,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 13",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -51.67842572050338,
+        "longitude": -0.28005591609328917
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 14,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 14",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -49.23825305666083,
+        "longitude": -5.686281675796636
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 15,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 15",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -52.551034517740774,
+        "longitude": -11.679929156835556
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 16,
+    "item": {
+      "@type": "Place",
+      "name": "3000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -51.597777409923076,
+        "longitude": -14.918368488204976
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 17,
+    "item": {
+      "@type": "Place",
+      "name": "3000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -49.95931679511604,
+        "longitude": -17.37577032732807
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 18,
+    "item": {
+      "@type": "Place",
+      "name": "Onigiri 位置 18",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるOnigiriの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 4.862905757161769,
+        "longitude": 60.46627615401238
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 19,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 19",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -49.12140014516339,
+        "longitude": -15.333158172041351
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 20,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 5.680861245239981,
+        "longitude": 62.45229169462172
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 21,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 21",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -47.06753822477563,
+        "longitude": -17.751423137496374
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 22,
+    "item": {
+      "@type": "Place",
+      "name": "Onigiri 位置 22",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるOnigiriの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 3.4318639894348735,
+        "longitude": 58.52810261082729
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 23,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 3.7543947756691693,
+        "longitude": 57.47415338898503
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 24,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 4.885977304030902,
+        "longitude": 52.02911067568789
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 25,
+    "item": {
+      "@type": "Place",
+      "name": "Kitayama Big Daisugi",
+      "description": "Japan Map for Forza Horizon 6のLocationエリアにあるLandmarkの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 5.214766876610241,
+        "longitude": 52.15329292713872
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 26,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 26",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -45.66814854172181,
+        "longitude": -20.777091831635204
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 27,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 27",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -43.263712103605734,
+        "longitude": -16.940212641172423
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 28,
+    "item": {
+      "@type": "Place",
+      "name": "1983 Nissan #11 Tomica Skyline Turbo Super Silhouette",
+      "description": "Accessible after acquiring Gold Stamp Access.",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 2.515578242069381,
+        "longitude": 51.2685362295862
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 29,
+    "item": {
+      "@type": "Place",
+      "name": "3000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -41.38653644016907,
+        "longitude": -21.405885951153095
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 30,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 8.466317718940871,
+        "longitude": 43.569117471103596
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 31,
+    "item": {
+      "@type": "Place",
+      "name": "Onigiri 位置 31",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるOnigiriの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 9.901469349644657,
+        "longitude": 53.10925112696148
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 32,
+    "item": {
+      "@type": "Place",
+      "name": "3000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 13.117708384156899,
+        "longitude": 47.291319323646434
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 33,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 33",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -39.345912096072,
+        "longitude": -17.637579576855842
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 34,
+    "item": {
+      "@type": "Place",
+      "name": "Ramen 位置 34",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるRamenの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -35.17572358265526,
+        "longitude": -17.003911062490232
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 35,
+    "item": {
+      "@type": "Place",
+      "name": "Kakigori 位置 35",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるKakigoriの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 18.763491717091327,
+        "longitude": 49.65110681555592
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 36,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": 20.753637755707558,
+        "longitude": 45.52587462204119
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 37,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -33.22243959292342,
+        "longitude": -11.243288204618835
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 38,
+    "item": {
+      "@type": "Place",
+      "name": "Edamame 位置 38",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるEdamameの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -34.70349562526178,
+        "longitude": -9.399888890097742
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 39,
+    "item": {
+      "@type": "Place",
+      "name": "Mei's House",
+      "description": "Japan Map for Forza Horizon 6のLocationエリアにあるHouseの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -31.372220581431293,
+        "longitude": -16.42784877670033
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 40,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -28.83086505713859,
+        "longitude": -19.36576643421418
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 41,
+    "item": {
+      "@type": "Place",
+      "name": "Ramen 位置 41",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるRamenの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -29.133218254124245,
+        "longitude": -17.234335976802583
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 42,
+    "item": {
+      "@type": "Place",
+      "name": "Ramen 位置 42",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるRamenの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -25.759907724236783,
+        "longitude": -21.03634706299684
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 43,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -28.071141488237352,
+        "longitude": -23.743839806196632
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 44,
+    "item": {
+      "@type": "Place",
+      "name": "3000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -27.918544414256424,
+        "longitude": -26.336120092238616
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 45,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -20.954946519511907,
+        "longitude": -23.352354687062615
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 46,
+    "item": {
+      "@type": "Place",
+      "name": "Ramen 位置 46",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるRamenの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -21.099506587996913,
+        "longitude": -30.476517961439527
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 47,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 47",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -39.99431787865564,
+        "longitude": -12.515263890034305
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 48,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -40.931141942826045,
+        "longitude": -10.155166802166036
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 49,
+    "item": {
+      "@type": "Place",
+      "name": "Dango 位置 49",
+      "description": "Japan Map for Forza Horizon 6のMascotsエリアにあるDangoの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -41.12466710050094,
+        "longitude": -5.434972626437315
+      }
+    }
+  },
+  {
+    "@type": "ListItem",
+    "position": 50,
+    "item": {
+      "@type": "Place",
+      "name": "1000 XP",
+      "description": "Japan Map for Forza Horizon 6のCollectiblesエリアにあるXP Boardの場所",
+      "geo": {
+        "@type": "GeoCoordinates",
+        "latitude": -43.523749174508765,
+        "longitude": -7.999195319502348
+      }
+    }
+  }
+]
