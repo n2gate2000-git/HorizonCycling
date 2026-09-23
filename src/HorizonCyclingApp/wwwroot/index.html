@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HorizonCycling Studio</title>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=Outfit:wght@500;700;900&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+  
+  <!-- Leaflet.js (Map) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Chart.js (Elevation Profile) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  
+  <!-- Application CSS -->
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body class="dark-theme">
+  <div id="app" class="app-container">
+
+    <!-- ===== TOP HEADER ===== -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="brand-logo">
+          <span class="logo-icon">🚴</span>
+          <span class="logo-text">HORIZON<span class="logo-accent">CYCLING</span></span>
+          <span class="version-tag">STUDIO</span>
+        </div>
+        <div class="session-recorder">
+          <button id="btnRecord" class="btn-rec">
+            <span class="rec-dot"></span>
+            <span id="recText">REC</span>
+          </button>
+          <div class="session-timer" id="sessionTimer">00:00:00</div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <!-- Mode selector -->
+        <div class="control-pill">
+          <span class="pill-label">MODE</span>
+          <select id="modeSelect" class="pill-select">
+            <option value="2">SIMULATION (リアル実走)</option>
+            <option value="1">ARCADE (パワー直結)</option>
+          </select>
+        </div>
+
+        <!-- Difficulty Slider -->
+        <div class="control-pill difficulty-pill">
+          <span class="pill-label">DIFFICULTY</span>
+          <input type="range" id="diffSlider" min="0" max="100" value="50" step="5">
+          <span id="diffValue" class="pill-val">50%</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button id="btnFinishSession" class="btn-action btn-save" title="走行を終了してGPX/FITログを保存">
+          💾 終了・保存
+        </button>
+        <button id="btnSettings" class="btn-icon" title="設定">
+          ⚙
+        </button>
+      </div>
+    </header>
+
+    <!-- ===== MAIN CONTENT BODY (2-PANE) ===== -->
+    <main class="main-body">
+
+      <!-- LEFT PANE: HUD METRICS (Zwift/Wahoo Style) -->
+      <section class="left-pane">
+        
+        <!-- Primary Metric: Power (Watts) -->
+        <div class="metric-card metric-power">
+          <div class="card-header">
+            <span class="metric-label">POWER</span>
+            <span id="wkgVal" class="metric-sub">0.0 W/kg</span>
+          </div>
+          <div class="metric-value-row">
+            <span id="powerVal" class="huge-number">0</span>
+            <span class="unit">W</span>
+          </div>
+          <div class="power-zone-bar">
+            <div id="powerZoneIndicator" class="zone-fill" style="width: 0%;"></div>
+          </div>
+        </div>
+
+        <!-- Speed & Target Speed -->
+        <div class="metric-row-dual">
+          <div class="metric-card">
+            <span class="metric-label">SPEED</span>
+            <div class="metric-value-row">
+              <span id="carSpeedVal" class="large-number">0.0</span>
+              <span class="unit">km/h</span>
+            </div>
+            <div class="sub-label">実車速</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">TARGET SPEED</span>
+            <div class="metric-value-row">
+              <span id="targetSpeedVal" class="large-number text-cyan">0.0</span>
+              <span class="unit">km/h</span>
+            </div>
+            <div class="sub-label">目標速度 (PID)</div>
+          </div>
+        </div>
+
+        <!-- Grade & Elevation -->
+        <div class="metric-row-dual">
+          <div class="metric-card">
+            <span class="metric-label">GRADE (勾配)</span>
+            <div class="metric-value-row">
+              <span id="gradeVal" class="large-number text-orange">+0.0</span>
+              <span class="unit">%</span>
+            </div>
+            <div class="sub-label" id="sentGradeSub">送信: 0.0%</div>
+          </div>
+          <div class="metric-card">
+            <span class="metric-label">ELEVATION (標高)</span>
+            <div class="metric-value-row">
+              <span id="elevationVal" class="large-number text-green">0</span>
+              <span class="unit">m</span>
+            </div>
+            <div class="sub-label" id="gainSub">獲得標高: +0 m</div>
+          </div>
+        </div>
+
+        <!-- Cadence & Heart Rate & Distance -->
+        <div class="metric-row-triple">
+          <div class="metric-card mini">
+            <span class="metric-label">CADENCE</span>
+            <div class="metric-value-row">
+              <span id="cadenceVal" class="mid-number">--</span>
+              <span class="unit">rpm</span>
+            </div>
+          </div>
+          <div class="metric-card mini">
+            <span class="metric-label">GEAR</span>
+            <div class="metric-value-row">
+              <span id="gearVal" class="mid-number">N</span>
+            </div>
+          </div>
+          <div class="metric-card mini">
+            <span class="metric-label">DISTANCE</span>
+            <div class="metric-value-row">
+              <span id="distVal" class="mid-number">0.0</span>
+              <span class="unit">km</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Throttle & Brake Gauges -->
+        <div class="control-bars-card">
+          <div class="bar-group">
+            <div class="bar-header">
+              <span>THROTTLE</span>
+              <span id="throttleVal">0%</span>
+            </div>
+            <div class="bar-track">
+              <div id="throttleBar" class="bar-fill throttle" style="width: 0%;"></div>
+            </div>
+          </div>
+          <div class="bar-group">
+            <div class="bar-header">
+              <span>BRAKE</span>
+              <span id="brakeVal">0%</span>
+            </div>
+            <div class="bar-track">
+              <div id="brakeBar" class="bar-fill brake" style="width: 0%;"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- RIGHT PANE: MAP & ELEVATION PROFILE & LOGS (Tabbed) -->
+      <section class="right-pane">
+        <div class="pane-tabs">
+          <button class="tab-btn active" data-tab="tabMap">🗺 リアルタイムマップ追跡</button>
+          <button class="tab-btn" data-tab="tabElevation">📈 標高プロファイル</button>
+          <button class="tab-btn" data-tab="tabLogs">📋 ログ・セッション詳細</button>
+        </div>
+
+        <!-- TAB 1: Real-time Map Tracker (Leaflet) -->
+        <div id="tabMap" class="tab-content active">
+          <div class="map-controls">
+            <button id="btnFollowCar" class="map-ctrl-btn active">📍 自車追従: ON</button>
+            <button id="btnTogglePins" class="map-ctrl-btn active">📌 スポット: ON</button>
+            <button id="btnCalibrate" class="map-ctrl-btn highlight">🎯 位置合わせ</button>
+            <button id="btnResetView" class="map-ctrl-btn">🔍 全体表示</button>
+            <button id="btnClearTrack" class="map-ctrl-btn">🧹 軌跡クリア</button>
+            <span id="coordDisplay" class="map-coord-tag">X: 0.0, Z: 0.0</span>
+          </div>
+          <!-- キャリブレーションモード時のガイドバー -->
+          <div id="calibrationBanner" class="calibration-banner hidden">
+            <span>🎯 地図上の「現在走行している場所（道路やスポット）」をクリックしてください</span>
+            <button id="btnCancelCalibrate" class="btn-banner-cancel">✕ 取消</button>
+          </div>
+          <div id="mapView" class="map-container"></div>
+        </div>
+
+        <!-- TAB 2: Elevation & Grade Profile (Chart.js) -->
+        <div id="tabElevation" class="tab-content">
+          <div class="profile-stats-bar">
+            <div class="profile-stats-left">
+              <div class="stat-item">
+                <span class="stat-label">現在標高</span>
+                <span class="stat-value" id="profCurEle">0 m</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">累積獲得標高</span>
+                <span class="stat-value text-green" id="profEleGain">+0 m</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">累積下降</span>
+                <span class="stat-value text-blue" id="profEleLoss">-0 m</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">総走行距離</span>
+                <span class="stat-value text-orange" id="profDist">0.0 km</span>
+              </div>
+            </div>
+            <div class="profile-view-toggle">
+              <button id="btnProfileRecent" class="profile-toggle-btn active" data-mode="recent" title="直近200mの勾配・標高変化を表示">🔍 直近 200m</button>
+              <button id="btnProfileAll" class="profile-toggle-btn" data-mode="all" title="スタートからの全走行ルート標高を表示">🗺 全走行距離</button>
+            </div>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="elevationChart"></canvas>
+          </div>
+        </div>
+
+        <!-- TAB 3: System Logs & Summary -->
+        <div id="tabLogs" class="tab-content">
+          <div class="logs-container">
+            <div class="logs-header">
+              <span>リアルタイム・システムイベント</span>
+              <button id="btnClearLogs" class="btn-small">クリア</button>
+            </div>
+            <div id="logConsole" class="log-console"></div>
+          </div>
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- ===== FOOTER STATUS BAR ===== -->
+    <footer class="app-footer">
+      <div class="footer-left">
+        <div id="bleStatusContainer" class="status-indicator clickable" title="クリックしてスマートローラー設定を開く">
+          <span id="bleDot" class="status-dot disconnected"></span>
+          <span id="bleText">BLE: 切断</span>
+        </div>
+        <div class="status-indicator">
+          <span id="udpDot" class="status-dot disconnected"></span>
+          <span id="udpText">Forza UDP: 待機中</span>
+        </div>
+        <div class="status-indicator">
+          <span id="vjoyDot" class="status-dot disconnected"></span>
+          <span id="vjoyText">vJoy: 待機中</span>
+        </div>
+      </div>
+
+      <div class="footer-right">
+        <div id="saveToast" class="save-toast hidden">
+          <span>GPX保存完了: </span>
+          <a id="btnOpenFolder" href="#">[フォルダを開く]</a>
+        </div>
+      </div>
+    </footer>
+
+    <!-- ===== SETTINGS MODAL ===== -->
+    <div id="settingsModal" class="modal-overlay hidden">
+      <div class="modal-box modal-wide">
+        <div class="modal-header">
+          <h3>⚙ システム & センサー設定</h3>
+          <button id="btnCloseSettings" class="btn-close">&times;</button>
+        </div>
+        <div class="modal-body">
+          <!-- 1. スマートローラー / センサー接続 -->
+          <div class="settings-section">
+            <div class="section-title">
+              <span>🚴 スマートローラー / パワーメーター</span>
+              <button id="btnScanBle" class="btn-small btn-primary">🔍 デバイスを検索</button>
+            </div>
+            
+            <div class="current-device-row">
+              <span class="device-label">現在設定中:</span>
+              <span id="currentDeviceText" class="device-name">None</span>
+            </div>
+
+            <!-- スキャン中表示 -->
+            <div id="bleScanningIndicator" class="scan-status hidden">
+              <span class="spinner"></span>
+              <span>周囲のBluetoothスマートローラーを検索中 (約7秒)...</span>
+            </div>
+
+            <!-- 見つかったデバイス一覧 -->
+            <div id="bleDeviceList" class="device-list-container">
+              <div class="device-list-empty">「デバイスを検索」ボタンを押して、スマートローラーをスキャンしてください。</div>
+            </div>
+
+            <div class="connect-action-row">
+              <button id="btnConnectBle" class="btn-action btn-connect" disabled>選択したデバイスに接続</button>
+              <span id="bleConnectStatus" class="connect-status-text"></span>
+            </div>
+          </div>
+
+          <!-- 2. 基本パラメータ -->
+          <div class="settings-section">
+            <div class="section-title">
+              <span>⚙ サイクリング設定</span>
+            </div>
+            <div class="form-group">
+              <label>ライダー FTP (W)</label>
+              <input type="number" id="settingFtp" value="200" min="50" max="600">
+            </div>
+            <div class="form-group">
+              <label>ペダル自動ブレーキ (脚を止めたら制動)</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settingPedalBrake">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 3. マップ座標・縮尺設定 -->
+          <div class="settings-section">
+            <div class="section-title">
+              <span>🗺️ マップ座標・縮尺設定</span>
+            </div>
+            <div class="form-group">
+              <label>地図縮尺 (スケール: 0.200〜0.300 px/m, 0.001刻み)</label>
+              <div class="range-row">
+                <input type="range" id="settingMapScale" min="0.200" max="0.300" step="0.001" value="0.263">
+                <span id="settingMapScaleVal" class="range-val-badge">0.263</span>
+              </div>
+              <div class="scale-presets">
+                <button type="button" class="btn-preset active" data-scale="0.263">0.263 (実寸標準)</button>
+                <button type="button" class="btn-preset" data-scale="0.250">0.250</button>
+                <button type="button" class="btn-preset" data-scale="0.280">0.280</button>
+                <button type="button" class="btn-preset" data-scale="0.300">0.300</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>Z軸反転 (上下の進行方向を反転)</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settingInvertZ" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <button id="btnResetMapOrigin" class="btn-subaction">原点を初期位置 (4096, 4096) にリセット</button>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnSaveSettings" class="btn-action">設定を保存して閉じる</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Application Scripts -->
+  <script src="js/map.js"></script>
+  <script src="js/chart.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

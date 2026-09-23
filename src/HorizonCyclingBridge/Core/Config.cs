@@ -21,6 +21,12 @@ namespace HorizonCyclingBridge.Core
         public double TrainerDifficulty { get; set; } = 0.5;
         public double Ftp { get; set; } = 200.0;
         public bool PedalBrakeEnabled { get; set; } = false; // ペダルブレーキ有効フラグ（デフォルトOFF）
+
+        // マップ座標変換パラメータ
+        public double MapOriginX { get; set; } = 0.0;
+        public double MapOriginZ { get; set; } = 0.0;
+        public double MapScale { get; set; } = 0.263;
+        public bool InvertZ { get; set; } = true; // DirectX Z軸（北奥）と地図画像Y軸（南下）の整合のためデフォルトTrue
     }
 
     public static class ConfigManager
