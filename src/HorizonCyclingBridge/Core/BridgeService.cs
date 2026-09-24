@@ -20,6 +20,7 @@ namespace HorizonCyclingBridge.Core
         public bool IsTelemetryActive { get; set; } = false;
         public bool PedalBrakeEnabled { get; set; } = true;
         public double Difficulty { get; set; } = 0.5;
+        public double Ftp { get; set; } = 200.0;
 
         // リアルタイムメトリクス
         public double Power { get; set; } = 0.0;
@@ -87,6 +88,7 @@ namespace HorizonCyclingBridge.Core
         private double _trainerSpeedKmh = 0.0;
         private double _lastSentGrade = 999.0;
         private uint _lastSentTimeMS = 0;
+        private DateTime _lastSentTime = DateTime.MinValue;
         private const double EMA_ALPHA = 0.03;
 
         private DateTime _lastPacketTime = DateTime.MinValue;
@@ -233,6 +235,19 @@ namespace HorizonCyclingBridge.Core
             _strategy.PedalBrakeEnabled = enabled;
             ConfigManager.Save(_config);
             Log($"[CONFIG] Pedal Brake {(enabled ? "Enabled" : "Disabled")}.");
+        }
+
+        public void SetFtp(double ftp)
+        {
+            if (ftp <= 0) return;
+            _config.Ftp = ftp;
+            ConfigManager.Save(_config);
+
+            if (_strategy is ArcadeMappingStrategy arcade)
+            {
+                arcade.Ftp = ftp;
+            }
+            Log($"[CONFIG] Rider FTP set to {_config.Ftp:F0}W.");
         }
 
         public void StartSession()
@@ -576,33 +591,75 @@ namespace HorizonCyclingBridge.Core
             }
 
             // スマートローラー負荷フィードバック
-            if (_isBleConnected && packet.IsRaceOn && _ftmsClient != null && _ftmsClient.IsConnected)
+            if (_isBleConnected && _ftmsClient != null && _ftmsClient.IsConnected)
             {
-                long timeDiff = (long)packet.TimestampMS - (long)_lastSentTimeMS;
-                double gradeDiff = Math.Abs(_filteredGrade - _lastSentGrade);
+                // 車両停止中（< 1.0 km/h）またはレース非アクティブ時は負荷をフリー(0.0%)に解放
+                bool shouldReleaseLoad = !packet.IsRaceOn || packet.SpeedKmh < 1.0f;
+                double effectiveGrade = shouldReleaseLoad ? 0.0 : _filteredGrade;
 
-                bool isZeroReset = Math.Abs(_filteredGrade) < 0.3 && _lastSentGrade != 0.0 && _lastSentGrade != 999.0;
-                bool isSignificantChange = timeDiff >= 1500 && gradeDiff >= 0.8;
+                double timeDiffMs = (now - _lastSentTime).TotalMilliseconds;
+                double gradeDiff = Math.Abs(effectiveGrade - _lastSentGrade);
 
-                if (_lastSentGrade == 999.0 || isSignificantChange || isZeroReset)
+                // 判定条件:
+                // 1. 初回送信 (_lastSentGrade == 999.0)
+                // 2. ゼロ復帰 (勾配がほぼ平坦に戻った時、または停止・非レース時)
+                // 3. 有意な勾配変化 (800ms以上経過 かつ 0.3%以上の変化)
+                // 4. キープアライブ (坂道を走行中、パケット欠落やトレーナータイムアウトを防ぐため3秒ごとに再送)
+                bool isZeroReset = (Math.Abs(effectiveGrade) < 0.2 || shouldReleaseLoad) && _lastSentGrade != 0.0 && _lastSentGrade != 999.0;
+                bool isSignificantChange = timeDiffMs >= 800 && gradeDiff >= 0.3;
+                bool isKeepAlive = timeDiffMs >= 3000 && _lastSentGrade != 999.0;
+
+                if (_lastSentGrade == 999.0 || isSignificantChange || isZeroReset || isKeepAlive)
                 {
-                    double targetIncline = isZeroReset ? 0.0 : _filteredGrade;
-                    if (!isZeroReset && _lastSentGrade != 999.0)
+                    double targetIncline = isZeroReset ? 0.0 : effectiveGrade;
+
+                    // 急激な負荷変化の緩和（最大ステップ ±2.0%/回）※キープアライブやゼロリセット時はステップ制限なし
+                    if (!isZeroReset && !isKeepAlive && _lastSentGrade != 999.0)
                     {
                         double maxStep = 2.0;
-                        double step = Math.Clamp(_filteredGrade - _lastSentGrade, -maxStep, maxStep);
+                        double step = Math.Clamp(effectiveGrade - _lastSentGrade, -maxStep, maxStep);
                         targetIncline = _lastSentGrade + step;
                     }
 
                     targetIncline = Math.Round(targetIncline, 1);
+
+                    // 仮想ギア比（Simulation モード時: 車速がターゲット速度を下回った際の負荷抜け防止）
                     if (_strategy is SimulationMappingStrategy simStrat)
                     {
-                        double maxIncline = 15.0 * _trainerDifficulty;
-                        if (targetIncline > maxIncline) targetIncline = maxIncline;
+                        double targetSpd = simStrat.TargetSpeedKmh;
+                        double carSpd = packet.SpeedKmh;
+                        if (targetSpd > 10.0 && carSpd < targetSpd * 0.95 && targetIncline > 0.0)
+                        {
+                            double deficit = 1.0 - (carSpd / targetSpd);
+                            double gearMultiplier = Math.Max(0.0, 1.0 - (deficit * 4.0));
+                            targetIncline = targetIncline * gearMultiplier;
+                        }
                     }
 
-                    _ = _ftmsClient.SetTargetInclinationAsync(targetIncline);
+                    // 安全クランプ（難易度を考慮した最大傾斜制限）
+                    double maxIncline = 20.0 * _trainerDifficulty;
+                    double minIncline = -10.0 * _trainerDifficulty;
+                    targetIncline = Math.Clamp(targetIncline, minIncline, maxIncline);
+                    targetIncline = Math.Round(targetIncline, 1);
+
+                    // CUI版で実証済みの方式（登坂: シミュレーションパラメータOpCode 0x11、平地・下り: フリーレベル0）で送信
+                    _ = _ftmsClient.SendGradeSimulationAsync(targetIncline);
+
+                    // ログ出力（キープアライブ再送時はログ抑制し、勾配変化時またはゼロリセット時のみ出力）
+                    if (_lastSentGrade != targetIncline || _lastSentGrade == 999.0)
+                    {
+                        if (targetIncline <= 0.0)
+                        {
+                            Log($"[TRAINER] Incline set to FREE (0.0%, Road: {trueRoadGrade:F1}%)");
+                        }
+                        else
+                        {
+                            Log($"[TRAINER] Incline sent: {targetIncline:F1}% (Road: {trueRoadGrade:F1}%, Diff: {_trainerDifficulty * 100:F0}%)");
+                        }
+                    }
+
                     _lastSentGrade = targetIncline;
+                    _lastSentTime = now;
                     _lastSentTimeMS = packet.TimestampMS;
                 }
             }
@@ -620,6 +677,7 @@ namespace HorizonCyclingBridge.Core
                 IsTelemetryActive = (DateTime.UtcNow - _lastPacketTime).TotalMilliseconds < 1000,
                 PedalBrakeEnabled = _strategy.PedalBrakeEnabled,
                 Difficulty = _trainerDifficulty,
+                Ftp = _config.Ftp,
 
                 Power = _currentPower,
                 Cadence = _currentCadence,

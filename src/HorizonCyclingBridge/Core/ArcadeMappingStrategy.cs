@@ -5,7 +5,20 @@ namespace HorizonCyclingBridge.Core
 {
     public class ArcadeMappingStrategy : IPowerMappingStrategy
     {
-        private readonly double _ftp;
+        private double _ftp;
+
+        /// <summary>
+        /// ユーザーの基準パワー（FTP: Functional Threshold Power）（W）
+        /// </summary>
+        public double Ftp
+        {
+            get => _ftp;
+            set
+            {
+                if (value > 0) _ftp = value;
+            }
+        }
+
         private double _filteredBrake = 0.0;
         private bool _isBrakingActive = false;
         private bool _hasLogged100Percent = false;

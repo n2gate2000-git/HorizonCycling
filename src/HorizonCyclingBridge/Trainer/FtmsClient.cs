@@ -21,6 +21,8 @@ namespace HorizonCyclingBridge.Trainer
         private GattCharacteristic? _controlPointChar;
         private BluetoothLEAdvertisementWatcher? _watcher;
         private TaskCompletionSource<bool>? _connectTcs;
+        private bool _isSimulationParamsSupported = true;
+        private bool _isControlAcquired = false;
 
         /// <summary>
         /// スマートローラーから瞬時パワー (W) を受信したときに発生するイベント
@@ -46,6 +48,11 @@ namespace HorizonCyclingBridge.Trainer
         /// 現在スマートローラーと接続されているかどうか
         /// </summary>
         public bool IsConnected => _device != null && _device.ConnectionStatus == BluetoothConnectionStatus.Connected;
+
+        /// <summary>
+        /// スマートローラーの抵抗負荷制御権が獲得されているかどうか
+        /// </summary>
+        public bool IsControlAcquired => _isControlAcquired;
 
         private ulong _targetAddress = 0;
 
@@ -217,6 +224,7 @@ namespace HorizonCyclingBridge.Trainer
                 // FTMS仕様に準拠するため、コントロール送信の前にまずIndication（応答通知）を有効化します
                 try
                 {
+                    _controlPointChar.ValueChanged += ControlPointChar_ValueChanged;
                     var cpConfigStatus = await _controlPointChar.WriteClientCharacteristicConfigurationDescriptorAsync(
                         GattClientCharacteristicConfigurationDescriptorValue.Indicate);
                     if (cpConfigStatus == GattCommunicationStatus.Success)
@@ -236,11 +244,11 @@ namespace HorizonCyclingBridge.Trainer
                 bool controlAcquired = await RequestControlAsync();
                 if (controlAcquired)
                 {
-                    OnStatusMessage?.Invoke("[BLE] Successfully acquired Trainer resistance control.");
+                    OnStatusMessage?.Invoke("[BLE] Requested Trainer resistance control.");
                 }
                 else
                 {
-                    OnStatusMessage?.Invoke("[BLE] WARNING: Failed to acquire Trainer resistance control. Inclination feedback will not work.");
+                    OnStatusMessage?.Invoke("[BLE] WARNING: Failed to acquire Trainer resistance control. Inclination feedback may not work.");
                 }
             }
 
@@ -374,6 +382,91 @@ namespace HorizonCyclingBridge.Trainer
             }
         }
 
+        /// <summary>
+        /// スマートローラーに対して、CUI版で実証済みの方式（登坂: シミュレーションパラメータOpCode 0x11、平地・下り坂: フリー解放OpCode 0x04）で勾配負荷を送信します。
+        /// 万が一OpCode 0x11が未サポートの機器の場合は、OpCode 0x03（Target Inclination）へ自動フォールバックします。
+        /// </summary>
+        /// <param name="inclinationPercent">道路斜度（パーセンテージ、例: 3.5% なら 3.5、下り坂 -2.0% なら -2.0）</param>
+        /// <returns>送信成否</returns>
+        public async Task<bool> SendGradeSimulationAsync(double inclinationPercent)
+        {
+            if (_controlPointChar == null || !IsConnected) return false;
+
+            // 平地（0%以下）または下り坂は、CUI版と同じくフリー回転（抵抗レベル0）にしてペダリングを軽くする
+            if (inclinationPercent <= 0.0)
+            {
+                return await SetTargetResistanceLevelAsync(0);
+            }
+
+            // 登坂時: シミュレーションパラメータ（OpCode 0x11）を優先送信
+            if (_isSimulationParamsSupported)
+            {
+                bool success = await SetIndoorBikeSimulationParametersAsync(inclinationPercent);
+                if (success) return true;
+            }
+
+            // フォールバック: OpCode 0x03 (Set Target Inclination)
+            return await SetTargetInclinationAsync(inclinationPercent);
+        }
+
+        private void ControlPointChar_ValueChanged(GattCharacteristic sender, GattValueChangedEventArgs args)
+        {
+            var reader = DataReader.FromBuffer(args.CharacteristicValue);
+            byte[] data = new byte[reader.UnconsumedBufferLength];
+            reader.ReadBytes(data);
+
+            if (data.Length >= 3 && data[0] == 0x80)
+            {
+                byte requestOpCode = data[1];
+                byte resultCode = data[2];
+
+                string resultStr = resultCode switch
+                {
+                    0x01 => "Success",
+                    0x02 => "OpCode Not Supported",
+                    0x03 => "Invalid Parameter",
+                    0x04 => "Operation Failed",
+                    0x05 => "Control Not Permitted",
+                    _ => $"Result 0x{resultCode:X2}"
+                };
+
+                string opStr = requestOpCode switch
+                {
+                    0x00 => "Request Control",
+                    0x01 => "Reset",
+                    0x03 => "Set Target Inclination",
+                    0x04 => "Set Target Resistance",
+                    0x11 => "Set Simulation Parameters",
+                    _ => $"OpCode 0x{requestOpCode:X2}"
+                };
+
+                if (resultCode == 0x01)
+                {
+                    if (requestOpCode == 0x00)
+                    {
+                        _isControlAcquired = true;
+                        OnStatusMessage?.Invoke("[BLE] Trainer resistance control confirmed.");
+                    }
+                }
+                else
+                {
+                    OnStatusMessage?.Invoke($"[FTMS-CP] {opStr} -> {resultStr}");
+
+                    if (resultCode == 0x02 && requestOpCode == 0x11)
+                    {
+                        _isSimulationParamsSupported = false;
+                        OnStatusMessage?.Invoke("[BLE] Trainer does not support OpCode 0x11. Falling back to OpCode 0x03.");
+                    }
+                    else if (resultCode == 0x05)
+                    {
+                        _isControlAcquired = false;
+                        OnStatusMessage?.Invoke("[BLE] Control not permitted. Re-requesting control...");
+                        _ = RequestControlAsync();
+                    }
+                }
+            }
+        }
+
         private void BikeDataChar_ValueChanged(GattCharacteristic sender, GattValueChangedEventArgs args)
         {
             var reader = DataReader.FromBuffer(args.CharacteristicValue);
@@ -426,7 +519,12 @@ namespace HorizonCyclingBridge.Trainer
                 _bikeDataChar.ValueChanged -= BikeDataChar_ValueChanged;
                 _bikeDataChar = null;
             }
-            _controlPointChar = null;
+
+            if (_controlPointChar != null)
+            {
+                _controlPointChar.ValueChanged -= ControlPointChar_ValueChanged;
+                _controlPointChar = null;
+            }
 
             if (_device != null)
             {

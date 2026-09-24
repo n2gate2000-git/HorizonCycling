@@ -18,4 +18,10 @@
     <InternalsVisibleTo Include="HorizonCycling.Tests" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="vJoyInterface.dll">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

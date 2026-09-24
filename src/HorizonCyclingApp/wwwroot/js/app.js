@@ -433,6 +433,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // 状態スナップショットのUI反映
   function handleStateUpdate(s) {
     // 1. パワー
+    if (s.Ftp && s.Ftp > 0) {
+      currentFtp = s.Ftp;
+    }
     const power = Math.round(s.Power);
     powerVal.textContent = power;
     const wkg = (power / 70.0).toFixed(1); // 基準体重70kg換算
@@ -454,7 +457,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 4. ケイデンス・ギア・距離
     cadenceVal.textContent = s.Cadence > 0 ? Math.round(s.Cadence) : '--';
-    gearVal.textContent = s.Gear === 0 ? 'R' : (s.Gear === 1 ? 'N' : `${s.Gear - 1}`);
+    gearVal.textContent = s.IsTelemetryActive ? (s.Gear === 0 ? 'R' : `${s.Gear}`) : '--';
     distVal.textContent = s.TotalDistanceKm.toFixed(2);
 
     // 5. スロットル・ブレーキ

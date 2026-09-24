@@ -221,13 +221,12 @@ namespace HorizonCyclingApp
                         {
                             if (root.TryGetProperty("ftp", out var ftpProp))
                             {
-                                _bridgeService.Config.Ftp = ftpProp.GetDouble();
+                                _bridgeService.SetFtp(ftpProp.GetDouble());
                             }
                             if (root.TryGetProperty("pedalBrake", out var brakeProp))
                             {
                                 _bridgeService.SetPedalBrake(brakeProp.GetBoolean());
                             }
-                            ConfigManager.Save(_bridgeService.Config);
                         }
                         break;
 
