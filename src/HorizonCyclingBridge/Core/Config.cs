@@ -31,18 +31,31 @@ namespace HorizonCyclingBridge.Core
 
     public static class ConfigManager
     {
-        private const string CONFIG_FILE = "config.json";
+        private static string GetConfigFilePath()
+        {
+            string baseDirFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "config.json");
+            if (File.Exists(baseDirFile))
+            {
+                return baseDirFile;
+            }
+            if (File.Exists("config.json"))
+            {
+                return Path.GetFullPath("config.json");
+            }
+            return baseDirFile;
+        }
 
         public static AppConfig Load()
         {
-            if (!File.Exists(CONFIG_FILE))
+            string path = GetConfigFilePath();
+            if (!File.Exists(path))
             {
                 return new AppConfig();
             }
 
             try
             {
-                string json = File.ReadAllText(CONFIG_FILE);
+                string json = File.ReadAllText(path);
                 return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
             }
             catch (Exception ex)
@@ -56,9 +69,10 @@ namespace HorizonCyclingBridge.Core
         {
             try
             {
+                string path = GetConfigFilePath();
                 var options = new JsonSerializerOptions { WriteIndented = true };
                 string json = JsonSerializer.Serialize(config, options);
-                File.WriteAllText(CONFIG_FILE, json);
+                File.WriteAllText(path, json);
             }
             catch (Exception ex)
             {

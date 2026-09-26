@@ -42,12 +42,24 @@ namespace HorizonCyclingApp
                     }
                 }
 
-                // タイルキャッシュフォルダの探索
-                string tileCacheDir = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "map", ".tile_cache"));
-                if (!Directory.Exists(tileCacheDir))
+                // マップおよびタイルキャッシュフォルダの探索（配布フォルダ・開発環境の両対応）
+                string[] candidateMapDirs = new[]
                 {
-                    tileCacheDir = @"d:\develop\HorizonCycling\map\.tile_cache";
-                }
+                    Path.Combine(baseDir, "map"),
+                    Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "map")),
+                    Path.Combine(Directory.GetCurrentDirectory(), "map"),
+                    @"d:\develop\HorizonCycling\map"
+                };
+                string mapDir = candidateMapDirs.FirstOrDefault(d => Directory.Exists(d)) ?? Path.Combine(baseDir, "map");
+
+                string[] candidateTileDirs = new[]
+                {
+                    Path.Combine(mapDir, ".tile_cache"),
+                    Path.Combine(baseDir, "map", ".tile_cache"),
+                    Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "map", ".tile_cache")),
+                    @"d:\develop\HorizonCycling\map\.tile_cache"
+                };
+                string tileCacheDir = candidateTileDirs.FirstOrDefault(d => Directory.Exists(d)) ?? Path.Combine(mapDir, ".tile_cache");
 
                 webView.CoreWebView2.SetVirtualHostNameToFolderMapping(
                     "horizoncycling.local", 
@@ -62,12 +74,6 @@ namespace HorizonCyclingApp
                         tileCacheDir, 
                         CoreWebView2HostResourceAccessKind.Allow
                     );
-                }
-
-                string mapDir = Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "map"));
-                if (!Directory.Exists(mapDir))
-                {
-                    mapDir = @"d:\develop\HorizonCycling\map";
                 }
 
                 if (Directory.Exists(mapDir))
