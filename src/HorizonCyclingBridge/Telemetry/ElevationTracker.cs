@@ -55,9 +55,10 @@ namespace HorizonCyclingBridge.Telemetry
         }
 
         /// <summary>
-        /// テレメトリから新しい標高と走行距離を受け取り、平滑化と獲得標高の積算を行う
+        /// テレメトリから新しい標高と走行距離を受け取り、平滑化と獲得標高の積算を行う。
+        /// ファストトラベル等の急変時は獲得標高を加算せず瞬時にリベースする。
         /// </summary>
-        public void Update(float rawElevation, float currentSpeedKmh, double gradePercent, double deltaSeconds)
+        public void Update(float rawElevation, float currentSpeedKmh, double gradePercent, double deltaSeconds, bool isTeleport = false)
         {
             if (float.IsNaN(rawElevation) || float.IsInfinity(rawElevation)) return;
 
@@ -68,6 +69,21 @@ namespace HorizonCyclingBridge.Telemetry
                     _smoothedElevation = rawElevation;
                     _lastTrackedElevation = rawElevation;
                     _isInitialized = true;
+                    return;
+                }
+
+                // ファストトラベル・標高急変判定（物理走行ではあり得ない垂直速度やジャンプ）
+                double elevationJump = Math.Abs(rawElevation - _smoothedElevation);
+                double rateOfClimb = deltaSeconds > 0.001 ? (elevationJump / deltaSeconds) : 0.0;
+                bool isJumpDetected = isTeleport ||
+                                      (elevationJump > 5.0 && rateOfClimb > 25.0) ||
+                                      (currentSpeedKmh < 15.0f && elevationJump > 3.0 && deltaSeconds < 0.2);
+
+                if (isJumpDetected)
+                {
+                    // 獲得標高(_elevationGain)や標高喪失(_elevationLoss)に加算せず、瞬時に新しい標高へリベース
+                    _smoothedElevation = rawElevation;
+                    _lastTrackedElevation = rawElevation;
                     return;
                 }
 

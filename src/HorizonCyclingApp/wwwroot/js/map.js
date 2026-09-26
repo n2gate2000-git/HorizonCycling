@@ -9,7 +9,7 @@ class LiveMapTracker {
     this.map = null;
     this.carMarker = null;
     this.trackLine = null;
-    this.trackPoints = [];
+    this.trackSegments = [[]];
     this.followCar = true;
     this.poiLayerGroup = null;
     this.pinsVisible = true;
@@ -120,7 +120,7 @@ class LiveMapTracker {
   }
 
   // 車両の位置と向きを更新
-  updateCar(pixelX, pixelY, yawRadians, worldX, worldZ, isPositionValid = true) {
+  updateCar(pixelX, pixelY, yawRadians, worldX, worldZ, isPositionValid = true, isTeleport = false) {
     if (!this.map) return;
 
     // メニュー中や0,0,0へのジャンプガード
@@ -141,22 +141,43 @@ class LiveMapTracker {
 
     // 軌跡の追加（メニュー中や0,0,0の時は軌跡を描かない）
     if (isValid) {
-      if (this.trackPoints.length === 0) {
-        this.trackPoints.push(latLng);
-        this.trackLine.addLatLng(latLng);
+      let currentSeg = this.trackSegments[this.trackSegments.length - 1];
+
+      if (currentSeg.length === 0) {
+        currentSeg.push(latLng);
+        this.trackLine.setLatLngs(this.trackSegments);
       } else {
-        const last = this.trackPoints[this.trackPoints.length - 1];
+        const last = currentSeg[currentSeg.length - 1];
         const dist = Math.hypot(latLng.lat - last.lat, latLng.lng - last.lng);
-        // 通常の移動（5px以上）かつワープでない場合（250px未満）に軌跡を描画
-        if (dist > 5.0 && dist < 250.0) {
-          this.trackPoints.push(latLng);
-          this.trackLine.addLatLng(latLng);
-          if (this.trackPoints.length > 3000) {
-            this.trackPoints.shift();
+
+        // ファストトラベル・ワープ判定（フラグまたはピクセル距離急変）
+        const isJump = (isTeleport === true) || (dist >= 45.0);
+
+        if (isJump) {
+          // 移動前の軌跡はそのまま残し、移動前と移動後の間に直線を引かず新しいセグメントを開始
+          this.trackSegments.push([latLng]);
+          this.trackLine.setLatLngs(this.trackSegments);
+        } else if (dist > 5.0) {
+          // 通常の走行移動: 現在のセグメントに追加
+          currentSeg.push(latLng);
+          this.trackLine.setLatLngs(this.trackSegments);
+
+          // メモリ・描画負荷対策（最大3000点）
+          let totalPoints = 0;
+          for (let i = 0; i < this.trackSegments.length; i++) {
+            totalPoints += this.trackSegments[i].length;
           }
-        } else if (dist >= 250.0) {
-          // ファストトラベル等の大ジャンプ時は長い直線を描かず、新しい基点とする
-          this.trackPoints.push(latLng);
+          if (totalPoints > 3000) {
+            for (let i = 0; i < this.trackSegments.length; i++) {
+              if (this.trackSegments[i].length > 0) {
+                this.trackSegments[i].shift();
+                if (this.trackSegments[i].length === 0 && this.trackSegments.length > 1) {
+                  this.trackSegments.splice(i, 1);
+                }
+                break;
+              }
+            }
+          }
         }
       }
     }
@@ -214,7 +235,7 @@ class LiveMapTracker {
   }
 
   clearTrack() {
-    this.trackPoints = [];
+    this.trackSegments = [[]];
     if (this.trackLine) {
       this.trackLine.setLatLngs([]);
     }

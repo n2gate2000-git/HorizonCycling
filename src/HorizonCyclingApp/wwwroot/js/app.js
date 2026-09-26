@@ -219,6 +219,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnClearTrack.addEventListener('click', () => {
     mapTracker.clearTrack();
+    elevationChart.reset();
+    gainSub.textContent = '獲得標高: +0 m';
+    if (profEleGain) profEleGain.textContent = '+0 m';
+    postMessageToHost('clearTrack');
   });
 
   btnClearLogs.addEventListener('click', () => {
@@ -479,7 +483,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 7. マップ更新
-    mapTracker.updateCar(s.MapPixelX, s.MapPixelY, s.Yaw, s.PositionX, s.PositionZ, s.IsPositionValid);
+    mapTracker.updateCar(s.MapPixelX, s.MapPixelY, s.Yaw, s.PositionX, s.PositionZ, s.IsPositionValid, s.IsTeleport);
     coordDisplay.textContent = `World: (X:${s.PositionX.toFixed(0)}, Y:${s.PositionY.toFixed(0)}, Z:${s.PositionZ.toFixed(0)}) | Map: (${Math.round(s.MapPixelX)}, ${Math.round(s.MapPixelY)})`;
 
     // 8. 標高プロファイル更新

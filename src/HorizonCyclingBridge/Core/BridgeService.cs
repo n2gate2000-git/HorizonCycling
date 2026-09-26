@@ -49,6 +49,7 @@ namespace HorizonCyclingBridge.Core
         public double TotalDistanceKm { get; set; } = 0.0;
 
         public bool IsPositionValid { get; set; } = true;
+        public bool IsTeleport { get; set; } = false;
         public string SessionState { get; set; } = "Stopped";
         public double ElapsedSeconds { get; set; } = 0.0;
     }
@@ -275,6 +276,12 @@ namespace HorizonCyclingBridge.Core
             var summary = _sessionManager.StopAndExport(outDir, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
             Log($"[SESSION] Finished. Saved to: {summary.SavedFilePath}");
             OnSessionSaved?.Invoke(summary);
+        }
+
+        public void ClearTrack()
+        {
+            _elevationTracker.Reset();
+            Log("[TRACK] Cleared track and reset elevation gain.");
         }
 
         public async Task StartAsync()
@@ -530,9 +537,30 @@ namespace HorizonCyclingBridge.Core
             float outPosY;
             float outPosZ;
             float outYaw;
+            bool isFastTravel = false;
 
             if (isPositionValid)
             {
+                // ファストトラベル（テレポート・リセット）判定
+                if (_hasValidPosition)
+                {
+                    float dx = packet.PositionX - _lastValidPositionX;
+                    float dy = packet.PositionY - _lastValidPositionY;
+                    float dz = packet.PositionZ - _lastValidPositionZ;
+                    double horizontalDist = Math.Sqrt(dx * dx + dz * dz);
+                    double verticalDist = Math.Abs(dy);
+
+                    // 最高速でも到達不能な距離（時速400km/h = 111m/s相当）
+                    double maxAllowedHorizontal = Math.Max(35.0, (packet.SpeedKmh / 3.6) * deltaSec * 3.0 + 15.0);
+                    double maxAllowedVertical = Math.Max(4.0, (packet.SpeedKmh / 3.6) * deltaSec * 1.5 + 2.0);
+
+                    if (horizontalDist > maxAllowedHorizontal || (verticalDist > maxAllowedVertical && deltaSec < 0.5))
+                    {
+                        isFastTravel = true;
+                        Log($"[TELEMETRY] Fast travel detected (Jumped {horizontalDist:F0}m, Ele: {dy:+0.0;-0.0}m). Elevation gain skipped.");
+                    }
+                }
+
                 // 有効な走行座標
                 (pixelX, pixelY) = _coordEngine.WorldToPixel(packet.PositionX, packet.PositionZ);
                 (lat, lon) = _coordEngine.WorldToGps(packet.PositionX, packet.PositionZ);
@@ -552,8 +580,8 @@ namespace HorizonCyclingBridge.Core
                 outPosZ = packet.PositionZ;
                 outYaw = packet.Yaw;
 
-                // 標高トラッカー更新
-                _elevationTracker.Update(packet.PositionY, packet.SpeedKmh, _filteredGrade, deltaSec);
+                // 標高トラッカー更新 (ファストトラベル時は獲得標高加算をスキップ)
+                _elevationTracker.Update(packet.PositionY, packet.SpeedKmh, _filteredGrade, deltaSec, isFastTravel);
 
                 // セッショントラックポイント記録 (走行中かつ有効座標のみ)
                 _sessionManager.AddTrackPoint(lat, lon, _elevationTracker.CurrentElevation, packet.SpeedKmh, _currentPower, _currentCadence, _currentHeartRate);
@@ -699,6 +727,7 @@ namespace HorizonCyclingBridge.Core
                 Latitude = lat,
                 Longitude = lon,
                 IsPositionValid = isPositionValid,
+                IsTeleport = isFastTravel,
 
                 ElevationMeters = _elevationTracker.CurrentElevation,
                 ElevationGainMeters = _elevationTracker.ElevationGain,

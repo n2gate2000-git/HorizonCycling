@@ -216,6 +216,10 @@ namespace HorizonCyclingApp
                         _bridgeService?.StopSession();
                         break;
 
+                    case "clearTrack":
+                        _bridgeService?.ClearTrack();
+                        break;
+
                     case "updateSettings":
                         if (_bridgeService != null)
                         {
