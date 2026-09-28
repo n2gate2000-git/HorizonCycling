@@ -251,6 +251,44 @@ namespace HorizonCyclingBridge.Core
             Log($"[CONFIG] Rider FTP set to {_config.Ftp:F0}W.");
         }
 
+        private string? _activitiesDirectory;
+        public string ActivitiesDirectory
+        {
+            get
+            {
+                if (_activitiesDirectory != null) return _activitiesDirectory;
+
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string[] candidates = new[]
+                {
+                    @"d:\develop\HorizonCycling\logs\activities",
+                    Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "logs", "activities")),
+                    Path.Combine(baseDir, "logs", "activities"),
+                    Path.Combine(Directory.GetCurrentDirectory(), "logs", "activities")
+                };
+
+                foreach (var dir in candidates)
+                {
+                    try
+                    {
+                        string parent = Path.GetDirectoryName(dir) ?? "";
+                        if (Directory.Exists(parent) || Directory.Exists(Path.GetDirectoryName(parent) ?? ""))
+                        {
+                            Directory.CreateDirectory(dir);
+                            _activitiesDirectory = dir;
+                            return dir;
+                        }
+                    }
+                    catch { }
+                }
+
+                string fallback = Path.Combine(baseDir, "logs", "activities");
+                Directory.CreateDirectory(fallback);
+                _activitiesDirectory = fallback;
+                return fallback;
+            }
+        }
+
         public void StartSession()
         {
             _elevationTracker.Reset();
@@ -272,16 +310,53 @@ namespace HorizonCyclingBridge.Core
 
         public void StopSession()
         {
-            string outDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "logs", "activities");
-            var summary = _sessionManager.StopAndExport(outDir, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
+            var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
             Log($"[SESSION] Finished. Saved to: {summary.SavedFilePath}");
             OnSessionSaved?.Invoke(summary);
+
+            // 保存完了後、トラッカーを初期化して次のセッションの自動記録を即時開始
+            _elevationTracker.Reset();
+            _sessionManager.Start();
+            Log("[SESSION] Auto-recording restarted for the next activity.");
+        }
+
+        /// <summary>
+        /// 軌跡をクリアし、直前のセッションを安全に保存した上で新しい記録を即座に開始します
+        /// </summary>
+        public SessionSummary? ClearTrackAndRestart()
+        {
+            SessionSummary? summary = null;
+            if (_sessionManager.PointCount > 0 || _elevationTracker.TotalDistanceMeters > 0)
+            {
+                summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
+                Log($"[SESSION] Saved previous session before clearing: {summary.SavedFilePath}");
+                OnSessionSaved?.Invoke(summary);
+            }
+
+            _elevationTracker.Reset();
+            _sessionManager.Start();
+            Log("[SESSION] Cleared track and automatically started a new session.");
+            return summary;
         }
 
         public void ClearTrack()
         {
-            _elevationTracker.Reset();
-            Log("[TRACK] Cleared track and reset elevation gain.");
+            ClearTrackAndRestart();
+        }
+
+        public List<SessionHistoryItem> GetHistoryList()
+        {
+            return SessionHistoryManager.GetHistoryList(ActivitiesDirectory);
+        }
+
+        public string? GetHistoryDetailJson(string fileName)
+        {
+            return SessionHistoryManager.GetHistoryDetailJson(ActivitiesDirectory, fileName);
+        }
+
+        public bool DeleteHistory(string fileName)
+        {
+            return SessionHistoryManager.DeleteHistory(ActivitiesDirectory, fileName);
         }
 
         public async Task StartAsync()
@@ -293,6 +368,10 @@ namespace HorizonCyclingBridge.Core
             _udpReceiver.OnPacketReceived += HandlePacketReceived;
             _udpReceiver.Start();
             Log("[SYSTEM] HorizonCycling core service started.");
+
+            // アプリ起動時の自動記録開始
+            _sessionManager.Start();
+            Log("[SESSION] Auto-recording initialized. Ready to ride.");
 
             // BLE接続（バックグラウンド非同期）
             _ = Task.Run(async () =>
@@ -583,11 +662,18 @@ namespace HorizonCyclingBridge.Core
                 // 標高トラッカー更新 (ファストトラベル時は獲得標高加算をスキップ)
                 _elevationTracker.Update(packet.PositionY, packet.SpeedKmh, _filteredGrade, deltaSec, isFastTravel);
 
+                // オートポーズ判定（車速 >= 1.0 km/h かつ 有効座標 かつ 非ファストトラベル）
+                bool isMoving = packet.SpeedKmh >= 1.0f && !isFastTravel;
+                _sessionManager.UpdateMovingState(isMoving, deltaSec);
+
                 // セッショントラックポイント記録 (走行中かつ有効座標のみ)
-                _sessionManager.AddTrackPoint(lat, lon, _elevationTracker.CurrentElevation, packet.SpeedKmh, _currentPower, _currentCadence, _currentHeartRate);
+                double currentTargetSpeed = (_strategy as SimulationMappingStrategy)?.TargetSpeedKmh ?? 0.0;
+                _sessionManager.AddTrackPoint(lat, lon, pixelX, pixelY, _elevationTracker.CurrentElevation, packet.SpeedKmh, currentTargetSpeed, _currentPower, _currentCadence, _currentHeartRate, _filteredGrade, _elevationTracker.TotalDistanceMeters / 1000.0);
             }
             else
             {
+                // メニュー中や停止中は移動フラグをfalseにしてオートポーズ
+                _sessionManager.UpdateMovingState(false, deltaSec);
                 // メニュー中や0,0,0受信時は直前の有効座標を維持して原点ジャンプを防ぐ
                 if (_hasValidPosition)
                 {
@@ -615,7 +701,12 @@ namespace HorizonCyclingBridge.Core
 
                     _elevationTracker.Update(packet.PositionY, 0.0f, 0.0, deltaSec);
                 }
-                // ※_sessionManager.AddTrackPoint はスキップ（GPXやログの汚染を防止）
+
+                // もし初回スタート地点がまだ記録されていなければ、停止中であっても現在地点をスタート地点として記録
+                if (_sessionManager.PointCount == 0 && _hasValidPosition)
+                {
+                    _sessionManager.AddTrackPoint(lat, lon, pixelX, pixelY, _elevationTracker.CurrentElevation, 0.0, 0.0, _currentPower, _currentCadence, _currentHeartRate, _filteredGrade, 0.0);
+                }
             }
 
             // スマートローラー負荷フィードバック
@@ -749,6 +840,20 @@ namespace HorizonCyclingBridge.Core
         {
             if (_isDisposed) return;
             _isDisposed = true;
+
+            // アプリケーション終了時に有効な走行データがあれば自動保存
+            try
+            {
+                if (_sessionManager.PointCount > 0 || _elevationTracker.TotalDistanceMeters > 0)
+                {
+                    var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
+                    Log($"[SESSION] Auto-saved on exit: {summary.SavedFilePath}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SESSION] Error saving on exit: {ex.Message}");
+            }
 
             _udpReceiver.Stop();
             _vjoy.Dispose();

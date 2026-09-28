@@ -223,7 +223,63 @@ namespace HorizonCyclingApp
                         break;
 
                     case "clearTrack":
-                        _bridgeService?.ClearTrack();
+                        _bridgeService?.ClearTrackAndRestart();
+                        break;
+
+                    case "getHistoryList":
+                        if (_bridgeService != null && webView.CoreWebView2 != null)
+                        {
+                            var historyList = _bridgeService.GetHistoryList();
+                            string listJson = JsonSerializer.Serialize(new
+                            {
+                                type = "historyList",
+                                payload = historyList
+                            });
+                            webView.CoreWebView2.PostWebMessageAsJson(listJson);
+                        }
+                        break;
+
+                    case "getHistoryDetail":
+                        if (_bridgeService != null && webView.CoreWebView2 != null &&
+                            root.TryGetProperty("fileName", out var fnProp))
+                        {
+                            string fileName = fnProp.GetString() ?? "";
+                            string? detailJson = _bridgeService.GetHistoryDetailJson(fileName);
+                            if (detailJson != null)
+                            {
+                                var invZStr = _bridgeService.CoordinateEngine.InvertZ ? "true" : "false";
+                                var ox = _bridgeService.CoordinateEngine.WorldOriginX.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                                var oz = _bridgeService.CoordinateEngine.WorldOriginZ.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                                var sc = _bridgeService.CoordinateEngine.WorldScale.ToString(System.Globalization.CultureInfo.InvariantCulture);
+                                string msg = $"{{\"type\":\"historyDetail\",\"mapOriginX\":{ox},\"mapOriginZ\":{oz},\"mapScale\":{sc},\"invertZ\":{invZStr},\"payload\":{detailJson}}}";
+                                webView.CoreWebView2.PostWebMessageAsJson(msg);
+                            }
+                        }
+                        break;
+
+                    case "deleteHistory":
+                        if (_bridgeService != null && webView.CoreWebView2 != null &&
+                            root.TryGetProperty("fileName", out var delProp))
+                        {
+                            string fileName = delProp.GetString() ?? "";
+                            bool success = _bridgeService.DeleteHistory(fileName);
+                            string delJson = JsonSerializer.Serialize(new
+                            {
+                                type = "historyDeleted",
+                                fileName = fileName,
+                                success = success
+                            });
+                            webView.CoreWebView2.PostWebMessageAsJson(delJson);
+                        }
+                        break;
+
+                    case "openActivitiesFolder":
+                        if (_bridgeService != null)
+                        {
+                            string actDir = _bridgeService.ActivitiesDirectory;
+                            Directory.CreateDirectory(actDir);
+                            Process.Start("explorer.exe", $"\"{actDir}\"");
+                        }
                         break;
 
                     case "updateSettings":
@@ -244,16 +300,27 @@ namespace HorizonCyclingApp
                         if (root.TryGetProperty("path", out var pathProp))
                         {
                             string path = pathProp.GetString() ?? "";
-                            if (File.Exists(path))
+                            if (!string.IsNullOrEmpty(path))
                             {
-                                Process.Start("explorer.exe", $"/select,\"{path}\"");
-                            }
-                            else
-                            {
-                                string dir = Path.GetDirectoryName(path) ?? "";
-                                if (Directory.Exists(dir))
+                                if (!Path.IsPathRooted(path) && _bridgeService != null)
                                 {
-                                    Process.Start("explorer.exe", $"\"{dir}\"");
+                                    path = Path.Combine(_bridgeService.ActivitiesDirectory, path);
+                                }
+                                if (File.Exists(path))
+                                {
+                                    Process.Start("explorer.exe", $"/select,\"{path}\"");
+                                }
+                                else
+                                {
+                                    string dir = Path.GetDirectoryName(path) ?? "";
+                                    if (Directory.Exists(dir))
+                                    {
+                                        Process.Start("explorer.exe", $"\"{dir}\"");
+                                    }
+                                    else if (_bridgeService != null && Directory.Exists(_bridgeService.ActivitiesDirectory))
+                                    {
+                                        Process.Start("explorer.exe", $"\"{_bridgeService.ActivitiesDirectory}\"");
+                                    }
                                 }
                             }
                         }

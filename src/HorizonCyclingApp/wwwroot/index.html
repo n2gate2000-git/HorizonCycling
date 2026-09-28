@@ -37,6 +37,7 @@
             <span id="recText">REC</span>
           </button>
           <div class="session-timer" id="sessionTimer">00:00:00</div>
+          <span id="autoPauseBadge" class="auto-pause-badge hidden">AUTO PAUSE</span>
         </div>
       </div>
 
@@ -177,11 +178,12 @@
 
       </section>
 
-      <!-- RIGHT PANE: MAP & ELEVATION PROFILE & LOGS (Tabbed) -->
+      <!-- RIGHT PANE: MAP & ELEVATION PROFILE & HISTORY & LOGS (Tabbed) -->
       <section class="right-pane">
         <div class="pane-tabs">
           <button class="tab-btn active" data-tab="tabMap">🗺 リアルタイムマップ追跡</button>
           <button class="tab-btn" data-tab="tabElevation">📈 走行プロファイル</button>
+          <button class="tab-btn" data-tab="tabHistory">📜 走行履歴</button>
           <button class="tab-btn" data-tab="tabLogs">📋 ログ・セッション詳細</button>
         </div>
 
@@ -238,7 +240,108 @@
           </div>
         </div>
 
-        <!-- TAB 3: System Logs & Summary -->
+        <!-- TAB 3: Session History Viewer -->
+        <div id="tabHistory" class="tab-content">
+          <div class="history-container">
+            <!-- 左ペイン: セッション履歴リスト -->
+            <div class="history-sidebar">
+              <div class="history-sidebar-header">
+                <span class="history-title">📜 走行ログ一覧</span>
+                <div class="history-actions">
+                  <button id="btnRefreshHistory" class="btn-subaction-small" title="履歴を再読込">🔄 更新</button>
+                  <button id="btnOpenActivitiesDir" class="btn-subaction-small" title="ログ保存フォルダを開く">📂 フォルダ</button>
+                </div>
+              </div>
+              <div id="historyListContainer" class="history-list">
+                <div class="history-loading">履歴を読み込み中...</div>
+              </div>
+            </div>
+
+            <!-- 右ペイン: 選択したセッション詳細 -->
+            <div class="history-main" id="historyMainPane">
+              <div class="history-empty-state" id="historyEmptyState">
+                <div class="empty-icon">📂</div>
+                <div class="empty-text">左側のリストから走行記録を選択してください</div>
+              </div>
+
+              <div class="history-detail hidden" id="historyDetailPane">
+                <!-- セッションヘッダー統計 -->
+                <div class="history-detail-header">
+                  <div class="history-meta-title">
+                    <span id="histTitleDate" class="hist-title-date">2026/09/28 21:05</span>
+                    <span id="histSessionIdBadge" class="hist-badge">ID: 20260928_210530</span>
+                  </div>
+                  <div class="history-header-actions">
+                    <button id="btnOpenSelectedGpx" class="btn-action-small">📤 GPXを開く</button>
+                    <button id="btnDeleteSelectedSession" class="btn-action-small btn-danger">🗑 削除</button>
+                  </div>
+                </div>
+
+                <div class="history-stats-grid">
+                  <div class="h-stat-card">
+                    <span class="h-stat-label">⏱ 走行時間</span>
+                    <span class="h-stat-val text-cyan" id="histMovingTime">00:00:00</span>
+                    <span class="h-stat-sub" id="histTotalTime">総時間: 00:00:00</span>
+                  </div>
+                  <div class="h-stat-card">
+                    <span class="h-stat-label">📏 走行距離</span>
+                    <span class="h-stat-val text-orange" id="histDistance">0.00 km</span>
+                    <span class="h-stat-sub" id="histAvgSpeed">平均: 0.0 km/h</span>
+                  </div>
+                  <div class="h-stat-card">
+                    <span class="h-stat-label">⛰ 獲得標高</span>
+                    <span class="h-stat-val text-green" id="histElevationGain">+0 m</span>
+                    <span class="h-stat-sub" id="histMaxSpeed">最高速: 0.0 km/h</span>
+                  </div>
+                  <div class="h-stat-card">
+                    <span class="h-stat-label">⚡ 平均パワー</span>
+                    <span class="h-stat-val text-orange" id="histAvgPower">0 W</span>
+                    <span class="h-stat-sub" id="histMaxPower">NP: 0W / Max: 0W</span>
+                  </div>
+                  <div class="h-stat-card">
+                    <span class="h-stat-label">🔥 消費エネルギー</span>
+                    <span class="h-stat-val" id="histCalories">0 kcal</span>
+                    <span class="h-stat-sub" id="histAvgCadence">平均ケイデンス: 0 rpm</span>
+                  </div>
+                </div>
+
+                <!-- 過去ルート地図プレビュー & プロファイルグラフ (上下分割) -->
+                <div class="history-views">
+                  <div class="history-map-wrapper">
+                    <div class="history-section-title">
+                      <span>🗺 走行ルート軌跡 (Forza Horizon 6 マップ)</span>
+                      <div class="history-map-tools">
+                        <div class="hist-tool-group" title="軌跡の縮尺(スケール)を微調整">
+                          <span class="hist-tool-label">縮尺:</span>
+                          <button id="btnHistScaleDown" class="btn-tool-icon" title="縮尺を縮小">－</button>
+                          <span id="histScaleValue" class="hist-tool-val">0.252</span>
+                          <button id="btnHistScaleUp" class="btn-tool-icon" title="縮尺を拡大">＋</button>
+                        </div>
+                        <div class="hist-tool-group" title="軌跡の位置(オフセット)を上下左右に微調整">
+                          <button id="btnHistMoveUp" class="btn-tool-icon" title="上に移動">▲</button>
+                          <button id="btnHistMoveDown" class="btn-tool-icon" title="下に移動">▼</button>
+                          <button id="btnHistMoveLeft" class="btn-tool-icon" title="左に移動">◀</button>
+                          <button id="btnHistMoveRight" class="btn-tool-icon" title="右に移動">▶</button>
+                        </div>
+                        <button id="btnHistSaveAlignment" class="btn-subaction-small text-green" title="この位置合わせ・縮尺をシステム設定に保存">💾 保存</button>
+                        <button id="btnFitHistoryRoute" class="btn-subaction-small" title="ルート全体を表示領域にフィット">🔍 全体表示</button>
+                      </div>
+                    </div>
+                    <div id="historyMapView" class="history-map-container"></div>
+                  </div>
+                  <div class="history-chart-wrapper">
+                    <div class="history-section-title">📈 走行プロファイル推移 (高度 / 速度 / 目標 / パワー)</div>
+                    <div class="history-chart-box">
+                      <canvas id="historyChart"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: System Logs & Summary -->
         <div id="tabLogs" class="tab-content">
           <div class="logs-container">
             <div class="logs-header">
@@ -339,14 +442,15 @@
               <span>🗺️ マップ座標・縮尺設定</span>
             </div>
             <div class="form-group">
-              <label>地図縮尺 (スケール: 0.200〜0.300 px/m, 0.001刻み)</label>
+              <label>地図縮尺 (スケール: 0.150〜0.400 px/m, 0.001刻み)</label>
               <div class="range-row">
-                <input type="range" id="settingMapScale" min="0.200" max="0.300" step="0.001" value="0.263">
-                <span id="settingMapScaleVal" class="range-val-badge">0.263</span>
+                <input type="range" id="settingMapScale" min="0.150" max="0.400" step="0.001" value="0.252">
+                <span id="settingMapScaleVal" class="range-val-badge">0.252</span>
               </div>
               <div class="scale-presets">
-                <button type="button" class="btn-preset active" data-scale="0.263">0.263 (実寸標準)</button>
-                <button type="button" class="btn-preset" data-scale="0.250">0.250</button>
+                <button type="button" class="btn-preset active" data-scale="0.252">0.252 (実寸最適)</button>
+                <button type="button" class="btn-preset" data-scale="0.263">0.263 (標準)</button>
+                <button type="button" class="btn-preset" data-scale="0.240">0.240</button>
                 <button type="button" class="btn-preset" data-scale="0.280">0.280</button>
                 <button type="button" class="btn-preset" data-scale="0.300">0.300</button>
               </div>
@@ -374,6 +478,7 @@
   <!-- Application Scripts -->
   <script src="js/map.js"></script>
   <script src="js/chart.js"></script>
+  <script src="js/history.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

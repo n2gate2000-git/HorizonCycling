@@ -10,6 +10,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const elevationChart = new ElevationProfileChart('elevationChart');
   elevationChart.init();
 
+  const historyController = new SessionHistoryController();
+  historyController.init();
+
   // DOM要素の参照
   const powerVal = document.getElementById('powerVal');
   const wkgVal = document.getElementById('wkgVal');
@@ -32,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnRecord = document.getElementById('btnRecord');
   const recText = document.getElementById('recText');
   const sessionTimer = document.getElementById('sessionTimer');
+  const autoPauseBadge = document.getElementById('autoPauseBadge');
   const modeSelect = document.getElementById('modeSelect');
   const diffSlider = document.getElementById('diffSlider');
   const diffValue = document.getElementById('diffValue');
@@ -123,6 +127,11 @@ document.addEventListener('DOMContentLoaded', () => {
           elevationChart.chart.resize();
           elevationChart.renderChart();
         }, 50);
+      }
+      // 走行履歴タブが表示されたらリサイズと最新一覧の更新
+      if (targetTabId === 'tabHistory') {
+        historyController.invalidateSize();
+        historyController.refreshList();
       }
     });
   });
@@ -226,6 +235,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profEleGain) profEleGain.textContent = '+0 m';
     if (profDist) profDist.textContent = '0.00 km';
     postMessageToHost('clearTrack');
+    appendLog('[TRACK] 🧹 軌跡をクリアし、前セッションを保存して新しい記録を開始しました');
   });
 
   btnClearLogs.addEventListener('click', () => {
@@ -361,6 +371,12 @@ document.addEventListener('DOMContentLoaded', () => {
         appendLog(data.payload);
       } else if (data.type === 'sessionSaved') {
         handleSessionSaved(data.payload);
+      } else if (data.type === 'historyList') {
+        historyController.handleHistoryList(data.payload);
+      } else if (data.type === 'historyDetail') {
+        historyController.handleHistoryDetail(data.payload, data);
+      } else if (data.type === 'historyDeleted') {
+        historyController.handleHistoryDeleted(data.fileName, data.success);
       } else if (data.type === 'initPins') {
         mapTracker.setPins(data.payload);
       } else if (data.type === 'bleScanResult') {
@@ -374,6 +390,7 @@ document.addEventListener('DOMContentLoaded', () => {
           btnConnectBle.disabled = false;
         }
       } else if (data.type === 'config') {
+        historyController.setMapConfig(data.payload);
         if (data.payload.defaultMode) {
           modeSelect.value = data.payload.defaultMode.toString();
         }
@@ -477,12 +494,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 6. ヘッダー / セッション
     sessionTimer.textContent = formatSeconds(s.ElapsedSeconds);
-    if (s.SessionState === 'Recording') {
+    if (s.SessionState === 'AutoPaused') {
+      if (autoPauseBadge) autoPauseBadge.classList.remove('hidden');
       btnRecord.classList.add('recording');
-      recText.textContent = 'PAUSE';
-    } else {
+      recText.textContent = 'REC';
+    } else if (s.SessionState === 'Recording') {
+      if (autoPauseBadge) autoPauseBadge.classList.add('hidden');
+      btnRecord.classList.add('recording');
+      recText.textContent = 'REC';
+    } else if (s.SessionState === 'Paused') {
+      if (autoPauseBadge) autoPauseBadge.classList.add('hidden');
       btnRecord.classList.remove('recording');
-      recText.textContent = s.SessionState === 'Paused' ? 'RESUME' : 'REC';
+      recText.textContent = 'RESUME';
+    } else {
+      if (autoPauseBadge) autoPauseBadge.classList.add('hidden');
+      btnRecord.classList.remove('recording');
+      recText.textContent = 'REC';
     }
 
     // 7. マップ更新
@@ -515,6 +542,9 @@ document.addEventListener('DOMContentLoaded', () => {
     lastSavedFilePath = summary.SavedFilePath;
     saveToast.classList.remove('hidden');
     appendLog(`[SESSION] 走行ログ保存完了: ${summary.SavedFilePath}`);
+    if (historyController) {
+      historyController.refreshList();
+    }
   }
 
   // 初期化完了をC#ホストに通知

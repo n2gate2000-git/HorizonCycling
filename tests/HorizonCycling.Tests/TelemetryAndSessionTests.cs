@@ -486,5 +486,43 @@ namespace HorizonCycling.Tests
             Assert.True(snapshot.ElevationGainMeters > gainBeforeFastTravel + 5.0,
                 $"Expected Gain to increase after new climb, got {snapshot.ElevationGainMeters:F1}");
         }
+
+        [Fact]
+        public void SessionManager_AutoPause_And_JsonExport_ShouldCreateFiles()
+        {
+            var session = new SessionManager();
+            session.Start();
+
+            // 1. 移動中ポイントの記録
+            session.UpdateMovingState(true, 1.0);
+            session.AddTrackPoint(35.3606, 138.7274, 500.0, 25.0, 26.0, 200.0, 85.0, 140.0, 2.5, 0.05);
+
+            // 2. 一時停止
+            session.UpdateMovingState(false, 1.0);
+            Assert.Equal(SessionState.AutoPaused, session.State);
+
+            // 3. 一時停止中は2点目が追加されないこと
+            session.AddTrackPoint(35.3607, 138.7275, 500.0, 0.0, 0.0, 0.0, 0.0, 140.0, 2.5, 0.05);
+            Assert.Equal(1, session.PointCount);
+
+            // 4. 保存実行
+            string tempDir = Path.Combine(Path.GetTempPath(), "HorizonCyclingTest_" + Guid.NewGuid().ToString("N"));
+            var summary = session.StopAndExport(tempDir, 0.05, 1.0);
+
+            Assert.True(File.Exists(summary.SavedFilePath), "GPX file should exist");
+            Assert.True(File.Exists(summary.SavedJsonPath), "JSON file should exist");
+
+            // 5. SessionHistoryManager で読み込めること
+            var list = SessionHistoryManager.GetHistoryList(tempDir);
+            Assert.Single(list);
+            Assert.Equal(0.05, list[0].DistanceKm);
+
+            string? detailJson = SessionHistoryManager.GetHistoryDetailJson(tempDir, list[0].FileName);
+            Assert.NotNull(detailJson);
+            Assert.Contains("\"points\"", detailJson);
+
+            // クリーンアップ
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 }
