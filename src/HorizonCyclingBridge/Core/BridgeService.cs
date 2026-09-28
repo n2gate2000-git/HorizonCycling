@@ -311,8 +311,15 @@ namespace HorizonCyclingBridge.Core
         public void StopSession()
         {
             var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
-            Log($"[SESSION] Finished. Saved to: {summary.SavedFilePath}");
-            OnSessionSaved?.Invoke(summary);
+            if (!string.IsNullOrEmpty(summary.SavedFilePath))
+            {
+                Log($"[SESSION] Finished. Saved to: {summary.SavedFilePath}");
+                OnSessionSaved?.Invoke(summary);
+            }
+            else
+            {
+                Log("[SESSION] Finished. (Distance was 0 km, session export skipped)");
+            }
 
             // 保存完了後、トラッカーを初期化して次のセッションの自動記録を即時開始
             _elevationTracker.Reset();
@@ -329,8 +336,15 @@ namespace HorizonCyclingBridge.Core
             if (_sessionManager.PointCount > 0 || _elevationTracker.TotalDistanceMeters > 0)
             {
                 summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
-                Log($"[SESSION] Saved previous session before clearing: {summary.SavedFilePath}");
-                OnSessionSaved?.Invoke(summary);
+                if (!string.IsNullOrEmpty(summary.SavedFilePath))
+                {
+                    Log($"[SESSION] Saved previous session before clearing: {summary.SavedFilePath}");
+                    OnSessionSaved?.Invoke(summary);
+                }
+                else
+                {
+                    Log("[SESSION] Cleared track. (Distance was 0 km, session export skipped)");
+                }
             }
 
             _elevationTracker.Reset();
@@ -847,7 +861,10 @@ namespace HorizonCyclingBridge.Core
                 if (_sessionManager.PointCount > 0 || _elevationTracker.TotalDistanceMeters > 0)
                 {
                     var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
-                    Log($"[SESSION] Auto-saved on exit: {summary.SavedFilePath}");
+                    if (!string.IsNullOrEmpty(summary.SavedFilePath))
+                    {
+                        Log($"[SESSION] Auto-saved on exit: {summary.SavedFilePath}");
+                    }
                 }
             }
             catch (Exception ex)

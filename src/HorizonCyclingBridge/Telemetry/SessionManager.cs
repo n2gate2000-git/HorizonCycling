@@ -238,24 +238,13 @@ namespace HorizonCyclingBridge.Telemetry
                 _isCurrentlyMoving = false;
                 _isManuallyPaused = false;
 
-                // トラックポイントが0件の場合でも、最低1点（開始・終了点）を設けて確実にファイルを出力
-                if (_trackPoints.Count == 0)
+                // 移動距離が0の場合（または記録ポイントが存在しない場合）はファイルを保存しない
+                if (totalDistanceKm < 0.001 || _trackPoints.Count == 0)
                 {
-                    _trackPoints.Add(new TrackPoint
-                    {
-                        Timestamp = summary.StartTime,
-                        Latitude = 35.3606,
-                        Longitude = 138.7274,
-                        PixelX = 4096.0,
-                        PixelY = 4096.0,
-                        Elevation = 0,
-                        SpeedKmh = 0,
-                        TargetSpeedKmh = 0,
-                        Power = 0,
-                        Cadence = 0,
-                        Grade = 0,
-                        DistanceKm = 0
-                    });
+                    _trackPoints.Clear();
+                    summary.SavedFilePath = string.Empty;
+                    summary.SavedJsonPath = string.Empty;
+                    return summary;
                 }
 
                 if (_trackPoints.Count > 0)
@@ -328,6 +317,8 @@ namespace HorizonCyclingBridge.Telemetry
                     // 2. JSON エクスポート
                     JsonExporter.ExportJson(jsonPath, _trackPoints, summary);
                     summary.SavedJsonPath = jsonPath;
+
+                    _trackPoints.Clear();
                 }
 
                 return summary;
