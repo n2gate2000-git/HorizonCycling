@@ -181,7 +181,7 @@
       <section class="right-pane">
         <div class="pane-tabs">
           <button class="tab-btn active" data-tab="tabMap">🗺 リアルタイムマップ追跡</button>
-          <button class="tab-btn" data-tab="tabElevation">📈 標高プロファイル</button>
+          <button class="tab-btn" data-tab="tabElevation">📈 走行プロファイル</button>
           <button class="tab-btn" data-tab="tabLogs">📋 ログ・セッション詳細</button>
         </div>
 
@@ -203,30 +203,34 @@
           <div id="mapView" class="map-container"></div>
         </div>
 
-        <!-- TAB 2: Elevation & Grade Profile (Chart.js) -->
+        <!-- TAB 2: Ride Profile (Chart.js: Elevation, Speed, Target Speed, Power) -->
         <div id="tabElevation" class="tab-content">
           <div class="profile-stats-bar">
             <div class="profile-stats-left">
               <div class="stat-item">
                 <span class="stat-label">現在標高</span>
-                <span class="stat-value" id="profCurEle">0 m</span>
+                <span class="stat-value text-green" id="profCurEle">0 m</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">累積獲得標高</span>
-                <span class="stat-value text-green" id="profEleGain">+0 m</span>
+                <span class="stat-label">速度 / 目標</span>
+                <span class="stat-value text-cyan" id="profSpeed">0.0 / 0.0 <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">km/h</span></span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">累積下降</span>
-                <span class="stat-value text-blue" id="profEleLoss">-0 m</span>
+                <span class="stat-label">パワー</span>
+                <span class="stat-value text-orange" id="profPower">0 <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">W</span></span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">獲得標高</span>
+                <span class="stat-value" id="profEleGain">+0 m</span>
               </div>
               <div class="stat-item">
                 <span class="stat-label">総走行距離</span>
-                <span class="stat-value text-orange" id="profDist">0.0 km</span>
+                <span class="stat-value" id="profDist">0.00 km</span>
               </div>
             </div>
             <div class="profile-view-toggle">
-              <button id="btnProfileRecent" class="profile-toggle-btn active" data-mode="recent" title="直近200mの勾配・標高変化を表示">🔍 直近 200m</button>
-              <button id="btnProfileAll" class="profile-toggle-btn" data-mode="all" title="スタートからの全走行ルート標高を表示">🗺 全走行距離</button>
+              <button id="btnProfileRecent" class="profile-toggle-btn active" data-mode="recent" title="直近200mのプロファイル（高度・速度・パワー）を表示">🔍 直近 200m</button>
+              <button id="btnProfileAll" class="profile-toggle-btn" data-mode="all" title="スタートからの全走行プロファイルを表示">🗺 全走行距離</button>
             </div>
           </div>
           <div class="chart-wrapper">

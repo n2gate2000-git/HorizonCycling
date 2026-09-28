@@ -49,6 +49,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // プロファイル統計・コントロール
   const profCurEle = document.getElementById('profCurEle');
+  const profSpeed = document.getElementById('profSpeed');
+  const profPower = document.getElementById('profPower');
   const profEleGain = document.getElementById('profEleGain');
   const profEleLoss = document.getElementById('profEleLoss');
   const profDist = document.getElementById('profDist');
@@ -115,7 +117,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (targetTabId === 'tabMap' && mapTracker.map) {
         setTimeout(() => mapTracker.map.invalidateSize(), 50);
       }
-      // 標高プロファイルタブが表示されたらリサイズと再描画
+      // 走行プロファイルタブが表示されたらリサイズと再描画
       if (targetTabId === 'tabElevation' && elevationChart.chart) {
         setTimeout(() => {
           elevationChart.chart.resize();
@@ -160,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 標高プロファイル表示切り替え（直近200m / 全走行距離）
+  // 走行プロファイル表示切り替え（直近200m / 全走行距離）
   if (btnProfileRecent && btnProfileAll) {
     btnProfileRecent.addEventListener('click', () => {
       btnProfileRecent.classList.add('active');
@@ -222,6 +224,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elevationChart.reset();
     gainSub.textContent = '獲得標高: +0 m';
     if (profEleGain) profEleGain.textContent = '+0 m';
+    if (profDist) profDist.textContent = '0.00 km';
     postMessageToHost('clearTrack');
   });
 
@@ -486,11 +489,13 @@ document.addEventListener('DOMContentLoaded', () => {
     mapTracker.updateCar(s.MapPixelX, s.MapPixelY, s.Yaw, s.PositionX, s.PositionZ, s.IsPositionValid, s.IsTeleport);
     coordDisplay.textContent = `World: (X:${s.PositionX.toFixed(0)}, Y:${s.PositionY.toFixed(0)}, Z:${s.PositionZ.toFixed(0)}) | Map: (${Math.round(s.MapPixelX)}, ${Math.round(s.MapPixelY)})`;
 
-    // 8. 標高プロファイル更新
-    profCurEle.textContent = `${Math.round(s.ElevationMeters)} m`;
-    profEleGain.textContent = `+${Math.round(s.ElevationGainMeters)} m`;
-    profDist.textContent = `${s.TotalDistanceKm.toFixed(2)} km`;
-    elevationChart.update(s.ElevationMeters, s.TotalDistanceKm);
+    // 8. 走行プロファイル更新 (標高・速度・目標速度・パワー)
+    if (profCurEle) profCurEle.textContent = `${Math.round(s.ElevationMeters)} m`;
+    if (profSpeed) profSpeed.innerHTML = `${s.CarSpeedKmh.toFixed(1)} / ${s.TargetSpeedKmh.toFixed(1)} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">km/h</span>`;
+    if (profPower) profPower.innerHTML = `${Math.round(s.Power)} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">W</span>`;
+    if (profEleGain) profEleGain.textContent = `+${Math.round(s.ElevationGainMeters)} m`;
+    if (profDist) profDist.textContent = `${s.TotalDistanceKm.toFixed(2)} km`;
+    elevationChart.update(s.ElevationMeters, s.TotalDistanceKm, s.CarSpeedKmh, s.TargetSpeedKmh, s.Power);
 
     // 9. ステータスインジケーター
     bleDot.className = `status-dot ${s.IsBleConnected ? 'connected' : 'disconnected'}`;
