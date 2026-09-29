@@ -22,6 +22,7 @@ namespace HorizonCyclingBridge.Telemetry
         public double HeartRate { get; set; }
         public double Grade { get; set; }
         public double DistanceKm { get; set; }
+        public bool IsTeleport { get; set; } = false;
     }
 
     public enum SessionState
@@ -168,7 +169,7 @@ namespace HorizonCyclingBridge.Telemetry
         /// <summary>
         /// トラックポイントを記録（Pixel座標指定付き）
         /// </summary>
-        public void AddTrackPoint(double lat, double lon, double pixelX, double pixelY, double ele, double speedKmh, double targetSpeedKmh, double power, double cadence, double heartRate, double grade, double distKm)
+        public void AddTrackPoint(double lat, double lon, double pixelX, double pixelY, double ele, double speedKmh, double targetSpeedKmh, double power, double cadence, double heartRate, double grade, double distKm, bool isTeleport = false)
         {
             lock (_lock)
             {
@@ -176,11 +177,11 @@ namespace HorizonCyclingBridge.Telemetry
 
                 DateTime now = DateTime.UtcNow;
 
-                // 初回ポイントがまだ無い場合はスタート地点として即時記録。それ以降は移動中かつ1秒間隔で記録
+                // 初回ポイントまたはテレポート時は即時記録。それ以降は移動中かつ1秒間隔で記録
                 bool isFirstPoint = _trackPoints.Count == 0;
-                if (!isFirstPoint && !_isCurrentlyMoving) return;
+                if (!isFirstPoint && !isTeleport && !_isCurrentlyMoving) return;
 
-                if (!isFirstPoint && (now - _lastRecordTime).TotalMilliseconds < 1000) return;
+                if (!isFirstPoint && !isTeleport && (now - _lastRecordTime).TotalMilliseconds < 1000) return;
 
                 // pixelX/Yが未指定の場合、GPSからの逆算
                 if (pixelX == 0 && pixelY == 0 && (lat != 0 || lon != 0))
@@ -206,7 +207,8 @@ namespace HorizonCyclingBridge.Telemetry
                     Cadence = cadence,
                     HeartRate = heartRate,
                     Grade = grade,
-                    DistanceKm = distKm
+                    DistanceKm = distKm,
+                    IsTeleport = isTeleport
                 });
             }
         }
@@ -356,8 +358,26 @@ namespace HorizonCyclingBridge.Telemetry
             sb.AppendLine("    <trkseg>");
 
             var nfi = CultureInfo.InvariantCulture.NumberFormat;
+            TrackPoint? prevPt = null;
+
             foreach (var pt in points)
             {
+                if (prevPt != null)
+                {
+                    // 2点間の直線距離が45px相当（約170m以上）急変、または明示的テレポートの場合にtrksegを分割
+                    double dLat = (pt.Latitude - prevPt.Latitude) * 111139.0;
+                    double dLon = (pt.Longitude - prevPt.Longitude) * 91287.0;
+                    double distMeters = Math.Sqrt(dLat * dLat + dLon * dLon);
+                    bool isJump = pt.IsTeleport || (distMeters >= 170.0);
+
+                    if (isJump)
+                    {
+                        sb.AppendLine("    </trkseg>");
+                        sb.AppendLine("    <trkseg>");
+                    }
+                }
+                prevPt = pt;
+
                 sb.AppendLine($"      <trkpt lat=\"{pt.Latitude.ToString("F7", nfi)}\" lon=\"{pt.Longitude.ToString("F7", nfi)}\">");
                 sb.AppendLine($"        <ele>{pt.Elevation.ToString("F2", nfi)}</ele>");
                 sb.AppendLine($"        <time>{pt.Timestamp:yyyy-MM-ddTHH:mm:ssZ}</time>");

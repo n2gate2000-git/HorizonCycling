@@ -109,6 +109,7 @@ namespace HorizonCyclingBridge.Core
         private double _lastValidPixelY = 4096.0;
         private double _lastValidLat = 35.3606;
         private double _lastValidLon = 138.7274;
+        private bool _isNextPointTeleport = false;
 
         public event Action<BridgeStateSnapshot>? OnStateUpdated;
         public event Action<string>? OnLogMessage;
@@ -650,6 +651,7 @@ namespace HorizonCyclingBridge.Core
                     if (horizontalDist > maxAllowedHorizontal || (verticalDist > maxAllowedVertical && deltaSec < 0.5))
                     {
                         isFastTravel = true;
+                        _isNextPointTeleport = true;
                         Log($"[TELEMETRY] Fast travel detected (Jumped {horizontalDist:F0}m, Ele: {dy:+0.0;-0.0}m). Elevation gain skipped.");
                     }
                 }
@@ -682,7 +684,9 @@ namespace HorizonCyclingBridge.Core
 
                 // セッショントラックポイント記録 (走行中かつ有効座標のみ)
                 double currentTargetSpeed = (_strategy as SimulationMappingStrategy)?.TargetSpeedKmh ?? 0.0;
-                _sessionManager.AddTrackPoint(lat, lon, pixelX, pixelY, _elevationTracker.CurrentElevation, packet.SpeedKmh, currentTargetSpeed, _currentPower, _currentCadence, _currentHeartRate, _filteredGrade, _elevationTracker.TotalDistanceMeters / 1000.0);
+                bool isPtTeleport = _isNextPointTeleport;
+                _sessionManager.AddTrackPoint(lat, lon, pixelX, pixelY, _elevationTracker.CurrentElevation, packet.SpeedKmh, currentTargetSpeed, _currentPower, _currentCadence, _currentHeartRate, _filteredGrade, _elevationTracker.TotalDistanceMeters / 1000.0, isPtTeleport);
+                if (isPtTeleport) _isNextPointTeleport = false;
             }
             else
             {

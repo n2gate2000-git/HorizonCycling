@@ -189,7 +189,11 @@ class SessionHistoryController {
     if (this.startMarker) this.map.removeLayer(this.startMarker);
     if (this.endMarker) this.map.removeLayer(this.endMarker);
 
-    const latlngs = this.currentPoints.map(pt => {
+    const segments = [];
+    let currentSeg = [];
+
+    for (let i = 0; i < this.currentPoints.length; i++) {
+      const pt = this.currentPoints[i];
       const lat = pt.Latitude ?? pt.lat;
       const lon = pt.Longitude ?? pt.lon;
 
@@ -203,10 +207,36 @@ class SessionHistoryController {
         py = pt.PixelY ?? pt.pixelY ?? 4096;
       }
 
-      return this.pixelToLatLng(px, py);
-    });
+      const latLng = this.pixelToLatLng(px, py);
+      const isTeleportFlag = (pt.IsTeleport === true || pt.isTeleport === true);
 
-    this.trackPolyline = L.polyline(latlngs, {
+      if (currentSeg.length > 0) {
+        const last = currentSeg[currentSeg.length - 1];
+        const dist = Math.hypot(latLng.lat - last.lat, latLng.lng - last.lng);
+
+        // リアルタイム追跡(map.js)と同一のファストトラベル判定 (45px以上のジャンプまたはテレポートフラグ)
+        const isJump = isTeleportFlag || (dist >= 45.0);
+
+        if (isJump) {
+          // 移動前の軌跡セグメントを保存し、新しいセグメントを開始（直線を描かない）
+          segments.push(currentSeg);
+          currentSeg = [latLng];
+        } else {
+          currentSeg.push(latLng);
+        }
+      } else {
+        currentSeg.push(latLng);
+      }
+    }
+
+    if (currentSeg.length > 0) {
+      segments.push(currentSeg);
+    }
+
+    if (segments.length === 0) return;
+
+    // Leaflet L.polyline は配列の配列（セグメントリスト）を渡すとセグメント間を繋がずに描画
+    this.trackPolyline = L.polyline(segments, {
       color: '#06b6d4',
       weight: 4,
       opacity: 0.95,
@@ -214,8 +244,9 @@ class SessionHistoryController {
       smoothFactor: 1.0
     }).addTo(this.map);
 
-    const startPt = latlngs[0];
-    const endPt = latlngs[latlngs.length - 1];
+    const startPt = segments[0][0];
+    const lastSeg = segments[segments.length - 1];
+    const endPt = lastSeg[lastSeg.length - 1];
 
     this.startMarker = L.circleMarker(startPt, {
       radius: 7,
