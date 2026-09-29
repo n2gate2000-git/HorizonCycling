@@ -293,6 +293,7 @@ namespace HorizonCyclingApp
                             {
                                 _bridgeService.SetPedalBrake(brakeProp.GetBoolean());
                             }
+                            SendCurrentConfig();
                         }
                         break;
 
@@ -334,6 +335,7 @@ namespace HorizonCyclingApp
                             double px = pxProp.GetDouble();
                             double py = pyProp.GetDouble();
                             _bridgeService.CalibrateMap(px, py);
+                            SendCurrentConfig();
                         }
                         break;
 
@@ -345,6 +347,7 @@ namespace HorizonCyclingApp
                             double? origX = root.TryGetProperty("originX", out var oxProp) ? oxProp.GetDouble() : null;
                             double? origZ = root.TryGetProperty("originZ", out var ozProp) ? ozProp.GetDouble() : null;
                             _bridgeService.UpdateMapConfig(scale, invertZ, origX, origZ);
+                            SendCurrentConfig();
                         }
                         break;
 
@@ -412,7 +415,13 @@ namespace HorizonCyclingApp
             });
             webView.CoreWebView2.PostWebMessageAsJson(pinsJson);
 
-            // コンフィグ情報を送信
+            SendCurrentConfig();
+        }
+
+        private void SendCurrentConfig()
+        {
+            if (_bridgeService == null || webView.CoreWebView2 == null) return;
+
             string configJson = JsonSerializer.Serialize(new
             {
                 type = "config",

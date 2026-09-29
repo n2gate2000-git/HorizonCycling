@@ -130,6 +130,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       // 走行履歴タブが表示されたらリサイズと最新一覧の更新
       if (targetTabId === 'tabHistory') {
+        const curScale = parseFloat(settingMapScale.value);
+        if (curScale) {
+          historyController.setMapConfig({
+            mapScale: curScale,
+            invertZ: settingInvertZ.checked
+          });
+        }
         historyController.invalidateSize();
         historyController.refreshList();
       }

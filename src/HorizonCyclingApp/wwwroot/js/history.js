@@ -43,9 +43,6 @@ class SessionHistoryController {
     this.btnOpenActivitiesDir = null;
     this.btnOpenSelectedGpx = null;
     this.btnDeleteSelectedSession = null;
-
-    // 縮尺・位置微調整 UI
-    this.histScaleValue = null;
   }
 
   init() {
@@ -71,7 +68,6 @@ class SessionHistoryController {
     this.btnOpenActivitiesDir = document.getElementById('btnOpenActivitiesDir');
     this.btnOpenSelectedGpx = document.getElementById('btnOpenSelectedGpx');
     this.btnDeleteSelectedSession = document.getElementById('btnDeleteSelectedSession');
-    this.histScaleValue = document.getElementById('histScaleValue');
 
     // ボタンリスナー
     if (this.btnRefreshHistory) {
@@ -95,72 +91,6 @@ class SessionHistoryController {
         if (confirm(`選択中の走行ログ (${this.selectedSession.FileName}) を削除しますか？`)) {
           this.postMessage('deleteHistory', { fileName: this.selectedSession.FileName });
         }
-      });
-    }
-
-    // 縮尺・位置微調整ツールバーのリスナー
-    const btnScaleDown = document.getElementById('btnHistScaleDown');
-    const btnScaleUp = document.getElementById('btnHistScaleUp');
-    const btnMoveUp = document.getElementById('btnHistMoveUp');
-    const btnMoveDown = document.getElementById('btnHistMoveDown');
-    const btnMoveLeft = document.getElementById('btnHistMoveLeft');
-    const btnMoveRight = document.getElementById('btnHistMoveRight');
-    const btnSaveAlign = document.getElementById('btnHistSaveAlignment');
-
-    if (btnScaleDown) {
-      btnScaleDown.addEventListener('click', () => {
-        this.mapScale = Math.max(0.100, Math.round((this.mapScale - 0.002) * 1000) / 1000);
-        this.updateScaleDisplay();
-        this.redrawTrack();
-      });
-    }
-    if (btnScaleUp) {
-      btnScaleUp.addEventListener('click', () => {
-        this.mapScale = Math.min(0.400, Math.round((this.mapScale + 0.002) * 1000) / 1000);
-        this.updateScaleDisplay();
-        this.redrawTrack();
-      });
-    }
-    // 上下左右移動 (マップ上でのピクセル移動をワールドメートルに変換: stepPx = 6px)
-    if (btnMoveUp) {
-      btnMoveUp.addEventListener('click', () => {
-        // 上に移動 = py減少 => worldZ増加 (InvertZ時)
-        const stepMeters = 8.0 / (this.mapScale || 0.252);
-        this.mapOriginZ += stepMeters;
-        this.redrawTrack();
-      });
-    }
-    if (btnMoveDown) {
-      btnMoveDown.addEventListener('click', () => {
-        const stepMeters = 8.0 / (this.mapScale || 0.252);
-        this.mapOriginZ -= stepMeters;
-        this.redrawTrack();
-      });
-    }
-    if (btnMoveLeft) {
-      btnMoveLeft.addEventListener('click', () => {
-        // 左に移動 = px減少 => worldX増加
-        const stepMeters = 8.0 / (this.mapScale || 0.252);
-        this.mapOriginX += stepMeters;
-        this.redrawTrack();
-      });
-    }
-    if (btnMoveRight) {
-      btnMoveRight.addEventListener('click', () => {
-        const stepMeters = 8.0 / (this.mapScale || 0.252);
-        this.mapOriginX -= stepMeters;
-        this.redrawTrack();
-      });
-    }
-    if (btnSaveAlign) {
-      btnSaveAlign.addEventListener('click', () => {
-        this.postMessage('updateMapConfig', {
-          scale: this.mapScale,
-          invertZ: this.invertZ,
-          originX: this.mapOriginX,
-          originZ: this.mapOriginZ
-        });
-        alert(`位置合わせ・縮尺を保存しました！\n(Scale: ${this.mapScale.toFixed(3)}, OriginX: ${this.mapOriginX.toFixed(1)}, OriginZ: ${this.mapOriginZ.toFixed(1)})`);
       });
     }
 
@@ -225,29 +155,30 @@ class SessionHistoryController {
     }
   }
 
-  // 縮尺表示バッジの更新
-  updateScaleDisplay() {
-    if (this.histScaleValue) {
-      this.histScaleValue.textContent = (this.mapScale || 0.252).toFixed(3);
-    }
-  }
-
   // リアルタイム追跡・キャリブレーションで設定された原点・スケール・Z反転の反映
   setMapConfig(config) {
     if (!config) return;
+    let changed = false;
     if (typeof config.mapOriginX !== 'undefined') {
-      this.mapOriginX = typeof config.mapOriginX === 'number' ? config.mapOriginX : (parseFloat(config.mapOriginX) || 0.0);
+      const val = typeof config.mapOriginX === 'number' ? config.mapOriginX : (parseFloat(config.mapOriginX) || 0.0);
+      if (Math.abs(this.mapOriginX - val) > 0.001) { this.mapOriginX = val; changed = true; }
     }
     if (typeof config.mapOriginZ !== 'undefined') {
-      this.mapOriginZ = typeof config.mapOriginZ === 'number' ? config.mapOriginZ : (parseFloat(config.mapOriginZ) || 0.0);
+      const val = typeof config.mapOriginZ === 'number' ? config.mapOriginZ : (parseFloat(config.mapOriginZ) || 0.0);
+      if (Math.abs(this.mapOriginZ - val) > 0.001) { this.mapOriginZ = val; changed = true; }
     }
     if (typeof config.mapScale !== 'undefined') {
-      this.mapScale = typeof config.mapScale === 'number' ? config.mapScale : (parseFloat(config.mapScale) || 0.252);
+      const val = typeof config.mapScale === 'number' ? config.mapScale : (parseFloat(config.mapScale) || 0.252);
+      if (Math.abs(this.mapScale - val) > 0.0005) { this.mapScale = val; changed = true; }
     }
     if (typeof config.invertZ !== 'undefined') {
-      this.invertZ = Boolean(config.invertZ);
+      const val = Boolean(config.invertZ);
+      if (this.invertZ !== val) { this.invertZ = val; changed = true; }
     }
-    this.updateScaleDisplay();
+    // リアルタイム追跡の設定が更新されたら、表示中の軌跡も最新の縮尺・位置に即座に追従再描画
+    if (changed && this.currentPoints && this.currentPoints.length > 0) {
+      this.redrawTrack(false);
+    }
   }
 
   // 軌跡の再描画 (縮尺やオフセットの微調整時に即座に反映)
