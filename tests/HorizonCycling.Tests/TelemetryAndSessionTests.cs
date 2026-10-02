@@ -549,5 +549,31 @@ namespace HorizonCycling.Tests
             Assert.True(string.IsNullOrEmpty(summary2.SavedJsonPath));
             Assert.False(Directory.Exists(tempDir));
         }
+
+        [Fact]
+        public void SessionManager_ExportGpx_FastTravel_ShouldSplitTrackSegments()
+        {
+            var session = new SessionManager();
+            session.Start();
+
+            // 1. 通常走行スタート地点
+            session.AddTrackPoint(35.3606, 138.7274, 500.0, 30.0, 200.0, 85.0, 140.0);
+
+            // 2. 移動中にしてファストトラベル（テレポートフラグ付き）で大きくテレポート
+            session.UpdateMovingState(true, 1.0);
+            session.AddTrackPoint(35.3800, 138.7500, 0, 0, 502.0, 30.0, 0.0, 200.0, 85.0, 140.0, 0.0, 0.5, isTeleport: true);
+
+            string tempDir = Path.Combine(Path.GetTempPath(), "HorizonCyclingTest_" + Guid.NewGuid().ToString("N"));
+            var summary = session.StopAndExport(tempDir, 1.0, 5.0);
+
+            Assert.True(File.Exists(summary.SavedFilePath));
+            string gpxContent = File.ReadAllText(summary.SavedFilePath);
+
+            // ファストトラベルにより trkseg が分割され、2つのセグメントが存在すること（直線を描かない）
+            int trksegCount = System.Text.RegularExpressions.Regex.Matches(gpxContent, "<trkseg>").Count;
+            Assert.Equal(2, trksegCount);
+
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
     }
 }
