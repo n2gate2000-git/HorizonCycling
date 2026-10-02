@@ -1,5 +1,7 @@
 # HorizonCycling Studio (Smart Trainer & Forza Dual-Bridge)
 
+![alt text](<docs/HORIZON CYCLYNG1.png>)
+
 スマートローラートレーナーとレースゲーム（Forza Horizon 6）を双方向で接続し、現実のペダリングによるゲーム内の車の運転と、ゲーム内の地形変化（斜度）に応じたローラー負荷の自動再現を両立する、Windows 用バーチャルサイクリング・ダッシュボードアプリケーションです。
 
 <div align="center">
