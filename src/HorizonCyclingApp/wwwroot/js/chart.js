@@ -12,8 +12,10 @@ class ElevationProfileChart {
     // 全走行履歴データ [{ distKm, distM, ele, speed, targetSpeed, power }]
     this.history = [];
 
-    // 表示モード: 'recent' (直近200m) または 'all' (全走行距離)
+    // 表示モード: 'recent' (直近指定距離) または 'all' (全走行距離)
     this.viewMode = 'recent';
+    // 直近プロファイルの表示距離 (m) [100〜1000m、デフォルト200m]
+    this.recentDistanceM = 200;
 
     // サンプリング制御
     this.lastRecordedDistM = -999.0;
@@ -24,6 +26,7 @@ class ElevationProfileChart {
     this.currentSpeed = 0.0;
     this.currentTargetSpeed = 0.0;
     this.currentPower = 0.0;
+    this.currentHeartRate = 0.0;
 
     this.currentDisplayedPoints = [];
   }
@@ -53,7 +56,7 @@ class ElevationProfileChart {
             tension: 0.25,
             pointRadius: 0,
             pointHoverRadius: 4,
-            order: 4
+            order: 5
           },
           {
             label: '速度 (km/h)',
@@ -91,6 +94,18 @@ class ElevationProfileChart {
             pointRadius: 0,
             pointHoverRadius: 4,
             order: 1
+          },
+          {
+            label: '心拍数 (bpm)',
+            data: [],
+            yAxisID: 'yHeartRate',
+            borderColor: '#f43f5e',
+            borderWidth: 1.8,
+            fill: false,
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            order: 4
           }
         ]
       },
@@ -112,7 +127,7 @@ class ElevationProfileChart {
             },
             title: {
               display: true,
-              text: '直近 200m (現在地: 右端)',
+              text: `直近 ${this.recentDistanceM}m (現在地: 右端)`,
               color: '#64748b',
               font: { size: 11, weight: 'bold' }
             }
@@ -168,6 +183,24 @@ class ElevationProfileChart {
               color: '#f59e0b',
               font: { size: 11, weight: 'bold' }
             }
+          },
+          yHeartRate: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            min: 40,
+            suggestedMax: 200,
+            grid: { drawOnChartArea: false },
+            ticks: {
+              color: '#f43f5e',
+              font: { family: 'Roboto Mono', size: 11 }
+            },
+            title: {
+              display: true,
+              text: '心拍 (bpm)',
+              color: '#f43f5e',
+              font: { size: 11, weight: 'bold' }
+            }
           }
         },
         plugins: {
@@ -211,6 +244,8 @@ class ElevationProfileChart {
                   return ` 目標速度: ${val.toFixed(1)} km/h`;
                 } else if (context.datasetIndex === 3) {
                   return ` パワー: ${Math.round(val)} W`;
+                } else if (context.datasetIndex === 4) {
+                  return ` 心拍数: ${Math.round(val)} bpm`;
                 }
                 return ` ${context.dataset.label}: ${val}`;
               }
@@ -228,13 +263,26 @@ class ElevationProfileChart {
     this.renderChart();
   }
 
+  // 直近表示距離の設定 (100m〜1000m, 100m刻み)
+  setRecentDistance(meters) {
+    const m = Math.max(100, Math.min(1000, Number(meters) || 200));
+    this.recentDistanceM = Math.round(m / 100) * 100;
+    if (this.chart) {
+      if (this.viewMode === 'recent') {
+        this.chart.options.scales.x.title.text = `直近 ${this.recentDistanceM}m (現在地: 右端)`;
+      }
+      this.renderChart();
+    }
+  }
+
   // テレメトリ受信ごとの更新
-  update(currentElevation, totalDistanceKm, speed = 0, targetSpeed = 0, power = 0) {
+  update(currentElevation, totalDistanceKm, speed = 0, targetSpeed = 0, power = 0, heartRate = 0) {
     this.currentElevation = currentElevation;
     this.currentDistanceKm = totalDistanceKm;
     this.currentSpeed = Math.max(0, speed);
     this.currentTargetSpeed = Math.max(0, targetSpeed);
     this.currentPower = Math.max(0, power);
+    this.currentHeartRate = Math.max(0, heartRate);
 
     const currentDistM = totalDistanceKm * 1000.0;
 
@@ -246,7 +294,8 @@ class ElevationProfileChart {
         ele: currentElevation,
         speed: this.currentSpeed,
         targetSpeed: this.currentTargetSpeed,
-        power: this.currentPower
+        power: this.currentPower,
+        hr: this.currentHeartRate
       });
       this.lastRecordedDistM = currentDistM;
 
@@ -266,8 +315,9 @@ class ElevationProfileChart {
     let rawPoints = [];
 
     if (this.viewMode === 'recent') {
-      // 直近200mモード
-      const startM = Math.max(0, currentDistM - 200.0);
+      // 直近指定距離モード (100m〜1000m)
+      const rangeM = this.recentDistanceM || 200.0;
+      const startM = Math.max(0, currentDistM - rangeM);
       rawPoints = this.history.filter(pt => pt.distM >= startM);
 
       // 最新地点を末尾に付加（最新データが履歴と若干異なる場合）
@@ -278,7 +328,8 @@ class ElevationProfileChart {
           ele: this.currentElevation,
           speed: this.currentSpeed,
           targetSpeed: this.currentTargetSpeed,
-          power: this.currentPower
+          power: this.currentPower,
+          hr: this.currentHeartRate
         });
       }
     } else {
@@ -299,7 +350,8 @@ class ElevationProfileChart {
           ele: this.currentElevation,
           speed: this.currentSpeed,
           targetSpeed: this.currentTargetSpeed,
-          power: this.currentPower
+          power: this.currentPower,
+          hr: this.currentHeartRate
         });
       }
     }
@@ -312,6 +364,7 @@ class ElevationProfileChart {
     const dataSpeed = [];
     const dataTargetSpeed = [];
     const dataPower = [];
+    const dataHeartRate = [];
 
     for (let i = 0; i < rawPoints.length; i++) {
       const pt = rawPoints[i];
@@ -325,6 +378,7 @@ class ElevationProfileChart {
       dataSpeed.push(Math.round((pt.speed || 0) * 10) / 10);
       dataTargetSpeed.push(Math.round((pt.targetSpeed || 0) * 10) / 10);
       dataPower.push(Math.round(pt.power || 0));
+      dataHeartRate.push(Math.round(pt.hr || 0));
     }
 
     this.chart.data.labels = labels;
@@ -332,9 +386,10 @@ class ElevationProfileChart {
     this.chart.data.datasets[1].data = dataSpeed;
     this.chart.data.datasets[2].data = dataTargetSpeed;
     this.chart.data.datasets[3].data = dataPower;
+    this.chart.data.datasets[4].data = dataHeartRate;
 
     this.chart.options.scales.x.title.text = (this.viewMode === 'recent' 
-      ? '直近 200m (現在地: 右端)' 
+      ? `直近 ${this.recentDistanceM || 200}m (現在地: 右端)` 
       : '総走行距離 (km)');
 
     this.chart.update('none');

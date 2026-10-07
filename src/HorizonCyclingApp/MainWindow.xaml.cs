@@ -293,6 +293,22 @@ namespace HorizonCyclingApp
                             {
                                 _bridgeService.SetPedalBrake(brakeProp.GetBoolean());
                             }
+                            if (root.TryGetProperty("maxHeartRate", out var maxHrProp))
+                            {
+                                _bridgeService.SetMaxHeartRate(maxHrProp.GetInt32());
+                            }
+                            if (root.TryGetProperty("profileRecentDistance", out var distProp))
+                            {
+                                _bridgeService.SetProfileRecentDistance(distProp.GetInt32());
+                            }
+                            SendCurrentConfig();
+                        }
+                        break;
+
+                    case "setProfileRecentDistance":
+                        if (_bridgeService != null && root.TryGetProperty("distance", out var pDistProp))
+                        {
+                            _bridgeService.SetProfileRecentDistance(pDistProp.GetInt32());
                             SendCurrentConfig();
                         }
                         break;
@@ -356,7 +372,7 @@ namespace HorizonCyclingApp
                         {
                             if (_bridgeService != null)
                             {
-                                var devices = await _bridgeService.ScanBleDevicesAsync(7);
+                                var devices = await _bridgeService.ScanBleDevicesAsync(8);
                                 Dispatcher.Invoke(() =>
                                 {
                                     string resultJson = JsonSerializer.Serialize(new
@@ -394,6 +410,33 @@ namespace HorizonCyclingApp
                             });
                         }
                         break;
+
+                    case "connectHeartRate":
+                        if (_bridgeService != null &&
+                            root.TryGetProperty("mac", out var hrMacProp) &&
+                            root.TryGetProperty("name", out var hrNameProp))
+                        {
+                            ulong mac = hrMacProp.GetUInt64();
+                            string name = hrNameProp.GetString() ?? "";
+                            _ = Task.Run(async () =>
+                            {
+                                bool success = await _bridgeService.ConnectHeartRateSensorAsync(mac, name);
+                                Dispatcher.Invoke(() =>
+                                {
+                                    string connJson = JsonSerializer.Serialize(new
+                                    {
+                                        type = "hrConnectResult",
+                                        payload = new { success, name, mac }
+                                    });
+                                    webView.CoreWebView2?.PostWebMessageAsJson(connJson);
+                                });
+                            });
+                        }
+                        break;
+
+                    case "disconnectHeartRate":
+                        _bridgeService?.DisconnectHeartRateSensor();
+                        break;
                 }
             }
             catch (Exception ex)
@@ -416,6 +459,9 @@ namespace HorizonCyclingApp
             webView.CoreWebView2.PostWebMessageAsJson(pinsJson);
 
             SendCurrentConfig();
+
+            // 初期状態スナップショット（BLE/HR接続状況含む）をUIに即時配信
+            _bridgeService.PushCurrentSnapshot();
         }
 
         private void SendCurrentConfig()
@@ -430,7 +476,12 @@ namespace HorizonCyclingApp
                     defaultMode = _bridgeService.Config.DefaultMode,
                     difficulty = _bridgeService.Config.TrainerDifficulty,
                     ftp = _bridgeService.Config.Ftp,
+                    maxHeartRate = _bridgeService.Config.MaxHeartRate,
                     pedalBrake = _bridgeService.Config.PedalBrakeEnabled,
+                    profileRecentDistance = _bridgeService.Config.ProfileRecentDistanceM,
+                    heartRateSourceMacAddress = _bridgeService.Config.HeartRateSourceMacAddress,
+                    heartRateSourceName = _bridgeService.Config.HeartRateSourceName,
+                    heartRateEnabled = _bridgeService.Config.HeartRateEnabled,
                     mapScale = _bridgeService.CoordinateEngine.WorldScale,
                     invertZ = _bridgeService.CoordinateEngine.InvertZ,
                     mapOriginX = _bridgeService.CoordinateEngine.WorldOriginX,

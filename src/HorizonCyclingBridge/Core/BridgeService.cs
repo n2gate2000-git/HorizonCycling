@@ -16,6 +16,12 @@ namespace HorizonCyclingBridge.Core
         public string BleStatus { get; set; } = "Disconnected";
         public string ConnectedDeviceName { get; set; } = "None";
         public bool IsBleConnected { get; set; } = false;
+
+        // 心拍計ステータス
+        public bool IsHrConnected { get; set; } = false;
+        public string HrStatus { get; set; } = "Disconnected";
+        public string ConnectedHrDeviceName { get; set; } = "None";
+
         public bool IsVJoyActive { get; set; } = false;
         public bool IsTelemetryActive { get; set; } = false;
         public bool PedalBrakeEnabled { get; set; } = true;
@@ -60,8 +66,9 @@ namespace HorizonCyclingBridge.Core
         public string MacAddressHex => Address.ToString("X12");
         public string FormattedMac => string.Join(":", Enumerable.Range(0, 6).Select(i => (Address >> ((5 - i) * 8) & 0xFF).ToString("X2")));
         public string Name { get; set; } = "Unknown";
-        public string TypeName { get; set; } = "Ftms"; // Ftms or CyclingPower
-        public int SensorTypeInt { get; set; } = 1; // 1: Ftms, 2: CyclingPower
+        public string TypeName { get; set; } = "Ftms"; // Ftms, CyclingPower, or Heart Rate Monitor
+        public int SensorTypeInt { get; set; } = 1; // 1: Ftms, 2: CyclingPower, 3: HeartRate
+        public string Category { get; set; } = "trainer"; // "trainer" or "heartrate"
         public bool IsPaired { get; set; } = false;
     }
 
@@ -79,6 +86,7 @@ namespace HorizonCyclingBridge.Core
 
         private FtmsClient? _ftmsClient;
         private CyclingPowerClient? _powerClient;
+        private HeartRateClient? _heartRateClient;
         private IPowerMappingStrategy _strategy;
 
         private double _currentPower = 0.0;
@@ -92,15 +100,24 @@ namespace HorizonCyclingBridge.Core
         private DateTime _lastSentTime = DateTime.MinValue;
         private const double EMA_ALPHA = 0.03;
 
+        private double _lastThrottle = 0.0;
+        private double _lastBrake = 0.0;
+        private System.Threading.Timer? _idleTimer;
+
         private DateTime _lastPacketTime = DateTime.MinValue;
         private ForzaDataPacket? _lastPacket = null;
         private bool _isDisposed = false;
         private bool _isBleConnected = false;
         private string _bleStatus = "Disconnected";
+
+        private bool _isHrConnected = false;
+        private string _hrStatus = "Disconnected";
         private DateTime _lastLoopTime = DateTime.UtcNow;
 
         // メニュー画面・0,0,0ワープ対策用キャッシュ
         private bool _hasValidPosition = false;
+        private bool _isLastPositionValid = false;
+        private bool _lastIsTeleport = false;
         private float _lastValidPositionX = 0f;
         private float _lastValidPositionY = 0f;
         private float _lastValidPositionZ = 0f;
@@ -252,6 +269,25 @@ namespace HorizonCyclingBridge.Core
             Log($"[CONFIG] Rider FTP set to {_config.Ftp:F0}W.");
         }
 
+        public void SetMaxHeartRate(int maxHr)
+        {
+            if (maxHr < 60 || maxHr > 250) return;
+            _config.MaxHeartRate = maxHr;
+            ConfigManager.Save(_config);
+            Log($"[CONFIG] Rider Max HR set to {_config.MaxHeartRate} bpm.");
+        }
+
+        public void SetProfileRecentDistance(int distanceM)
+        {
+            int clamped = Math.Clamp(distanceM, 100, 1000);
+            clamped = (int)Math.Round(clamped / 100.0) * 100;
+            _config.ProfileRecentDistanceM = clamped;
+            ConfigManager.Save(_config);
+            Log($"[CONFIG] Profile recent distance set to {clamped}m.");
+        }
+
+        public int ProfileRecentDistanceM => _config.ProfileRecentDistanceM;
+
         private string? _activitiesDirectory;
         public string ActivitiesDirectory
         {
@@ -388,11 +424,31 @@ namespace HorizonCyclingBridge.Core
             _sessionManager.Start();
             Log("[SESSION] Auto-recording initialized. Ready to ride.");
 
+            // アイドル監視タイマー（Forza未起動時でもステータスや心拍を1秒ごとに配信）
+            _idleTimer = new System.Threading.Timer(OnIdleTimerTick, null, 1000, 1000);
+
+            // 起動直後の初期スナップショット配信
+            PushCurrentSnapshot();
+
             // BLE接続（バックグラウンド非同期）
             _ = Task.Run(async () =>
             {
                 await ConnectConfiguredSensorAsync();
             });
+            _ = Task.Run(async () =>
+            {
+                await ConnectConfiguredHeartRateAsync();
+            });
+        }
+
+        private void OnIdleTimerTick(object? state)
+        {
+            if (_isDisposed) return;
+            // 直近1秒以上テレメトリを受信していない待機時に定期スナップショット配信
+            if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 1000)
+            {
+                PushCurrentSnapshot();
+            }
         }
 
         public async Task<List<BleDeviceInfo>> ScanBleDevicesAsync(int timeoutSeconds = 6)
@@ -434,6 +490,26 @@ namespace HorizonCyclingBridge.Core
                             Name = string.IsNullOrEmpty(bleDevice.Name) ? "Power Meter" : bleDevice.Name,
                             TypeName = "Cycling Power Meter",
                             SensorTypeInt = 2,
+                            Category = "trainer",
+                            IsPaired = true
+                        });
+                    }
+                }
+
+                var hrSelector = Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceService.GetDeviceSelectorFromUuid(Guid.Parse("0000180d-0000-1000-8000-00805f9b34fb"));
+                var hrDevices = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(hrSelector);
+                foreach (var d in hrDevices)
+                {
+                    var bleDevice = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromIdAsync(d.Id);
+                    if (bleDevice != null && !foundDevices.Any(x => x.Address == bleDevice.BluetoothAddress))
+                    {
+                        foundDevices.Add(new BleDeviceInfo
+                        {
+                            Address = bleDevice.BluetoothAddress,
+                            Name = string.IsNullOrEmpty(bleDevice.Name) ? "Heart Rate Monitor" : bleDevice.Name,
+                            TypeName = "Heart Rate Monitor",
+                            SensorTypeInt = 3,
+                            Category = "heartrate",
                             IsPaired = true
                         });
                     }
@@ -444,30 +520,142 @@ namespace HorizonCyclingBridge.Core
                 Log($"[SETUP] Paired query warning: {ex.Message}");
             }
 
-            // 2. Advertisement Watcher
+            // 2. Advertisement Watcher (Activeスキャン & フィルタなしで確実に検出)
             try
             {
-                var watcher = new Windows.Devices.Bluetooth.Advertisement.BluetoothLEAdvertisementWatcher();
-                watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(Guid.Parse("00001826-0000-1000-8000-00805f9b34fb"));
-                watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(Guid.Parse("00001818-0000-1000-8000-00805f9b34fb"));
+                var watcher = new Windows.Devices.Bluetooth.Advertisement.BluetoothLEAdvertisementWatcher
+                {
+                    ScanningMode = Windows.Devices.Bluetooth.Advertisement.BluetoothLEScanningMode.Active
+                };
 
                 watcher.Received += (s, e) =>
                 {
                     lock (foundDevices)
                     {
-                        if (!foundDevices.Any(d => d.Address == e.BluetoothAddress))
+                        string localName = e.Advertisement.LocalName ?? string.Empty;
+                        bool hasHrUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("0000180d-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("0000180d", StringComparison.OrdinalIgnoreCase));
+                        bool hasFtmsUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001826-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001826", StringComparison.OrdinalIgnoreCase));
+                        bool hasPowerUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001818-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001818", StringComparison.OrdinalIgnoreCase));
+
+                        string upperName = localName.ToUpperInvariant();
+                        bool isHrByName = upperName.Contains("HR") ||
+                                          upperName.Contains("HEART") ||
+                                          upperName.Contains("PULSE") ||
+                                          upperName.Contains("POLAR") ||
+                                          upperName.Contains("TICKR") ||
+                                          upperName.Contains("COOSPO") ||
+                                          upperName.Contains("MAGENE") ||
+                                          upperName.Contains("GARMIN") ||
+                                          upperName.Contains("H64") ||
+                                          upperName.Contains("H303") ||
+                                          upperName.Contains("H808") ||
+                                          upperName.Contains("H10") ||
+                                          upperName.Contains("H9") ||
+                                          upperName.Contains("H7") ||
+                                          upperName.Contains("OH1") ||
+                                          upperName.Contains("VERITY") ||
+                                          upperName.Contains("STRAP") ||
+                                          upperName.Contains("BAND") ||
+                                          upperName.Contains("CHEST") ||
+                                          upperName.Contains("COROS") ||
+                                          upperName.Contains("DUAL") ||
+                                          upperName.Contains("CYCPLUS");
+
+                        bool isTrainerByName = upperName.Contains("TACX") ||
+                                               upperName.Contains("KICKR") ||
+                                               upperName.Contains("WAHOO") ||
+                                               upperName.Contains("FLUX") ||
+                                               upperName.Contains("NEO") ||
+                                               upperName.Contains("SARIS") ||
+                                               upperName.Contains("DIRETO") ||
+                                               upperName.Contains("SUITO") ||
+                                               upperName.Contains("THINKRIDER") ||
+                                               upperName.Contains("T2") ||
+                                               upperName.Contains("TRAINER");
+
+                        bool isPowerByName = upperName.Contains("POWER") ||
+                                             upperName.Contains("ASSIOMA") ||
+                                             upperName.Contains("STAGES") ||
+                                             upperName.Contains("4IIII") ||
+                                             upperName.Contains("ROTOR") ||
+                                             upperName.Contains("FAVERO");
+
+                        // 既存デバイスの更新 (Scan Responseで名前が届いた場合など)
+                        var existing = foundDevices.FirstOrDefault(d => d.Address == e.BluetoothAddress);
+                        if (existing != null)
                         {
-                            string name = string.IsNullOrEmpty(e.Advertisement.LocalName) ? "Unknown Device" : e.Advertisement.LocalName;
-                            bool isFtms = e.Advertisement.ServiceUuids.Contains(Guid.Parse("00001826-0000-1000-8000-00805f9b34fb"));
-                            foundDevices.Add(new BleDeviceInfo
+                            if (!string.IsNullOrEmpty(localName) && (existing.Name == "Unknown Device" || existing.Name == "Heart Rate Monitor" || existing.Name == "FTMS Trainer" || existing.Name == "Power Meter"))
                             {
-                                Address = e.BluetoothAddress,
-                                Name = name,
-                                TypeName = isFtms ? "FTMS Smart Trainer" : "Cycling Power Meter",
-                                SensorTypeInt = isFtms ? 1 : 2,
-                                IsPaired = false
-                            });
+                                existing.Name = localName;
+                            }
+                            if (hasHrUuid || isHrByName)
+                            {
+                                existing.Category = "heartrate";
+                                existing.SensorTypeInt = 3;
+                                existing.TypeName = "Heart Rate Monitor";
+                            }
+                            else if (hasFtmsUuid || isTrainerByName)
+                            {
+                                existing.Category = "trainer";
+                                existing.SensorTypeInt = 1;
+                                existing.TypeName = "FTMS Smart Trainer";
+                            }
+                            else if (hasPowerUuid || isPowerByName)
+                            {
+                                existing.Category = "trainer";
+                                existing.SensorTypeInt = 2;
+                                existing.TypeName = "Cycling Power Meter";
+                            }
+                            return;
                         }
+
+                        // 名前が完全に空で、かつ該当UUIDもない無名パケットはスキップ
+                        if (string.IsNullOrEmpty(localName) && !hasHrUuid && !hasFtmsUuid && !hasPowerUuid)
+                        {
+                            return;
+                        }
+
+                        string category;
+                        int typeInt;
+                        string typeName;
+
+                        if (hasHrUuid || isHrByName)
+                        {
+                            category = "heartrate";
+                            typeInt = 3;
+                            typeName = "Heart Rate Monitor";
+                        }
+                        else if (hasFtmsUuid || isTrainerByName)
+                        {
+                            category = "trainer";
+                            typeInt = 1;
+                            typeName = "FTMS Smart Trainer";
+                        }
+                        else if (hasPowerUuid || isPowerByName)
+                        {
+                            category = "trainer";
+                            typeInt = 2;
+                            typeName = "Cycling Power Meter";
+                        }
+                        else
+                        {
+                            // 名前はあるが特定UUIDを持たない汎用BLE機器
+                            category = "other";
+                            typeInt = 0;
+                            typeName = "Bluetooth Device";
+                        }
+
+                        string finalName = !string.IsNullOrEmpty(localName) ? localName : typeName;
+
+                        foundDevices.Add(new BleDeviceInfo
+                        {
+                            Address = e.BluetoothAddress,
+                            Name = finalName,
+                            TypeName = typeName,
+                            SensorTypeInt = typeInt,
+                            Category = category,
+                            IsPaired = false
+                        });
                     }
                 };
 
@@ -501,7 +689,9 @@ namespace HorizonCyclingBridge.Core
             ConfigManager.Save(_config);
 
             Log($"[BLE] Target device changed to {name} ({macAddress:X}). Connecting...");
-            return await ConnectConfiguredSensorAsync();
+            bool res = await ConnectConfiguredSensorAsync();
+            PushCurrentSnapshot();
+            return res;
         }
 
         public async Task<bool> ConnectConfiguredSensorAsync()
@@ -512,11 +702,20 @@ namespace HorizonCyclingBridge.Core
                 {
                     _ftmsClient = new FtmsClient();
                     _ftmsClient.OnStatusMessage += msg => Log($"[BLE] {msg}");
-                    _ftmsClient.OnPowerReceived += power => _currentPower = power;
+                    _ftmsClient.OnPowerReceived += power =>
+                    {
+                        _currentPower = power;
+                        if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
+                        {
+                            PushCurrentSnapshot();
+                        }
+                    };
                     _ftmsClient.OnSpeedReceived += speed => _trainerSpeedKmh = speed;
 
                     string displayName = string.IsNullOrEmpty(_config.PowerSourceName) ? $"{_config.PowerSourceMacAddress:X}" : _config.PowerSourceName;
                     _bleStatus = $"Connecting ({displayName})...";
+                    PushCurrentSnapshot();
+
                     _isBleConnected = await _ftmsClient.ScanAndConnectAsync(20000, _config.PowerSourceMacAddress);
                     if (_isBleConnected)
                     {
@@ -524,11 +723,13 @@ namespace HorizonCyclingBridge.Core
                         _lastSentGrade = 0.0;
                         _bleStatus = $"Connected ({displayName})";
                         Log($"[BLE] Smart trainer connected: {displayName} (Resistance: Level 0).");
+                        PushCurrentSnapshot();
                         return true;
                     }
                     else
                     {
                         _bleStatus = "Connection Failed (FTMS)";
+                        PushCurrentSnapshot();
                         return false;
                     }
                 }
@@ -536,26 +737,38 @@ namespace HorizonCyclingBridge.Core
                 {
                     _powerClient = new CyclingPowerClient();
                     _powerClient.OnStatusMessage += msg => Log($"[BLE] {msg}");
-                    _powerClient.OnPowerReceived += power => _currentPower = power;
+                    _powerClient.OnPowerReceived += power =>
+                    {
+                        _currentPower = power;
+                        if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
+                        {
+                            PushCurrentSnapshot();
+                        }
+                    };
 
                     string displayName = string.IsNullOrEmpty(_config.PowerSourceName) ? $"{_config.PowerSourceMacAddress:X}" : _config.PowerSourceName;
                     _bleStatus = $"Connecting ({displayName})...";
+                    PushCurrentSnapshot();
+
                     _isBleConnected = await _powerClient.ScanAndConnectAsync(20000, _config.PowerSourceMacAddress);
                     if (_isBleConnected)
                     {
                         _bleStatus = $"Connected ({displayName})";
                         Log($"[BLE] Cycling Power Meter connected: {displayName}.");
+                        PushCurrentSnapshot();
                         return true;
                     }
                     else
                     {
                         _bleStatus = "Connection Failed (PowerMeter)";
+                        PushCurrentSnapshot();
                         return false;
                     }
                 }
                 else
                 {
                     _bleStatus = "Not Configured (Fallback 0W)";
+                    PushCurrentSnapshot();
                     return false;
                 }
             }
@@ -563,6 +776,101 @@ namespace HorizonCyclingBridge.Core
             {
                 Log($"[BLE-ERR] Connection error: {ex.Message}");
                 _bleStatus = "Error";
+                PushCurrentSnapshot();
+                return false;
+            }
+        }
+
+        public async Task<bool> ConnectHeartRateSensorAsync(ulong macAddress, string name)
+        {
+            _heartRateClient?.Disconnect();
+            _heartRateClient?.Dispose();
+            _heartRateClient = null;
+
+            _isHrConnected = false;
+            _config.HeartRateSourceMacAddress = macAddress;
+            _config.HeartRateSourceName = name;
+            _config.HeartRateEnabled = true;
+            ConfigManager.Save(_config);
+
+            Log($"[HRM] Target Heart Rate device set to {name} ({macAddress:X}). Connecting...");
+            bool res = await ConnectConfiguredHeartRateAsync();
+            PushCurrentSnapshot();
+            return res;
+        }
+
+        public void DisconnectHeartRateSensor()
+        {
+            _heartRateClient?.Disconnect();
+            _heartRateClient?.Dispose();
+            _heartRateClient = null;
+
+            _isHrConnected = false;
+            _hrStatus = "Disconnected";
+            _currentHeartRate = 0.0;
+            _config.HeartRateSourceMacAddress = 0;
+            _config.HeartRateSourceName = "";
+            ConfigManager.Save(_config);
+            Log("[HRM] Heart Rate Monitor disconnected and unconfigured.");
+            PushCurrentSnapshot();
+        }
+
+        public async Task<bool> ConnectConfiguredHeartRateAsync()
+        {
+            try
+            {
+                if (!_config.HeartRateEnabled || _config.HeartRateSourceMacAddress == 0)
+                {
+                    _hrStatus = "Not Configured";
+                    PushCurrentSnapshot();
+                    return false;
+                }
+
+                _heartRateClient?.Disconnect();
+                _heartRateClient?.Dispose();
+                _heartRateClient = new HeartRateClient();
+
+                _heartRateClient.OnStatusMessage += msg => Log(msg);
+                _heartRateClient.OnHeartRateReceived += hr =>
+                {
+                    _currentHeartRate = hr;
+                    if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
+                    {
+                        PushCurrentSnapshot();
+                    }
+                };
+                _heartRateClient.OnConnectionStateChanged += connected =>
+                {
+                    _isHrConnected = connected;
+                    string devName = string.IsNullOrEmpty(_config.HeartRateSourceName) ? $"{_config.HeartRateSourceMacAddress:X}" : _config.HeartRateSourceName;
+                    _hrStatus = connected ? $"Connected ({devName})" : "Disconnected";
+                    PushCurrentSnapshot();
+                };
+
+                string displayName = string.IsNullOrEmpty(_config.HeartRateSourceName) ? $"{_config.HeartRateSourceMacAddress:X}" : _config.HeartRateSourceName;
+                _hrStatus = $"Connecting ({displayName})...";
+                PushCurrentSnapshot();
+
+                _isHrConnected = await _heartRateClient.ScanAndConnectAsync(20000, _config.HeartRateSourceMacAddress);
+                if (_isHrConnected)
+                {
+                    _hrStatus = $"Connected ({displayName})";
+                    Log($"[HRM] Heart Rate Monitor connected: {displayName}.");
+                    PushCurrentSnapshot();
+                    return true;
+                }
+                else
+                {
+                    _hrStatus = "Connection Failed";
+                    PushCurrentSnapshot();
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"[HRM-ERR] Connection error: {ex.Message}");
+                _hrStatus = "Error";
+                PushCurrentSnapshot();
                 return false;
             }
         }
@@ -622,6 +930,7 @@ namespace HorizonCyclingBridge.Core
                                   Math.Abs(packet.PositionY) < 0.0001f && 
                                   Math.Abs(packet.PositionZ) < 0.0001f;
             bool isPositionValid = packet.IsRaceOn && !isZeroPosition;
+            _isLastPositionValid = isPositionValid;
 
             double pixelX;
             double pixelY;
@@ -801,17 +1110,33 @@ namespace HorizonCyclingBridge.Core
                 }
             }
 
+            _lastThrottle = control.Throttle;
+            _lastBrake = control.Brake;
+
             // スナップショット通知
+            PushCurrentSnapshot();
+        }
+
+        public BridgeStateSnapshot GetCurrentSnapshot()
+        {
             double targetSpeedKmh = (_strategy is SimulationMappingStrategy sim) ? sim.TargetSpeedKmh : 0.0;
-            var snapshot = new BridgeStateSnapshot
+            bool isTelemetryActive = (DateTime.UtcNow - _lastPacketTime).TotalMilliseconds < 1500;
+            var packet = _lastPacket;
+
+            return new BridgeStateSnapshot
             {
                 ModeName = _strategy is ArcadeMappingStrategy ? "ARCADE MODE" : "SIMULATION MODE",
                 Mode = _strategy is ArcadeMappingStrategy ? 1 : 2,
                 BleStatus = _bleStatus,
                 ConnectedDeviceName = string.IsNullOrEmpty(_config.PowerSourceName) ? "None" : _config.PowerSourceName,
                 IsBleConnected = _isBleConnected,
+
+                IsHrConnected = _isHrConnected,
+                HrStatus = _hrStatus,
+                ConnectedHrDeviceName = string.IsNullOrEmpty(_config.HeartRateSourceName) ? "None" : _config.HeartRateSourceName,
+
                 IsVJoyActive = _vjoy.IsAcquired,
-                IsTelemetryActive = (DateTime.UtcNow - _lastPacketTime).TotalMilliseconds < 1000,
+                IsTelemetryActive = isTelemetryActive,
                 PedalBrakeEnabled = _strategy.PedalBrakeEnabled,
                 Difficulty = _trainerDifficulty,
                 Ftp = _config.Ftp,
@@ -820,23 +1145,23 @@ namespace HorizonCyclingBridge.Core
                 Cadence = _currentCadence,
                 HeartRate = _currentHeartRate,
                 TargetSpeedKmh = targetSpeedKmh,
-                CarSpeedKmh = packet.SpeedKmh,
-                RawGrade = _filteredGrade,
+                CarSpeedKmh = (isTelemetryActive && packet != null) ? packet.SpeedKmh : 0f,
+                RawGrade = isTelemetryActive ? _filteredGrade : 0.0,
                 SentGrade = _lastSentGrade == 999.0 ? 0.0 : _lastSentGrade,
-                Throttle = control.Throttle,
-                Brake = control.Brake,
-                Gear = packet.Gear,
+                Throttle = _lastThrottle,
+                Brake = _lastBrake,
+                Gear = (isTelemetryActive && packet != null) ? packet.Gear : (byte)0,
 
-                PositionX = outPosX,
-                PositionY = outPosY,
-                PositionZ = outPosZ,
-                Yaw = outYaw,
-                MapPixelX = pixelX,
-                MapPixelY = pixelY,
-                Latitude = lat,
-                Longitude = lon,
-                IsPositionValid = isPositionValid,
-                IsTeleport = isFastTravel,
+                PositionX = _lastValidPositionX,
+                PositionY = _lastValidPositionY,
+                PositionZ = _lastValidPositionZ,
+                Yaw = _lastValidYaw,
+                MapPixelX = _lastValidPixelX,
+                MapPixelY = _lastValidPixelY,
+                Latitude = _lastValidLat,
+                Longitude = _lastValidLon,
+                IsPositionValid = isTelemetryActive ? _isLastPositionValid : _hasValidPosition,
+                IsTeleport = isTelemetryActive ? _lastIsTeleport : false,
 
                 ElevationMeters = _elevationTracker.CurrentElevation,
                 ElevationGainMeters = _elevationTracker.ElevationGain,
@@ -845,8 +1170,19 @@ namespace HorizonCyclingBridge.Core
                 SessionState = _sessionManager.State.ToString(),
                 ElapsedSeconds = _sessionManager.ElapsedTime.TotalSeconds
             };
+        }
 
-            OnStateUpdated?.Invoke(snapshot);
+        public void PushCurrentSnapshot()
+        {
+            try
+            {
+                var snapshot = GetCurrentSnapshot();
+                OnStateUpdated?.Invoke(snapshot);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[PushCurrentSnapshotErr] {ex.Message}");
+            }
         }
 
         private void Log(string message)
@@ -858,6 +1194,8 @@ namespace HorizonCyclingBridge.Core
         {
             if (_isDisposed) return;
             _isDisposed = true;
+
+            _idleTimer?.Dispose();
 
             // アプリケーション終了時に有効な走行データがあれば自動保存
             try
@@ -880,6 +1218,7 @@ namespace HorizonCyclingBridge.Core
             _vjoy.Dispose();
             _ftmsClient?.Dispose();
             _powerClient?.Dispose();
+            _heartRateClient?.Dispose();
         }
     }
 }

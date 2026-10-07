@@ -110,23 +110,32 @@
           </div>
         </div>
 
-        <!-- Grade & Elevation -->
-        <div class="metric-row-dual">
-          <div class="metric-card">
-            <span class="metric-label">GRADE (勾配)</span>
+        <!-- Grade & Elevation & Heart Rate (3列均等・サイズ調整) -->
+        <div class="metric-row-triple mid-row">
+          <div class="metric-card mid-card">
+            <span class="metric-label">GRADE</span>
             <div class="metric-value-row">
               <span id="gradeVal" class="large-number text-orange">+0.0</span>
               <span class="unit">%</span>
             </div>
             <div class="sub-label" id="sentGradeSub">送信: 0.0%</div>
           </div>
-          <div class="metric-card">
-            <span class="metric-label">ELEVATION (標高)</span>
+          <div class="metric-card mid-card">
+            <span class="metric-label">ELEVATION</span>
             <div class="metric-value-row">
               <span id="elevationVal" class="large-number text-green">0</span>
               <span class="unit">m</span>
             </div>
-            <div class="sub-label" id="gainSub">獲得標高: +0 m</div>
+            <div class="sub-label" id="gainSub">獲得: +0 m</div>
+          </div>
+          <div class="metric-card mid-card">
+            <span class="metric-label">HEART RATE</span>
+            <div class="metric-value-row">
+              <span id="hrIcon" class="hr-icon">❤️</span>
+              <span id="hrVal" class="large-number text-rose">--</span>
+              <span class="unit">bpm</span>
+            </div>
+            <div class="sub-label" id="hrSub">未接続</div>
           </div>
         </div>
 
@@ -222,6 +231,10 @@
                 <span class="stat-value text-orange" id="profPower">0 <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">W</span></span>
               </div>
               <div class="stat-item">
+                <span class="stat-label">心拍数</span>
+                <span class="stat-value text-rose" id="profHr">-- <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span></span>
+              </div>
+              <div class="stat-item">
                 <span class="stat-label">獲得標高</span>
                 <span class="stat-value" id="profEleGain">+0 m</span>
               </div>
@@ -231,7 +244,21 @@
               </div>
             </div>
             <div class="profile-view-toggle">
-              <button id="btnProfileRecent" class="profile-toggle-btn active" data-mode="recent" title="直近200mのプロファイル（高度・速度・パワー）を表示">🔍 直近 200m</button>
+              <div class="profile-recent-group active" id="profileRecentGroup">
+                <button id="btnProfileRecent" class="profile-toggle-btn active" data-mode="recent" title="直近プロファイルを表示">🔍 直近</button>
+                <select id="selectProfileRecentDistance" class="profile-distance-select" title="直近表示の距離を選択 (100m〜1000m)">
+                  <option value="100">100m</option>
+                  <option value="200" selected>200m</option>
+                  <option value="300">300m</option>
+                  <option value="400">400m</option>
+                  <option value="500">500m</option>
+                  <option value="600">600m</option>
+                  <option value="700">700m</option>
+                  <option value="800">800m</option>
+                  <option value="900">900m</option>
+                  <option value="1000">1000m</option>
+                </select>
+              </div>
               <button id="btnProfileAll" class="profile-toggle-btn" data-mode="all" title="スタートからの全走行プロファイルを表示">🗺 全走行距離</button>
             </div>
           </div>
@@ -350,6 +377,10 @@
           <span id="bleDot" class="status-dot disconnected"></span>
           <span id="bleText">BLE: 切断</span>
         </div>
+        <div id="hrStatusContainer" class="status-indicator clickable" title="クリックして心拍計設定を開く">
+          <span id="hrDot" class="status-dot disconnected"></span>
+          <span id="hrText">HR: 切断</span>
+        </div>
         <div class="status-indicator">
           <span id="udpDot" class="status-dot disconnected"></span>
           <span id="udpText">Forza UDP: 待機中</span>
@@ -405,6 +436,36 @@
             </div>
           </div>
 
+          <!-- 1-B. Bluetooth 心拍計 -->
+          <div class="settings-section">
+            <div class="section-title">
+              <span>❤️ Bluetooth 心拍計 (Heart Rate Monitor)</span>
+              <button id="btnScanHr" class="btn-small btn-primary">🔍 心拍計を検索</button>
+            </div>
+            
+            <div class="current-device-row">
+              <span class="device-label">現在設定中:</span>
+              <span id="currentHrDeviceText" class="device-name">None</span>
+              <button id="btnDisconnectHr" class="btn-small btn-secondary hidden" style="margin-left: auto;">切断</button>
+            </div>
+
+            <!-- スキャン中表示 -->
+            <div id="hrScanningIndicator" class="scan-status hidden">
+              <span class="spinner"></span>
+              <span>周囲のBluetooth心拍計を検索中 (約7秒)...</span>
+            </div>
+
+            <!-- 見つかった心拍計一覧 -->
+            <div id="hrDeviceList" class="device-list-container">
+              <div class="device-list-empty">「心拍計を検索」ボタンを押してスキャンしてください。</div>
+            </div>
+
+            <div class="connect-action-row">
+              <button id="btnConnectHr" class="btn-action btn-connect" disabled>選択した心拍計に接続</button>
+              <span id="hrConnectStatus" class="connect-status-text"></span>
+            </div>
+          </div>
+
           <!-- 2. 基本パラメータ -->
           <div class="settings-section">
             <div class="section-title">
@@ -413,6 +474,25 @@
             <div class="form-group">
               <label>ライダー FTP (W)</label>
               <input type="number" id="settingFtp" value="200" min="50" max="600">
+            </div>
+            <div class="form-group">
+              <label>ライダー最大心拍数 (bpm)</label>
+              <input type="number" id="settingMaxHr" value="190" min="100" max="230">
+            </div>
+            <div class="form-group">
+              <label>プロファイル直近表示距離</label>
+              <select id="settingProfileRecentDistance">
+                <option value="100">100m</option>
+                <option value="200" selected>200m</option>
+                <option value="300">300m</option>
+                <option value="400">400m</option>
+                <option value="500">500m</option>
+                <option value="600">600m</option>
+                <option value="700">700m</option>
+                <option value="800">800m</option>
+                <option value="900">900m</option>
+                <option value="1000">1000m</option>
+              </select>
             </div>
             <div class="form-group">
               <label>ペダル自動ブレーキ (脚を止めたら制動)</label>

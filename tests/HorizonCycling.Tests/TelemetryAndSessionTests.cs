@@ -575,5 +575,67 @@ namespace HorizonCycling.Tests
 
             try { Directory.Delete(tempDir, true); } catch { }
         }
+
+        [Fact]
+        public void HeartRateClient_ParseHeartRate_8BitAnd16Bit_ShouldParseCorrectly()
+        {
+            // 8-bit フォーマット: Flags (Bit0 = 0), Value = 142 bpm
+            byte[] packet8Bit = new byte[] { 0x00, 142 };
+            int hr8 = HorizonCyclingBridge.Trainer.HeartRateClient.ParseHeartRate(packet8Bit);
+            Assert.Equal(142, hr8);
+
+            // 16-bit フォーマット: Flags (Bit0 = 1), Value = 185 bpm (0x00B9)
+            byte[] packet16Bit = new byte[] { 0x01, 0xB9, 0x00 };
+            int hr16 = HorizonCyclingBridge.Trainer.HeartRateClient.ParseHeartRate(packet16Bit);
+            Assert.Equal(185, hr16);
+
+            // 不正パケットまたは短すぎるパケット
+            Assert.Equal(0, HorizonCyclingBridge.Trainer.HeartRateClient.ParseHeartRate(new byte[] { 0x00 }));
+            Assert.Equal(0, HorizonCyclingBridge.Trainer.HeartRateClient.ParseHeartRate(Array.Empty<byte>()));
+        }
+
+        [Fact]
+        public void SessionManager_ExportGpx_IncludesHeartRate_Extension()
+        {
+            var session = new SessionManager();
+            session.Start();
+            session.UpdateMovingState(true, 1.0);
+
+            // 心拍 156 bpm でトラックポイント追加
+            session.AddTrackPoint(35.3606, 138.7274, 500.0, 25.0, 200.0, 90.0, 156.0);
+
+            string tempDir = Path.Combine(Path.GetTempPath(), "HorizonCyclingTest_HR_" + Guid.NewGuid().ToString("N"));
+            var summary = session.StopAndExport(tempDir, 0.5, 2.0);
+
+            Assert.True(File.Exists(summary.SavedFilePath));
+            string gpxContent = File.ReadAllText(summary.SavedFilePath);
+
+            Assert.Contains("<gpxtpx:hr>156</gpxtpx:hr>", gpxContent);
+
+            try { Directory.Delete(tempDir, true); } catch { }
+        }
+
+        [Fact]
+        public void AppConfig_ProfileRecentDistance_DefaultsTo200()
+        {
+            var config = new HorizonCyclingBridge.Core.AppConfig();
+            Assert.Equal(200, config.ProfileRecentDistanceM);
+        }
+
+        [Theory]
+        [InlineData(100, 100)]
+        [InlineData(500, 500)]
+        [InlineData(1000, 1000)]
+        [InlineData(50, 100)]    // クランプ下限
+        [InlineData(1500, 1000)] // クランプ上限
+        [InlineData(240, 200)]   // 100m刻み丸め
+        [InlineData(260, 300)]   // 100m刻み丸め
+        public void BridgeService_SetProfileRecentDistance_ClampsAndRounds(int input, int expected)
+        {
+            var bridge = new HorizonCyclingBridge.Core.BridgeService();
+            bridge.SetProfileRecentDistance(input);
+            Assert.Equal(expected, bridge.ProfileRecentDistanceM);
+            bridge.Dispose();
+        }
     }
 }

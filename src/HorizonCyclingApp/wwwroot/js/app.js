@@ -23,6 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const sentGradeSub = document.getElementById('sentGradeSub');
   const elevationVal = document.getElementById('elevationVal');
   const gainSub = document.getElementById('gainSub');
+  const hrVal = document.getElementById('hrVal');
+  const hrSub = document.getElementById('hrSub');
+  const hrIcon = document.getElementById('hrIcon');
   const cadenceVal = document.getElementById('cadenceVal');
   const gearVal = document.getElementById('gearVal');
   const distVal = document.getElementById('distVal');
@@ -55,15 +58,22 @@ document.addEventListener('DOMContentLoaded', () => {
   const profCurEle = document.getElementById('profCurEle');
   const profSpeed = document.getElementById('profSpeed');
   const profPower = document.getElementById('profPower');
+  const profHr = document.getElementById('profHr');
   const profEleGain = document.getElementById('profEleGain');
   const profEleLoss = document.getElementById('profEleLoss');
   const profDist = document.getElementById('profDist');
   const btnProfileRecent = document.getElementById('btnProfileRecent');
   const btnProfileAll = document.getElementById('btnProfileAll');
+  const profileRecentGroup = document.getElementById('profileRecentGroup');
+  const selectProfileRecentDistance = document.getElementById('selectProfileRecentDistance');
+  const settingProfileRecentDistance = document.getElementById('settingProfileRecentDistance');
 
   // ステータスフッター
   const bleDot = document.getElementById('bleDot');
   const bleText = document.getElementById('bleText');
+  const hrDot = document.getElementById('hrDot');
+  const hrText = document.getElementById('hrText');
+  const hrStatusContainer = document.getElementById('hrStatusContainer');
   const udpDot = document.getElementById('udpDot');
   const udpText = document.getElementById('udpText');
   const vjoyDot = document.getElementById('vjoyDot');
@@ -96,9 +106,21 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnConnectBle = document.getElementById('btnConnectBle');
   const bleConnectStatus = document.getElementById('bleConnectStatus');
 
+  // 心拍計設定要素
+  const btnScanHr = document.getElementById('btnScanHr');
+  const currentHrDeviceText = document.getElementById('currentHrDeviceText');
+  const btnDisconnectHr = document.getElementById('btnDisconnectHr');
+  const hrScanningIndicator = document.getElementById('hrScanningIndicator');
+  const hrDeviceList = document.getElementById('hrDeviceList');
+  const btnConnectHr = document.getElementById('btnConnectHr');
+  const hrConnectStatus = document.getElementById('hrConnectStatus');
+  const settingMaxHr = document.getElementById('settingMaxHr');
+
   let currentFtp = 200;
+  let currentMaxHr = 190;
   let lastSavedFilePath = '';
   let selectedBleDevice = null;
+  let selectedHrDevice = null;
 
   // タブ切り替え処理
   const tabButtons = document.querySelectorAll('.tab-btn');
@@ -178,18 +200,35 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 
-  // 走行プロファイル表示切り替え（直近200m / 全走行距離）
-  if (btnProfileRecent && btnProfileAll) {
-    btnProfileRecent.addEventListener('click', () => {
-      btnProfileRecent.classList.add('active');
+  // 走行プロファイル表示切り替え（直近 / 全走行距離）
+  if (profileRecentGroup && btnProfileAll) {
+    profileRecentGroup.addEventListener('click', (e) => {
+      if (e.target === selectProfileRecentDistance) return;
+      profileRecentGroup.classList.add('active');
+      if (btnProfileRecent) btnProfileRecent.classList.add('active');
       btnProfileAll.classList.remove('active');
       elevationChart.setViewMode('recent');
     });
 
     btnProfileAll.addEventListener('click', () => {
+      profileRecentGroup.classList.remove('active');
+      if (btnProfileRecent) btnProfileRecent.classList.remove('active');
       btnProfileAll.classList.add('active');
-      btnProfileRecent.classList.remove('active');
       elevationChart.setViewMode('all');
+    });
+  }
+
+  // 直近距離セレクト変更 (100m〜1000m)
+  if (selectProfileRecentDistance) {
+    selectProfileRecentDistance.addEventListener('change', (e) => {
+      const dist = parseInt(e.target.value) || 200;
+      elevationChart.setRecentDistance(dist);
+      elevationChart.setViewMode('recent');
+      if (profileRecentGroup) profileRecentGroup.classList.add('active');
+      if (btnProfileRecent) btnProfileRecent.classList.add('active');
+      if (btnProfileAll) btnProfileAll.classList.remove('active');
+      if (settingProfileRecentDistance) settingProfileRecentDistance.value = dist.toString();
+      postMessageToHost('setProfileRecentDistance', { distance: dist });
     });
   }
 
@@ -304,8 +343,13 @@ document.addEventListener('DOMContentLoaded', () => {
       settingsModal.classList.remove('hidden');
     });
   }
+  if (hrStatusContainer) {
+    hrStatusContainer.addEventListener('click', () => {
+      settingsModal.classList.remove('hidden');
+    });
+  }
 
-  // BLE デバイススキャン開始
+  // BLE デバイススキャン開始 (トレーナー用)
   btnScanBle.addEventListener('click', () => {
     bleScanningIndicator.classList.remove('hidden');
     btnScanBle.disabled = true;
@@ -316,7 +360,7 @@ document.addEventListener('DOMContentLoaded', () => {
     postMessageToHost('scanBle');
   });
 
-  // 選択デバイスへの接続
+  // 選択デバイスへの接続 (トレーナー用)
   btnConnectBle.addEventListener('click', () => {
     if (!selectedBleDevice) return;
     btnConnectBle.disabled = true;
@@ -328,11 +372,65 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // 心拍計スキャン開始
+  if (btnScanHr) {
+    btnScanHr.addEventListener('click', () => {
+      hrScanningIndicator.classList.remove('hidden');
+      btnScanHr.disabled = true;
+      btnConnectHr.disabled = true;
+      hrConnectStatus.textContent = '';
+      hrDeviceList.innerHTML = '<div class="device-list-empty">周囲のBluetooth心拍計を検索中...</div>';
+      selectedHrDevice = null;
+      postMessageToHost('scanBle');
+    });
+  }
+
+  // 選択した心拍計への接続
+  if (btnConnectHr) {
+    btnConnectHr.addEventListener('click', () => {
+      if (!selectedHrDevice) return;
+      btnConnectHr.disabled = true;
+      hrConnectStatus.textContent = `接続中: ${selectedHrDevice.Name}...`;
+      postMessageToHost('connectHeartRate', {
+        mac: selectedHrDevice.Address,
+        name: selectedHrDevice.Name
+      });
+    });
+  }
+
+  // 心拍計切断
+  if (btnDisconnectHr) {
+    btnDisconnectHr.addEventListener('click', () => {
+      postMessageToHost('disconnectHeartRate');
+      currentHrDeviceText.textContent = 'None';
+      btnDisconnectHr.classList.add('hidden');
+      hrConnectStatus.textContent = '心拍計を切断しました。';
+      btnConnectHr.disabled = true;
+
+      // フッター及びメインHUDも即時更新
+      if (hrDot) hrDot.className = 'status-dot disconnected';
+      if (hrText) hrText.textContent = 'HR: 切断';
+      if (hrVal) hrVal.textContent = '--';
+      if (hrSub) hrSub.textContent = '未接続';
+      if (hrIcon) hrIcon.classList.remove('beating');
+    });
+  }
+
   btnSaveSettings.addEventListener('click', () => {
     const ftp = parseInt(settingFtp.value) || 200;
+    const maxHr = parseInt(settingMaxHr ? settingMaxHr.value : 190) || 190;
     const pedalBrake = settingPedalBrake.checked;
+    const recentDist = parseInt(settingProfileRecentDistance ? settingProfileRecentDistance.value : 200) || 200;
     currentFtp = ftp;
-    postMessageToHost('updateSettings', { ftp, pedalBrake });
+    currentMaxHr = maxHr;
+    elevationChart.setRecentDistance(recentDist);
+    if (selectProfileRecentDistance) selectProfileRecentDistance.value = recentDist.toString();
+    postMessageToHost('updateSettings', {
+      ftp,
+      pedalBrake,
+      maxHeartRate: maxHr,
+      profileRecentDistance: recentDist
+    });
 
     // マップ設定も保存
     const mapScale = parseFloat(settingMapScale.value) || 0.70;
@@ -392,9 +490,26 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.payload.success) {
           bleConnectStatus.textContent = `✅ 接続完了: ${data.payload.name}`;
           currentDeviceText.textContent = data.payload.name;
+          bleDot.className = 'status-dot connected';
+          bleText.textContent = `BLE: Connected (${data.payload.name})`;
         } else {
           bleConnectStatus.textContent = `❌ 接続失敗: ${data.payload.name}`;
           btnConnectBle.disabled = false;
+        }
+      } else if (data.type === 'hrConnectResult') {
+        if (data.payload.success) {
+          hrConnectStatus.textContent = `✅ 接続完了: ${data.payload.name}`;
+          currentHrDeviceText.textContent = data.payload.name;
+          if (btnDisconnectHr) btnDisconnectHr.classList.remove('hidden');
+          if (hrDot) hrDot.className = 'status-dot connected';
+          if (hrText) hrText.textContent = `HR: Connected (${data.payload.name})`;
+          if (hrSub) hrSub.textContent = '0 bpm';
+        } else {
+          hrConnectStatus.textContent = `❌ 接続失敗: ${data.payload.name}`;
+          btnConnectHr.disabled = false;
+          if (hrDot) hrDot.className = 'status-dot disconnected';
+          if (hrText) hrText.textContent = 'HR: 切断';
+          if (hrSub) hrSub.textContent = '未接続';
         }
       } else if (data.type === 'config') {
         historyController.setMapConfig(data.payload);
@@ -410,8 +525,25 @@ document.addEventListener('DOMContentLoaded', () => {
           currentFtp = data.payload.ftp;
           settingFtp.value = currentFtp;
         }
+        if (data.payload.maxHeartRate && settingMaxHr) {
+          currentMaxHr = data.payload.maxHeartRate;
+          settingMaxHr.value = currentMaxHr;
+        }
+        if (data.payload.powerSourceName && currentDeviceText) {
+          currentDeviceText.textContent = data.payload.powerSourceName;
+        }
+        if (data.payload.heartRateSourceName && currentHrDeviceText) {
+          currentHrDeviceText.textContent = data.payload.heartRateSourceName;
+          if (btnDisconnectHr) btnDisconnectHr.classList.remove('hidden');
+        }
         if (typeof data.payload.pedalBrake !== 'undefined') {
           settingPedalBrake.checked = data.payload.pedalBrake;
+        }
+        if (data.payload.profileRecentDistance) {
+          const dist = data.payload.profileRecentDistance;
+          elevationChart.setRecentDistance(dist);
+          if (selectProfileRecentDistance) selectProfileRecentDistance.value = dist.toString();
+          if (settingProfileRecentDistance) settingProfileRecentDistance.value = dist.toString();
         }
         if (data.payload.mapScale) {
           settingMapScale.value = data.payload.mapScale;
@@ -425,40 +557,85 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // BLEデバイス一覧の描画
+  // BLEデバイス一覧の描画 (トレーナーと心拍計に分別)
   function renderBleDevices(devices) {
     bleScanningIndicator.classList.add('hidden');
+    if (hrScanningIndicator) hrScanningIndicator.classList.add('hidden');
     btnScanBle.disabled = false;
+    if (btnScanHr) btnScanHr.disabled = false;
 
     if (!devices || devices.length === 0) {
-      bleDeviceList.innerHTML = '<div class="device-list-empty">デバイスが見つかりませんでした。スマートローラーの電源やBluetoothがONになっているか確認してください。</div>';
+      bleDeviceList.innerHTML = '<div class="device-list-empty">デバイスが見つかりませんでした。電源やBluetoothがONになっているか確認してください。</div>';
+      if (hrDeviceList) hrDeviceList.innerHTML = '<div class="device-list-empty">心拍計が見つかりませんでした。</div>';
       return;
     }
 
-    bleDeviceList.innerHTML = '';
-    devices.forEach(dev => {
-      const item = document.createElement('div');
-      item.className = 'device-item';
-      
-      const isPower = dev.SensorTypeInt === 2;
-      item.innerHTML = `
-        <div class="device-item-left">
-          <span class="device-item-name">${dev.Name}</span>
-          <span class="device-item-sub">MAC: ${dev.FormattedMac} ${dev.IsPaired ? '[ペアリング済]' : ''}</span>
-        </div>
-        <span class="device-item-badge ${isPower ? 'power' : ''}">${dev.TypeName}</span>
-      `;
+    const trainerDevices = devices.filter(d => d.Category === 'trainer' || d.SensorTypeInt === 1 || d.SensorTypeInt === 2 || d.Category === 'other');
+    const hrDevices = devices.filter(d => d.Category === 'heartrate' || d.SensorTypeInt === 3 || d.Category === 'other');
 
-      item.addEventListener('click', () => {
-        document.querySelectorAll('.device-item').forEach(el => el.classList.remove('selected'));
-        item.classList.add('selected');
-        selectedBleDevice = dev;
-        btnConnectBle.disabled = false;
-        bleConnectStatus.textContent = `選択中: ${dev.Name}`;
+    // 1. トレーナー一覧描画
+    if (trainerDevices.length === 0) {
+      bleDeviceList.innerHTML = '<div class="device-list-empty">スマートローラー・パワーメーターが見つかりませんでした。</div>';
+    } else {
+      bleDeviceList.innerHTML = '';
+      trainerDevices.forEach(dev => {
+        const item = document.createElement('div');
+        item.className = 'device-item';
+        const isPower = dev.SensorTypeInt === 2;
+        const isOther = dev.Category === 'other';
+        const badgeText = isOther ? 'Bluetooth' : dev.TypeName;
+        const badgeClass = isPower ? 'power' : (isOther ? '' : '');
+        item.innerHTML = `
+          <div class="device-item-left">
+            <span class="device-item-name">${dev.Name}</span>
+            <span class="device-item-sub">MAC: ${dev.FormattedMac} ${dev.IsPaired ? '[ペアリング済]' : ''}</span>
+          </div>
+          <span class="device-item-badge ${badgeClass}">${badgeText}</span>
+        `;
+        item.addEventListener('click', () => {
+          bleDeviceList.querySelectorAll('.device-item').forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+          selectedBleDevice = dev;
+          btnConnectBle.disabled = false;
+          bleConnectStatus.textContent = `選択中: ${dev.Name}`;
+        });
+        bleDeviceList.appendChild(item);
       });
+    }
 
-      bleDeviceList.appendChild(item);
-    });
+    // 2. 心拍計一覧描画
+    if (hrDeviceList) {
+      if (hrDevices.length === 0) {
+        hrDeviceList.innerHTML = '<div class="device-list-empty">周囲にBluetooth心拍計が見つかりませんでした。心拍計が装着されており、Bluetoothがオンになっているか確認してください。</div>';
+      } else {
+        hrDeviceList.innerHTML = '';
+        hrDevices.forEach(dev => {
+          const item = document.createElement('div');
+          item.className = 'device-item';
+          const isKnownHr = dev.Category === 'heartrate' || dev.SensorTypeInt === 3;
+          const iconPrefix = isKnownHr ? '❤️ ' : '🔍 ';
+          const badgeStyle = isKnownHr 
+            ? 'background: rgba(244, 63, 94, 0.2); color: #f43f5e; border-color: rgba(244, 63, 94, 0.4);'
+            : 'background: rgba(148, 163, 184, 0.2); color: #cbd5e1; border-color: rgba(148, 163, 184, 0.4);';
+          const badgeText = isKnownHr ? 'Heart Rate' : 'Bluetooth';
+          item.innerHTML = `
+            <div class="device-item-left">
+              <span class="device-item-name">${iconPrefix}${dev.Name}</span>
+              <span class="device-item-sub">MAC: ${dev.FormattedMac} ${dev.IsPaired ? '[ペアリング済]' : ''}</span>
+            </div>
+            <span class="device-item-badge" style="${badgeStyle}">${badgeText}</span>
+          `;
+          item.addEventListener('click', () => {
+            hrDeviceList.querySelectorAll('.device-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            selectedHrDevice = dev;
+            btnConnectHr.disabled = false;
+            hrConnectStatus.textContent = `選択中: ${dev.Name}`;
+          });
+          hrDeviceList.appendChild(item);
+        });
+      }
+    }
   }
 
   // 状態スナップショットのUI反映
@@ -478,13 +655,31 @@ document.addEventListener('DOMContentLoaded', () => {
     carSpeedVal.textContent = s.CarSpeedKmh.toFixed(1);
     targetSpeedVal.textContent = s.TargetSpeedKmh.toFixed(1);
 
-    // 3. 勾配・標高
+    // 3. 勾配・標高・心拍
     const gradeSign = s.RawGrade >= 0 ? '+' : '';
     gradeVal.textContent = `${gradeSign}${s.RawGrade.toFixed(1)}`;
     sentGradeSub.textContent = `送信: ${s.SentGrade.toFixed(1)}%`;
 
     elevationVal.textContent = Math.round(s.ElevationMeters);
-    gainSub.textContent = `獲得標高: +${Math.round(s.ElevationGainMeters)} m`;
+    gainSub.textContent = `獲得: +${Math.round(s.ElevationGainMeters)} m`;
+
+    if (hrVal) {
+      if (s.HeartRate && s.HeartRate > 0) {
+        hrVal.textContent = Math.round(s.HeartRate);
+        if (hrIcon) hrIcon.classList.add('beating');
+        const pct = (s.HeartRate / currentMaxHr) * 100;
+        let zone = 1;
+        if (pct >= 90) zone = 5;
+        else if (pct >= 80) zone = 4;
+        else if (pct >= 70) zone = 3;
+        else if (pct >= 60) zone = 2;
+        hrSub.textContent = `Z${zone} (${Math.round(pct)}%)`;
+      } else {
+        hrVal.textContent = '--';
+        if (hrIcon) hrIcon.classList.remove('beating');
+        hrSub.textContent = s.IsHrConnected ? '0 bpm' : '未接続';
+      }
+    }
 
     // 4. ケイデンス・ギア・距離
     cadenceVal.textContent = s.Cadence > 0 ? Math.round(s.Cadence) : '--';
@@ -523,19 +718,34 @@ document.addEventListener('DOMContentLoaded', () => {
     mapTracker.updateCar(s.MapPixelX, s.MapPixelY, s.Yaw, s.PositionX, s.PositionZ, s.IsPositionValid, s.IsTeleport);
     coordDisplay.textContent = `World: (X:${s.PositionX.toFixed(0)}, Y:${s.PositionY.toFixed(0)}, Z:${s.PositionZ.toFixed(0)}) | Map: (${Math.round(s.MapPixelX)}, ${Math.round(s.MapPixelY)})`;
 
-    // 8. 走行プロファイル更新 (標高・速度・目標速度・パワー)
+    // 8. 走行プロファイル更新 (標高・速度・目標速度・パワー・心拍)
     if (profCurEle) profCurEle.textContent = `${Math.round(s.ElevationMeters)} m`;
     if (profSpeed) profSpeed.innerHTML = `${s.CarSpeedKmh.toFixed(1)} / ${s.TargetSpeedKmh.toFixed(1)} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">km/h</span>`;
     if (profPower) profPower.innerHTML = `${Math.round(s.Power)} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">W</span>`;
+    if (profHr) {
+      const hrTextStr = s.HeartRate > 0 ? Math.round(s.HeartRate) : '--';
+      profHr.innerHTML = `${hrTextStr} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span>`;
+    }
     if (profEleGain) profEleGain.textContent = `+${Math.round(s.ElevationGainMeters)} m`;
     if (profDist) profDist.textContent = `${s.TotalDistanceKm.toFixed(2)} km`;
-    elevationChart.update(s.ElevationMeters, s.TotalDistanceKm, s.CarSpeedKmh, s.TargetSpeedKmh, s.Power);
+    elevationChart.update(s.ElevationMeters, s.TotalDistanceKm, s.CarSpeedKmh, s.TargetSpeedKmh, s.Power, s.HeartRate);
 
     // 9. ステータスインジケーター
     bleDot.className = `status-dot ${s.IsBleConnected ? 'connected' : 'disconnected'}`;
     bleText.textContent = `BLE: ${s.BleStatus}`;
     if (s.ConnectedDeviceName && s.ConnectedDeviceName !== 'None') {
       currentDeviceText.textContent = s.ConnectedDeviceName;
+    }
+
+    if (hrDot) {
+      hrDot.className = `status-dot ${s.IsHrConnected ? 'connected' : 'disconnected'}`;
+    }
+    if (hrText) {
+      hrText.textContent = `HR: ${s.HrStatus || (s.IsHrConnected ? '接続' : '切断')}`;
+    }
+    if (s.ConnectedHrDeviceName && s.ConnectedHrDeviceName !== 'None' && currentHrDeviceText) {
+      currentHrDeviceText.textContent = s.ConnectedHrDeviceName;
+      if (btnDisconnectHr) btnDisconnectHr.classList.remove('hidden');
     }
 
     udpDot.className = `status-dot ${s.IsTelemetryActive ? 'connected' : 'disconnected'}`;

@@ -17,10 +17,18 @@ namespace HorizonCyclingBridge.Core
         public SensorType PowerSourceType { get; set; } = SensorType.None;
         public ulong PowerSourceMacAddress { get; set; } = 0;
         public string PowerSourceName { get; set; } = string.Empty;
+
+        // 心拍計 (Heart Rate Monitor) 設定
+        public ulong HeartRateSourceMacAddress { get; set; } = 0;
+        public string HeartRateSourceName { get; set; } = string.Empty;
+        public bool HeartRateEnabled { get; set; } = true;
+        public int MaxHeartRate { get; set; } = 190;
+
         public int DefaultMode { get; set; } = 2;
         public double TrainerDifficulty { get; set; } = 0.5;
         public double Ftp { get; set; } = 200.0;
         public bool PedalBrakeEnabled { get; set; } = false; // ペダルブレーキ有効フラグ（デフォルトOFF）
+        public int ProfileRecentDistanceM { get; set; } = 200; // 直近プロファイル表示距離（100m〜1000m、100m刻み、デフォルト200m）
 
         // マップ座標変換パラメータ
         public double MapOriginX { get; set; } = 0.0;

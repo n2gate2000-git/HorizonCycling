@@ -364,6 +364,18 @@ class SessionHistoryController {
             pointRadius: 0,
             pointHoverRadius: 4,
             order: 1
+          },
+          {
+            label: '心拍数 (bpm)',
+            data: [],
+            yAxisID: 'yHeartRate',
+            borderColor: '#f43f5e',
+            borderWidth: 1.8,
+            fill: false,
+            tension: 0.2,
+            pointRadius: 0,
+            pointHoverRadius: 4,
+            order: 4
           }
         ]
       },
@@ -441,6 +453,24 @@ class SessionHistoryController {
               color: '#f59e0b',
               font: { size: 11, weight: 'bold' }
             }
+          },
+          yHeartRate: {
+            type: 'linear',
+            display: true,
+            position: 'right',
+            min: 40,
+            suggestedMax: 200,
+            grid: { drawOnChartArea: false },
+            ticks: {
+              color: '#f43f5e',
+              font: { family: 'Roboto Mono', size: 10 }
+            },
+            title: {
+              display: true,
+              text: '心拍 (bpm)',
+              color: '#f43f5e',
+              font: { size: 11, weight: 'bold' }
+            }
           }
         },
         plugins: {
@@ -475,6 +505,7 @@ class SessionHistoryController {
                 if (context.datasetIndex === 1) return ` 速度: ${val.toFixed(1)} km/h`;
                 if (context.datasetIndex === 2) return ` 目標速度: ${val.toFixed(1)} km/h`;
                 if (context.datasetIndex === 3) return ` パワー: ${Math.round(val)} W`;
+                if (context.datasetIndex === 4) return ` 心拍数: ${Math.round(val)} bpm`;
                 return ` ${context.dataset.label}: ${val}`;
               }
             }
@@ -600,6 +631,7 @@ class SessionHistoryController {
       const dataSpeed = [];
       const dataTargetSpeed = [];
       const dataPower = [];
+      const dataHeartRate = [];
 
       // 300点程度にダウンサンプリング（点が多すぎる場合のスムーズ表示）
       const step = Math.max(1, Math.ceil(points.length / 300));
@@ -612,6 +644,7 @@ class SessionHistoryController {
         dataSpeed.push(Math.round((pt.SpeedKmh ?? pt.speed ?? 0) * 10) / 10);
         dataTargetSpeed.push(Math.round((pt.TargetSpeedKmh ?? pt.targetSpeed ?? 0) * 10) / 10);
         dataPower.push(Math.round(pt.Power ?? pt.power ?? 0));
+        dataHeartRate.push(Math.round(pt.HeartRate ?? pt.hr ?? 0));
       }
 
       this.chart.data.labels = labels;
@@ -619,6 +652,7 @@ class SessionHistoryController {
       this.chart.data.datasets[1].data = dataSpeed;
       this.chart.data.datasets[2].data = dataTargetSpeed;
       this.chart.data.datasets[3].data = dataPower;
+      this.chart.data.datasets[4].data = dataHeartRate;
       this.chart.update();
 
       setTimeout(() => {
