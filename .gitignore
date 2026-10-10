@@ -35,6 +35,8 @@ Thumbs.db
 Desktop.ini
 HorizonCyclingBridge-v0.1.zip
 tools/
+logs/*
+release/*
 ## User-specific / Local Configuration
 *.local.json
 appsettings.Development.json

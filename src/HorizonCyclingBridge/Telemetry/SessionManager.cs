@@ -240,8 +240,8 @@ namespace HorizonCyclingBridge.Telemetry
                 _isCurrentlyMoving = false;
                 _isManuallyPaused = false;
 
-                // 移動距離が0の場合（または記録ポイントが存在しない場合）はファイルを保存しない
-                if (totalDistanceKm < 0.001 || _trackPoints.Count == 0)
+                // 記録ポイントが0件かつ移動距離が0の場合はファイルを保存しない
+                if (_trackPoints.Count == 0 && totalDistanceKm < 0.001)
                 {
                     _trackPoints.Clear();
                     summary.SavedFilePath = string.Empty;

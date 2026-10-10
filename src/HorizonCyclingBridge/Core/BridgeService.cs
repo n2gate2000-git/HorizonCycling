@@ -295,34 +295,37 @@ namespace HorizonCyclingBridge.Core
             {
                 if (_activitiesDirectory != null) return _activitiesDirectory;
 
+                // exeを起動したフォルダ（BaseDirectory）の下に logs/activities を作成
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string[] candidates = new[]
+                string dir = Path.Combine(baseDir, "logs", "activities");
+                try
                 {
-                    @"d:\develop\HorizonCycling\logs\activities",
-                    Path.GetFullPath(Path.Combine(baseDir, "..", "..", "..", "..", "logs", "activities")),
-                    Path.Combine(baseDir, "logs", "activities"),
-                    Path.Combine(Directory.GetCurrentDirectory(), "logs", "activities")
-                };
+                    Directory.CreateDirectory(dir);
+                    _activitiesDirectory = dir;
 
-                foreach (var dir in candidates)
-                {
-                    try
+                    // 旧固定フォルダ (d:\develop\HorizonCycling\logs\activities) からの既存ログ移行
+                    string legacyDir = @"d:\develop\HorizonCycling\logs\activities";
+                    if (Directory.Exists(legacyDir) && !string.Equals(Path.GetFullPath(dir), Path.GetFullPath(legacyDir), StringComparison.OrdinalIgnoreCase))
                     {
-                        string parent = Path.GetDirectoryName(dir) ?? "";
-                        if (Directory.Exists(parent) || Directory.Exists(Path.GetDirectoryName(parent) ?? ""))
+                        foreach (var file in Directory.GetFiles(legacyDir, "HorizonCycling_*.*"))
                         {
-                            Directory.CreateDirectory(dir);
-                            _activitiesDirectory = dir;
-                            return dir;
+                            string dest = Path.Combine(dir, Path.GetFileName(file));
+                            if (!File.Exists(dest))
+                            {
+                                try { File.Copy(file, dest, false); } catch { }
+                            }
                         }
                     }
-                    catch { }
-                }
 
-                string fallback = Path.Combine(baseDir, "logs", "activities");
-                Directory.CreateDirectory(fallback);
-                _activitiesDirectory = fallback;
-                return fallback;
+                    return dir;
+                }
+                catch
+                {
+                    string fallback = Path.Combine(Directory.GetCurrentDirectory(), "logs", "activities");
+                    Directory.CreateDirectory(fallback);
+                    _activitiesDirectory = fallback;
+                    return fallback;
+                }
             }
         }
 
@@ -347,6 +350,14 @@ namespace HorizonCyclingBridge.Core
 
         public void StopSession()
         {
+            // トラックポイントが0件でも有効座標がある場合は現在位置を追加して確実に保存可能にする
+            if (_sessionManager.PointCount == 0 && _hasValidPosition)
+            {
+                (double pixelX, double pixelY) = _coordEngine.WorldToPixel(_lastValidPositionX, _lastValidPositionZ);
+                (double lat, double lon) = _coordEngine.WorldToGps(_lastValidPositionX, _lastValidPositionZ);
+                _sessionManager.AddTrackPoint(lat, lon, pixelX, pixelY, _elevationTracker.CurrentElevation, 0.0, 0.0, _currentPower, _currentCadence, _currentHeartRate, _filteredGrade, _elevationTracker.TotalDistanceMeters / 1000.0);
+            }
+
             var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
             if (!string.IsNullOrEmpty(summary.SavedFilePath))
             {
@@ -355,7 +366,8 @@ namespace HorizonCyclingBridge.Core
             }
             else
             {
-                Log("[SESSION] Finished. (Distance was 0 km, session export skipped)");
+                Log("[SESSION] Finished. (No movement detected, session export skipped)");
+                OnSessionSaved?.Invoke(summary);
             }
 
             // 保存完了後、トラッカーを初期化して次のセッションの自動記録を即時開始

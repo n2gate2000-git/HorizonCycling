@@ -526,28 +526,29 @@ namespace HorizonCycling.Tests
         }
 
         [Fact]
-        public void SessionManager_ZeroDistance_ShouldNotExportFiles()
+        public void SessionManager_ZeroDistance_ShouldNotExportFiles_WhenNoPoints()
         {
             var session = new SessionManager();
             session.Start();
 
-            // 1. 移動距離 0 km の場合、トラックポイントが0件でも保存されないこと
+            // 1. 移動距離 0 km かつトラックポイントが0件の場合、保存されないこと
             string tempDir = Path.Combine(Path.GetTempPath(), "HorizonCyclingTest_" + Guid.NewGuid().ToString("N"));
             var summary = session.StopAndExport(tempDir, 0.0, 0.0);
 
             Assert.True(string.IsNullOrEmpty(summary.SavedFilePath));
             Assert.True(string.IsNullOrEmpty(summary.SavedJsonPath));
-            Assert.False(Directory.Exists(tempDir), "Temp directory should not be created if distance is 0");
+            Assert.False(Directory.Exists(tempDir), "Temp directory should not be created if distance is 0 and no points");
 
-            // 2. 移動ポイントが追加されていても走行距離が 0 の場合は保存されないこと
+            // 2. 移動ポイントが追加されている場合は、距離が0でも確実に保存されること
             session.Start();
             session.UpdateMovingState(true, 1.0);
             session.AddTrackPoint(35.3606, 138.7274, 500.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
             var summary2 = session.StopAndExport(tempDir, 0.0, 0.0);
 
-            Assert.True(string.IsNullOrEmpty(summary2.SavedFilePath));
-            Assert.True(string.IsNullOrEmpty(summary2.SavedJsonPath));
-            Assert.False(Directory.Exists(tempDir));
+            Assert.False(string.IsNullOrEmpty(summary2.SavedFilePath), "Points exist, so file should be exported");
+            Assert.True(File.Exists(summary2.SavedFilePath));
+
+            try { Directory.Delete(tempDir, true); } catch { }
         }
 
         [Fact]

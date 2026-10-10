@@ -9,10 +9,12 @@ class SessionHistoryController {
     this.selectedSession = null;
     this.map = null;
     this.trackPolyline = null;
-    this.startMarker = null;
-    this.endMarker = null;
+    this.hoverMarker = null;
+    this.hoverOuter = null;
+    this.hoverDot = null;
     this.chart = null;
     this.currentPoints = null;
+    this.chartPoints = [];
 
     // マップ座標変換パラメータ (リアルタイム追跡・キャリブレーションと完全一致)
     this.mapOriginX = -86.5;
@@ -186,8 +188,7 @@ class SessionHistoryController {
     if (!this.map || !this.currentPoints || this.currentPoints.length === 0) return;
 
     if (this.trackPolyline) this.map.removeLayer(this.trackPolyline);
-    if (this.startMarker) this.map.removeLayer(this.startMarker);
-    if (this.endMarker) this.map.removeLayer(this.endMarker);
+    this.hideHoverPointOnMap();
 
     const segments = [];
     let currentSeg = [];
@@ -243,26 +244,6 @@ class SessionHistoryController {
       lineJoin: 'round',
       smoothFactor: 1.0
     }).addTo(this.map);
-
-    const startPt = segments[0][0];
-    const lastSeg = segments[segments.length - 1];
-    const endPt = lastSeg[lastSeg.length - 1];
-
-    this.startMarker = L.circleMarker(startPt, {
-      radius: 7,
-      fillColor: '#10b981',
-      fillOpacity: 1.0,
-      color: '#ffffff',
-      weight: 2
-    }).addTo(this.map).bindTooltip('START', { permanent: false, direction: 'top' });
-
-    this.endMarker = L.circleMarker(endPt, {
-      radius: 7,
-      fillColor: '#ef4444',
-      fillOpacity: 1.0,
-      color: '#ffffff',
-      weight: 2
-    }).addTo(this.map).bindTooltip('GOAL', { permanent: false, direction: 'top' });
 
     if (shouldFitBounds) {
       setTimeout(() => {
@@ -386,6 +367,14 @@ class SessionHistoryController {
         interaction: {
           mode: 'index',
           intersect: false
+        },
+        onHover: (event, elements) => {
+          if (elements && elements.length > 0) {
+            const index = elements[0].index;
+            this.showHoverPointOnMap(index);
+          } else {
+            this.hideHoverPointOnMap();
+          }
         },
         scales: {
           x: {
@@ -513,6 +502,10 @@ class SessionHistoryController {
         }
       }
     });
+
+    ctx.addEventListener('mouseleave', () => {
+      this.hideHoverPointOnMap();
+    });
   }
 
   refreshList() {
@@ -580,6 +573,7 @@ class SessionHistoryController {
 
   selectSession(item) {
     this.selectedSession = item;
+    this.hideHoverPointOnMap();
 
     // リストの選択ハイライト更新
     const cards = this.listContainer.querySelectorAll('.history-card');
@@ -632,12 +626,14 @@ class SessionHistoryController {
       const dataTargetSpeed = [];
       const dataPower = [];
       const dataHeartRate = [];
+      this.chartPoints = [];
 
       // 300点程度にダウンサンプリング（点が多すぎる場合のスムーズ表示）
       const step = Math.max(1, Math.ceil(points.length / 300));
 
       for (let i = 0; i < points.length; i += step) {
         const pt = points[i];
+        this.chartPoints.push(pt);
         const distKm = pt.DistanceKm ?? pt.distKm ?? 0;
         labels.push(`${distKm.toFixed(2)} km`);
         dataElevation.push(Math.round((pt.Elevation ?? pt.ele ?? 0) * 10) / 10);
@@ -661,6 +657,76 @@ class SessionHistoryController {
     }
   }
 
+  // 走行プロファイル推移のホバー位置に対応するポイントをマップ上にハイライト表示
+  showHoverPointOnMap(index) {
+    if (!this.map || !this.chartPoints || !this.chartPoints[index]) return;
+    const pt = this.chartPoints[index];
+    const lat = pt.Latitude ?? pt.lat;
+    const lon = pt.Longitude ?? pt.lon;
+
+    let px, py;
+    if (lat !== undefined && lon !== undefined && (lat !== 0 || lon !== 0)) {
+      const pixel = this.gpsToPixel(lat, lon);
+      px = pixel.px;
+      py = pixel.py;
+    } else {
+      px = pt.PixelX ?? pt.pixelX ?? 4096;
+      py = pt.PixelY ?? pt.pixelY ?? 4096;
+    }
+    const latLng = this.pixelToLatLng(px, py);
+
+    if (!this.hoverMarker) {
+      this.hoverMarker = L.layerGroup().addTo(this.map);
+      this.hoverOuter = L.circleMarker(latLng, {
+        radius: 13,
+        fillColor: '#f59e0b',
+        fillOpacity: 0.25,
+        color: '#f59e0b',
+        weight: 1.5,
+        interactive: false
+      });
+      this.hoverDot = L.circleMarker(latLng, {
+        radius: 6,
+        fillColor: '#f59e0b',
+        fillOpacity: 1.0,
+        color: '#ffffff',
+        weight: 2,
+        interactive: false
+      });
+      this.hoverMarker.addLayer(this.hoverOuter);
+      this.hoverMarker.addLayer(this.hoverDot);
+    } else {
+      this.hoverOuter.setLatLng(latLng);
+      this.hoverDot.setLatLng(latLng);
+      if (!this.map.hasLayer(this.hoverMarker)) {
+        this.hoverMarker.addTo(this.map);
+      }
+    }
+
+    const distKm = (pt.DistanceKm ?? pt.distKm ?? 0).toFixed(2);
+    const ele = Math.round(pt.Elevation ?? pt.ele ?? 0);
+    const spd = (pt.SpeedKmh ?? pt.speed ?? 0).toFixed(1);
+    const pwr = Math.round(pt.Power ?? pt.power ?? 0);
+    const hr = Math.round(pt.HeartRate ?? pt.hr ?? 0);
+    let tooltipText = `📍 ${distKm}km | ${ele}m | ${spd}km/h | ${pwr}W`;
+    if (hr > 0) tooltipText += ` | ❤️${hr}`;
+
+    this.hoverDot.unbindTooltip();
+    this.hoverDot.bindTooltip(tooltipText, {
+      permanent: true,
+      direction: 'top',
+      offset: [0, -8],
+      className: 'history-map-tooltip'
+    }).openTooltip();
+  }
+
+  // ホバーポイントの非表示
+  hideHoverPointOnMap() {
+    if (this.hoverMarker && this.map && this.map.hasLayer(this.hoverMarker)) {
+      this.map.removeLayer(this.hoverMarker);
+    }
+  }
+
   handleHistoryDeleted(fileName, success) {
     if (success) {
       if (this.selectedSession && this.selectedSession.FileName === fileName) {
@@ -673,6 +739,7 @@ class SessionHistoryController {
   }
 
   showEmptyState() {
+    this.hideHoverPointOnMap();
     if (this.emptyState) this.emptyState.classList.remove('hidden');
     if (this.detailPane) this.detailPane.classList.add('hidden');
   }

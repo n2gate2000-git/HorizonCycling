@@ -756,9 +756,25 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function handleSessionSaved(summary) {
-    lastSavedFilePath = summary.SavedFilePath;
-    saveToast.classList.remove('hidden');
-    appendLog(`[SESSION] 走行ログ保存完了: ${summary.SavedFilePath}`);
+    if (summary && summary.SavedFilePath) {
+      lastSavedFilePath = summary.SavedFilePath;
+      saveToast.innerHTML = `<span>💾 走行ログ保存完了: </span><a id="btnOpenFolderDynamic" href="#">[フォルダを開く]</a>`;
+      const btnOpen = saveToast.querySelector('#btnOpenFolderDynamic');
+      if (btnOpen) {
+        btnOpen.addEventListener('click', (e) => {
+          e.preventDefault();
+          postMessageToHost('openLogFolder', { path: lastSavedFilePath });
+        });
+      }
+      saveToast.classList.remove('hidden');
+      setTimeout(() => saveToast.classList.add('hidden'), 6000);
+      appendLog(`[SESSION] 走行ログ保存完了: ${summary.SavedFilePath}`);
+    } else {
+      saveToast.innerHTML = `<span>⚠️ 走行データがなかったため保存をスキップしました</span>`;
+      saveToast.classList.remove('hidden');
+      setTimeout(() => saveToast.classList.add('hidden'), 4000);
+      appendLog('[SESSION] 走行データがないため保存をスキップしました');
+    }
     if (historyController) {
       historyController.refreshList();
     }

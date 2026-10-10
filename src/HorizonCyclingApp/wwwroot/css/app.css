@@ -1608,4 +1608,21 @@ body.dark-theme {
   }
 }
 
+/* 走行履歴マップ上のホバー位置ツールチップ */
+.history-map-tooltip {
+  background: rgba(15, 23, 42, 0.95) !important;
+  border: 1px solid rgba(245, 158, 11, 0.8) !important;
+  color: #f8fafc !important;
+  font-family: 'Roboto Mono', monospace !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  padding: 4px 8px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5) !important;
+  white-space: nowrap !important;
+}
+.history-map-tooltip::before {
+  border-top-color: rgba(245, 158, 11, 0.8) !important;
+}
+
 
