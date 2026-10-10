@@ -15,6 +15,8 @@ class SessionHistoryController {
     this.chart = null;
     this.currentPoints = null;
     this.chartPoints = [];
+    this.followPoint = true;
+    this.btnFollowHistoryPoint = null;
 
     // マップ座標変換パラメータ (リアルタイム追跡・キャリブレーションと完全一致)
     this.mapOriginX = -86.5;
@@ -111,8 +113,24 @@ class SessionHistoryController {
       });
     }
 
+    // 自動追従ON/OFFボタン (リアルタイムマップ追跡と同様の操作感)
+    this.btnFollowHistoryPoint = document.getElementById('btnFollowHistoryPoint');
+    if (this.btnFollowHistoryPoint) {
+      this.btnFollowHistoryPoint.addEventListener('click', () => {
+        this.followPoint = !this.followPoint;
+        this.updateFollowButton();
+      });
+      this.updateFollowButton();
+    }
+
     // 初回履歴読み込み
     this.refreshList();
+  }
+
+  updateFollowButton() {
+    if (!this.btnFollowHistoryPoint) return;
+    this.btnFollowHistoryPoint.classList.toggle('active', this.followPoint);
+    this.btnFollowHistoryPoint.textContent = this.followPoint ? '📍 自動追従: ON' : '📍 自動追従: OFF';
   }
 
   postMessage(action, payload = {}) {
@@ -718,6 +736,11 @@ class SessionHistoryController {
       offset: [0, -8],
       className: 'history-map-tooltip'
     }).openTooltip();
+
+    // 自動追従が有効な場合、ホバー位置をマップの中心にスムーズに移動
+    if (this.followPoint && this.map) {
+      this.map.panTo(latLng, { animate: true, duration: 0.15 });
+    }
   }
 
   // ホバーポイントの非表示

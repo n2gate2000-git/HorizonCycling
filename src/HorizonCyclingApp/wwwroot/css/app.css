@@ -1304,6 +1304,12 @@ body.dark-theme {
   border-color: var(--accent-cyan);
 }
 
+.btn-subaction-small.active {
+  background: rgba(6, 182, 212, 0.2);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+}
+
 .history-list {
   flex: 1;
   overflow-y: auto;
