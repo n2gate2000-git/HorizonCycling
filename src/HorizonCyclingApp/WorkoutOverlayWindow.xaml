@@ -228,8 +228,8 @@
                 </StackPanel>
             </Border>
 
-            <!-- メインアーチカード (Zwift風 580pxカード) -->
-            <Border Width="580"
+            <!-- メインアーチカード (Zwift風 620px大型カード) -->
+            <Border Width="620"
                     Background="#E0121826"
                     BorderThickness="1,3,1,1"
                     CornerRadius="16"
@@ -265,28 +265,33 @@
                     <!-- メトリクス 3列レイアウト (Power / Gauge / Cadence) -->
                     <Grid Margin="0,4,0,8">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="200"/>
                             <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="180"/>
-                            <ColumnDefinition Width="180"/>
+                            <ColumnDefinition Width="200"/>
                         </Grid.ColumnDefinitions>
 
-                        <!-- 列1: TARGET POWER & 実測 -->
+                        <!-- 列1: POWER (実測パワーを超大型化、目標パワーも明瞭表示) -->
                         <StackPanel Grid.Column="0">
-                            <TextBlock Text="TARGET POWER" Foreground="#64748B" FontSize="10" FontWeight="Bold" Margin="0,0,0,2"/>
+                            <TextBlock Text="POWER" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" Margin="0,0,0,2"/>
+                            
+                            <!-- 実測パワー（超大型フォント 44pt・ゾーンカラー発光） -->
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <TextBlock x:Name="txtTargetPower" Text="180" Foreground="#F8FAFC" FontFamily="Segoe UI, Outfit, Arial" FontSize="36" FontWeight="Black" LineHeight="36"/>
-                                <TextBlock Text="W" Foreground="#94A3B8" FontFamily="Segoe UI, Outfit, Arial" FontSize="14" FontWeight="Bold" Margin="4,0,0,6" VerticalAlignment="Bottom"/>
+                                <TextBlock x:Name="txtActualPower" Text="182" Foreground="#10B981" FontFamily="Segoe UI, Outfit, Arial" FontSize="44" FontWeight="Black" LineHeight="44"/>
+                                <TextBlock Text="W" Foreground="#94A3B8" FontFamily="Segoe UI, Outfit, Arial" FontSize="16" FontWeight="Bold" Margin="4,0,0,6" VerticalAlignment="Bottom"/>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                <TextBlock Text="実測: " Foreground="#94A3B8" FontSize="11"/>
-                                <TextBlock x:Name="txtActualPower" Text="182" Foreground="#F8FAFC" FontFamily="Consolas, Segoe UI Mono" FontSize="11" FontWeight="Bold"/>
-                                <TextBlock Text=" W " Foreground="#94A3B8" FontSize="11"/>
-                                <TextBlock x:Name="txtPowerDiff" Text="(+2W)" Foreground="#10B981" FontFamily="Consolas, Segoe UI Mono" FontSize="11" FontWeight="Bold"/>
+
+                            <!-- 目標パワー & 差分バッジ -->
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0" VerticalAlignment="Center">
+                                <TextBlock Text="TARGET: " Foreground="#64748B" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="txtTargetPower" Text="180W" Foreground="#06B6D4" FontFamily="Segoe UI, Outfit, Arial" FontSize="14" FontWeight="ExtraBold" VerticalAlignment="Center"/>
+                                <Border x:Name="borderDiffBadge" Background="#2610B981" CornerRadius="4" Padding="5,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                    <TextBlock x:Name="txtPowerDiff" Text="+2W" Foreground="#10B981" FontFamily="Consolas, Segoe UI Mono" FontSize="11" FontWeight="Bold"/>
+                                </Border>
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- 列2: パワー差分インジケーターゲージ (Zwift風 DOWN/JUST/UP) -->
-                        <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="150">
+                        <!-- 列2: パワー差分インジケーターゲージ (DOWN/JUST/UP) & 車速・心拍 -->
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" Width="160">
                             <DockPanel Margin="0,0,0,4">
                                 <TextBlock Text="DOWN" Foreground="#64748B" FontSize="8" FontWeight="Bold" DockPanel.Dock="Left"/>
                                 <TextBlock Text="JUST" Foreground="#64748B" FontSize="8" FontWeight="Bold" HorizontalAlignment="Center"/>
@@ -297,7 +302,7 @@
                                 <Canvas x:Name="canvasGaugeTrack" Height="8">
                                     <!-- 中央ピンポインター -->
                                     <Border x:Name="gaugePointer"
-                                            Canvas.Left="69"
+                                            Canvas.Left="74"
                                             Canvas.Top="0"
                                             Width="12"
                                             Height="8"
@@ -309,24 +314,28 @@
                                     </Border>
                                 </Canvas>
                             </Border>
-                            <!-- 実車速・心拍 -->
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,6,0,0">
-                                <TextBlock x:Name="txtSpeed" Text="32.4 km/h" Foreground="#94A3B8" FontSize="10" FontWeight="SemiBold" Margin="0,0,8,0"/>
-                                <TextBlock x:Name="txtHeartRate" Text="145 bpm" Foreground="#EF4444" FontSize="10" FontWeight="Bold"/>
+                            <!-- 実車速・心拍 (実測値をくっきり大型表示) -->
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="txtSpeed" Text="32.4 km/h" Foreground="#F8FAFC" FontSize="12" FontWeight="Bold" Margin="0,0,10,0"/>
+                                <TextBlock Text="❤️ " Foreground="#EF4444" FontSize="11" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="txtHeartRate" Text="145 bpm" Foreground="#EF4444" FontSize="12" FontWeight="Bold"/>
                             </StackPanel>
                         </StackPanel>
 
-                        <!-- 列3: TARGET CADENCE & 実測 -->
-                        <StackPanel Grid.Column="2" HorizontalAlignment="Right" Width="160">
-                            <TextBlock Text="TARGET CADENCE" Foreground="#64748B" FontSize="10" FontWeight="Bold" Margin="0,0,0,2"/>
-                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
-                                <TextBlock x:Name="txtTargetCadence" Text="90" Foreground="#F8FAFC" FontFamily="Segoe UI, Outfit, Arial" FontSize="36" FontWeight="Black" LineHeight="36"/>
-                                <TextBlock Text="RPM" Foreground="#94A3B8" FontFamily="Segoe UI, Outfit, Arial" FontSize="14" FontWeight="Bold" Margin="4,0,0,6" VerticalAlignment="Bottom"/>
+                        <!-- 列3: CADENCE (実測ケイデンスを超大型化、目標ケイデンスも明瞭表示) -->
+                        <StackPanel Grid.Column="2" HorizontalAlignment="Right" Width="200">
+                            <TextBlock Text="CADENCE" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" HorizontalAlignment="Right"/>
+                            
+                            <!-- 実測ケイデンス（超大型フォント 44pt） -->
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+                                <TextBlock x:Name="txtActualCadence" Text="89" Foreground="#F8FAFC" FontFamily="Segoe UI, Outfit, Arial" FontSize="44" FontWeight="Black" LineHeight="44"/>
+                                <TextBlock Text="RPM" Foreground="#94A3B8" FontFamily="Segoe UI, Outfit, Arial" FontSize="16" FontWeight="Bold" Margin="4,0,0,6" VerticalAlignment="Bottom"/>
                             </StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                                <TextBlock Text="実測: " Foreground="#94A3B8" FontSize="11"/>
-                                <TextBlock x:Name="txtActualCadence" Text="89" Foreground="#F8FAFC" FontFamily="Consolas, Segoe UI Mono" FontSize="11" FontWeight="Bold"/>
-                                <TextBlock Text=" RPM" Foreground="#94A3B8" FontSize="11"/>
+
+                            <!-- 目標ケイデンス -->
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                <TextBlock Text="TARGET: " Foreground="#64748B" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="txtTargetCadence" Text="90 RPM" Foreground="#06B6D4" FontFamily="Segoe UI, Outfit, Arial" FontSize="14" FontWeight="ExtraBold" VerticalAlignment="Center"/>
                             </StackPanel>
                         </StackPanel>
                     </Grid>

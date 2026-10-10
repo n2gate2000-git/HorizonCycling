@@ -256,52 +256,54 @@ namespace HorizonCyclingApp
                 txtBlockTitle.Text = $"BLOCK {workoutState.CurrentSegmentIndex + 1}/{workoutState.TotalSegmentsCount}: {workoutState.CurrentSegmentType.ToUpper()}";
                 txtBlockRemaining.Text = $"⏱ {FormatTime(workoutState.SegmentRemainingSec)}";
 
-                // 3. パワー数値 (Target, Actual, Diff)
+                // 3. パワー数値 (実測パワーはゾーンカラーで超大型表示、ターゲットも明瞭表示)
                 int actualWatts = (int)Math.Round(bridgeState.Power);
                 int targetWatts = workoutState.TargetWatts;
                 int diff = actualWatts - targetWatts;
 
-                txtTargetPower.Text = targetWatts.ToString();
                 txtActualPower.Text = actualWatts.ToString();
+                txtActualPower.Foreground = GetPowerZoneBrush(actualWatts, bridgeState.Ftp);
+                txtTargetPower.Text = $"{targetWatts}W";
 
-                string diffStr = diff >= 0 ? $"(+{diff}W)" : $"({diff}W)";
+                string diffStr = diff >= 0 ? $"+{diff}W" : $"{diff}W";
                 txtPowerDiff.Text = diffStr;
 
-                // 差分色 & ポインター位置計算
+                // 差分色 & バッジ背景 & ポインター位置計算
                 SolidColorBrush diffBrush;
                 if (Math.Abs(diff) <= 5)
                 {
-                    diffBrush = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // 緑
+                    diffBrush = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // 緑 (Match)
                 }
                 else if (diff < -5)
                 {
-                    diffBrush = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // 黄 (不足)
+                    diffBrush = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // 黄 (Low)
                 }
                 else
                 {
-                    diffBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // 赤 (超過)
+                    diffBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // 赤 (High)
                 }
                 txtPowerDiff.Foreground = diffBrush;
+                borderDiffBadge.Background = new SolidColorBrush(Color.FromArgb(38, diffBrush.Color.R, diffBrush.Color.G, diffBrush.Color.B));
                 gaugePointer.Background = diffBrush;
 
-                // 差分ゲージポインター移動 (中央は 69px、±30Wで端まで移動)
+                // 差分ゲージポインター移動 (中央は 74px、±30Wで端まで移動)
                 double clampedDiff = Math.Clamp((double)diff, -30.0, 30.0);
-                double offset = (clampedDiff / 30.0) * 60.0;
-                Canvas.SetLeft(gaugePointer, Math.Clamp(69.0 + offset, 4.0, 134.0));
+                double offset = (clampedDiff / 30.0) * 65.0;
+                Canvas.SetLeft(gaugePointer, Math.Clamp(74.0 + offset, 4.0, 144.0));
 
                 // 4. ケイデンス & 心拍数 & 速度
                 int targetCad = workoutState.TargetCadence ?? 90;
-                txtTargetCadence.Text = targetCad.ToString();
+                txtTargetCadence.Text = $"{targetCad} RPM";
                 txtActualCadence.Text = bridgeState.Cadence > 0 ? Math.Round(bridgeState.Cadence).ToString() : "--";
 
                 txtSpeed.Text = $"{bridgeState.CarSpeedKmh:F1} km/h";
                 txtHeartRate.Text = bridgeState.HeartRate > 0 ? $"{bridgeState.HeartRate} bpm" : "-- bpm";
 
-                // 5. ブロック進捗バー (幅 540px)
+                // 5. ブロック進捗バー (幅 580px)
                 if (workoutState.SegmentTotalDurationSec > 0)
                 {
                     double ratio = (double)(workoutState.SegmentTotalDurationSec - workoutState.SegmentRemainingSec) / workoutState.SegmentTotalDurationSec;
-                    rectProgressBarFill.Width = Math.Clamp(ratio * 540.0, 0.0, 540.0);
+                    rectProgressBarFill.Width = Math.Clamp(ratio * 580.0, 0.0, 580.0);
                 }
 
                 // 6. カウントダウン
@@ -486,6 +488,20 @@ namespace HorizonCyclingApp
             int m = seconds / 60;
             int s = seconds % 60;
             return $"{m:D2}:{s:D2}";
+        }
+
+        private static SolidColorBrush GetPowerZoneBrush(int watts, double ftp)
+        {
+            if (ftp <= 0) ftp = 200;
+            double pct = (double)watts / ftp;
+
+            if (pct < 0.55) return new SolidColorBrush(Color.FromRgb(100, 116, 139)); // Z1
+            if (pct < 0.75) return new SolidColorBrush(Color.FromRgb(59, 130, 246));  // Z2
+            if (pct < 0.90) return new SolidColorBrush(Color.FromRgb(16, 185, 129));  // Z3
+            if (pct < 1.05) return new SolidColorBrush(Color.FromRgb(234, 179, 8));   // Z4
+            if (pct < 1.20) return new SolidColorBrush(Color.FromRgb(249, 115, 22));  // Z5
+            if (pct < 1.50) return new SolidColorBrush(Color.FromRgb(239, 68, 68));   // Z6
+            return new SolidColorBrush(Color.FromRgb(168, 85, 247));                 // Z7
         }
 
         private static SolidColorBrush GetZoneColorBrush(int zone)
