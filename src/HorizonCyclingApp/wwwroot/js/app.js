@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const historyController = new SessionHistoryController();
   historyController.init();
+  window.historyController = historyController;
 
   // DOM要素の参照
   const powerVal = document.getElementById('powerVal');
@@ -26,6 +27,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const hrVal = document.getElementById('hrVal');
   const hrSub = document.getElementById('hrSub');
   const hrIcon = document.getElementById('hrIcon');
+  const hrZoneBadge = document.getElementById('hrZoneBadge');
+  const hrZoneBars = document.getElementById('hrZoneBars');
+  const profHrZoneBadge = document.getElementById('profHrZoneBadge');
   const cadenceVal = document.getElementById('cadenceVal');
   const gearVal = document.getElementById('gearVal');
   const distVal = document.getElementById('distVal');
@@ -115,12 +119,57 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnConnectHr = document.getElementById('btnConnectHr');
   const hrConnectStatus = document.getElementById('hrConnectStatus');
   const settingMaxHr = document.getElementById('settingMaxHr');
+  const settingRestingHr = document.getElementById('settingRestingHr');
 
   let currentFtp = 200;
   let currentMaxHr = 190;
+  let currentRestingHr = 60;
   let lastSavedFilePath = '';
   let selectedBleDevice = null;
   let selectedHrDevice = null;
+
+  // 心拍ゾーン判定共通ヘルパー (カルボーネン法 / HRR 予備心拍数基準)
+  window.getHrZone = function(hr, maxHr = currentMaxHr, restingHr = currentRestingHr) {
+    if (!hr || hr <= 0) {
+      return { zone: 0, pct: 0, name: '未計測', shortName: 'Z0', color: '#64748b' };
+    }
+    let pct = 0;
+    if (restingHr > 0 && maxHr > restingHr) {
+      const hrr = maxHr - restingHr;
+      pct = ((hr - restingHr) / hrr) * 100;
+    } else {
+      pct = (hr / maxHr) * 100;
+    }
+
+    if (pct >= 90) {
+      return { zone: 5, pct: Math.round(pct), name: '無酸素/最大', shortName: 'Z5', color: '#ef4444' };
+    } else if (pct >= 80) {
+      return { zone: 4, pct: Math.round(pct), name: '乳酸閾値', shortName: 'Z4', color: '#f97316' };
+    } else if (pct >= 70) {
+      return { zone: 3, pct: Math.round(pct), name: 'テンポ', shortName: 'Z3', color: '#eab308' };
+    } else if (pct >= 60) {
+      return { zone: 2, pct: Math.round(pct), name: '有酸素', shortName: 'Z2', color: '#22c55e' };
+    } else {
+      return { zone: 1, pct: Math.max(0, Math.round(pct)), name: '回復', shortName: 'Z1', color: '#38bdf8' };
+    }
+  };
+
+  // 各ゾーンの心拍数範囲 (bpm) 取得ヘルパー
+  window.getHrZoneRanges = function(maxHr = currentMaxHr, restingHr = currentRestingHr) {
+    const calc = (pct) => {
+      if (restingHr > 0 && maxHr > restingHr) {
+        return Math.round(restingHr + (maxHr - restingHr) * (pct / 100));
+      }
+      return Math.round(maxHr * (pct / 100));
+    };
+    return [
+      { zone: 1, name: '回復', shortName: 'Z1', min: restingHr > 0 ? restingHr : calc(50), max: calc(60) - 1, color: '#38bdf8' },
+      { zone: 2, name: '有酸素', shortName: 'Z2', min: calc(60), max: calc(70) - 1, color: '#22c55e' },
+      { zone: 3, name: 'テンポ', shortName: 'Z3', min: calc(70), max: calc(80) - 1, color: '#eab308' },
+      { zone: 4, name: '乳酸閾値', shortName: 'Z4', min: calc(80), max: calc(90) - 1, color: '#f97316' },
+      { zone: 5, name: '無酸素/最大', shortName: 'Z5', min: calc(90), max: maxHr, color: '#ef4444' }
+    ];
+  };
 
   // タブ切り替え処理
   const tabButtons = document.querySelectorAll('.tab-btn');
@@ -419,16 +468,23 @@ document.addEventListener('DOMContentLoaded', () => {
   btnSaveSettings.addEventListener('click', () => {
     const ftp = parseInt(settingFtp.value) || 200;
     const maxHr = parseInt(settingMaxHr ? settingMaxHr.value : 190) || 190;
+    const restingHr = parseInt(settingRestingHr ? settingRestingHr.value : 60) || 60;
     const pedalBrake = settingPedalBrake.checked;
     const recentDist = parseInt(settingProfileRecentDistance ? settingProfileRecentDistance.value : 200) || 200;
     currentFtp = ftp;
     currentMaxHr = maxHr;
+    currentRestingHr = restingHr;
     elevationChart.setRecentDistance(recentDist);
+    if (elevationChart.setHrConfig) elevationChart.setHrConfig(maxHr, restingHr);
+    if (window.historyController && window.historyController.setHrConfig) {
+      window.historyController.setHrConfig(maxHr, restingHr);
+    }
     if (selectProfileRecentDistance) selectProfileRecentDistance.value = recentDist.toString();
     postMessageToHost('updateSettings', {
       ftp,
       pedalBrake,
       maxHeartRate: maxHr,
+      restingHeartRate: restingHr,
       profileRecentDistance: recentDist
     });
 
@@ -528,6 +584,16 @@ document.addEventListener('DOMContentLoaded', () => {
         if (data.payload.maxHeartRate && settingMaxHr) {
           currentMaxHr = data.payload.maxHeartRate;
           settingMaxHr.value = currentMaxHr;
+        }
+        if (data.payload.restingHeartRate && settingRestingHr) {
+          currentRestingHr = data.payload.restingHeartRate;
+          settingRestingHr.value = currentRestingHr;
+        }
+        if (elevationChart.setHrConfig) {
+          elevationChart.setHrConfig(currentMaxHr, currentRestingHr);
+        }
+        if (window.historyController && window.historyController.setHrConfig) {
+          window.historyController.setHrConfig(currentMaxHr, currentRestingHr);
         }
         if (data.payload.powerSourceName && currentDeviceText) {
           currentDeviceText.textContent = data.payload.powerSourceName;
@@ -667,17 +733,36 @@ document.addEventListener('DOMContentLoaded', () => {
       if (s.HeartRate && s.HeartRate > 0) {
         hrVal.textContent = Math.round(s.HeartRate);
         if (hrIcon) hrIcon.classList.add('beating');
-        const pct = (s.HeartRate / currentMaxHr) * 100;
-        let zone = 1;
-        if (pct >= 90) zone = 5;
-        else if (pct >= 80) zone = 4;
-        else if (pct >= 70) zone = 3;
-        else if (pct >= 60) zone = 2;
-        hrSub.textContent = `Z${zone} (${Math.round(pct)}%)`;
+
+        const zInfo = window.getHrZone(s.HeartRate, currentMaxHr, currentRestingHr);
+        if (hrZoneBadge) {
+          hrZoneBadge.className = `hr-zone-badge zone-${zInfo.zone}`;
+          hrZoneBadge.textContent = `${zInfo.shortName} ${zInfo.name}`;
+        }
+        if (hrZoneBars) {
+          const segments = hrZoneBars.querySelectorAll('.hr-zone-segment');
+          segments.forEach(seg => {
+            const zNum = parseInt(seg.getAttribute('data-zone')) || 0;
+            seg.classList.toggle('active', zNum <= zInfo.zone);
+          });
+        }
+        if (hrSub) {
+          hrSub.textContent = `${zInfo.pct}% HRR (${currentRestingHr}-${currentMaxHr}bpm)`;
+        }
       } else {
         hrVal.textContent = '--';
         if (hrIcon) hrIcon.classList.remove('beating');
-        hrSub.textContent = s.IsHrConnected ? '0 bpm' : '未接続';
+        if (hrZoneBadge) {
+          hrZoneBadge.className = 'hr-zone-badge';
+          hrZoneBadge.textContent = 'Z0 --';
+        }
+        if (hrZoneBars) {
+          const segments = hrZoneBars.querySelectorAll('.hr-zone-segment');
+          segments.forEach(seg => seg.classList.remove('active'));
+        }
+        if (hrSub) {
+          hrSub.textContent = s.IsHrConnected ? '0 bpm' : '未接続';
+        }
       }
     }
 
@@ -723,8 +808,18 @@ document.addEventListener('DOMContentLoaded', () => {
     if (profSpeed) profSpeed.innerHTML = `${s.CarSpeedKmh.toFixed(1)} / ${s.TargetSpeedKmh.toFixed(1)} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">km/h</span>`;
     if (profPower) profPower.innerHTML = `${Math.round(s.Power)} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">W</span>`;
     if (profHr) {
-      const hrTextStr = s.HeartRate > 0 ? Math.round(s.HeartRate) : '--';
-      profHr.innerHTML = `${hrTextStr} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span>`;
+      if (s.HeartRate > 0) {
+        profHr.innerHTML = `${Math.round(s.HeartRate)} <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span>`;
+        if (profHrZoneBadge) {
+          const zInfo = window.getHrZone(s.HeartRate, currentMaxHr, currentRestingHr);
+          profHrZoneBadge.className = `hr-zone-badge hr-zone-badge-mini zone-${zInfo.zone}`;
+          profHrZoneBadge.textContent = zInfo.shortName;
+          profHrZoneBadge.classList.remove('hidden');
+        }
+      } else {
+        profHr.innerHTML = `-- <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span>`;
+        if (profHrZoneBadge) profHrZoneBadge.classList.add('hidden');
+      }
     }
     if (profEleGain) profEleGain.textContent = `+${Math.round(s.ElevationGainMeters)} m`;
     if (profDist) profDist.textContent = `${s.TotalDistanceKm.toFixed(2)} km`;

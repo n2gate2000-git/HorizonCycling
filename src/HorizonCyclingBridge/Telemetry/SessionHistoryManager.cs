@@ -22,6 +22,8 @@ namespace HorizonCyclingBridge.Telemetry
         public double MaxPowerWatts { get; set; }
         public double NormalizedPowerWatts { get; set; }
         public double AvgCadence { get; set; }
+        public double AvgHeartRate { get; set; }
+        public double MaxHeartRate { get; set; }
         public double CaloriesKcal { get; set; }
         public string GpxFileName { get; set; } = "";
     }
@@ -71,6 +73,8 @@ namespace HorizonCyclingBridge.Telemetry
                         if (sum.TryGetProperty("maxPowerWatts", out var mpwr)) item.MaxPowerWatts = mpwr.GetDouble();
                         if (sum.TryGetProperty("normalizedPowerWatts", out var np)) item.NormalizedPowerWatts = np.GetDouble();
                         if (sum.TryGetProperty("avgCadence", out var cad)) item.AvgCadence = cad.GetDouble();
+                        if (sum.TryGetProperty("avgHeartRate", out var ahr)) item.AvgHeartRate = ahr.GetDouble();
+                        if (sum.TryGetProperty("maxHeartRate", out var mhr)) item.MaxHeartRate = mhr.GetDouble();
                         if (sum.TryGetProperty("caloriesKcal", out var cal)) item.CaloriesKcal = cal.GetDouble();
                     }
 

@@ -27,8 +27,15 @@ class ElevationProfileChart {
     this.currentTargetSpeed = 0.0;
     this.currentPower = 0.0;
     this.currentHeartRate = 0.0;
+    this.maxHeartRate = 190;
+    this.restingHeartRate = 60;
 
     this.currentDisplayedPoints = [];
+  }
+
+  setHrConfig(maxHr, restingHr) {
+    if (maxHr) this.maxHeartRate = maxHr;
+    if (restingHr) this.restingHeartRate = restingHr;
   }
 
   init() {
@@ -245,7 +252,13 @@ class ElevationProfileChart {
                 } else if (context.datasetIndex === 3) {
                   return ` パワー: ${Math.round(val)} W`;
                 } else if (context.datasetIndex === 4) {
-                  return ` 心拍数: ${Math.round(val)} bpm`;
+                  const hrVal = Math.round(val);
+                  let zText = '';
+                  if (hrVal > 0 && window.getHrZone) {
+                    const z = window.getHrZone(hrVal, this.maxHeartRate, this.restingHeartRate);
+                    if (z && z.zone > 0) zText = ` (${z.shortName} ${z.name} / ${z.pct}%)`;
+                  }
+                  return ` 心拍数: ${hrVal} bpm${zText}`;
                 }
                 return ` ${context.dataset.label}: ${val}`;
               }

@@ -42,6 +42,16 @@ class SessionHistoryController {
     this.histMaxPower = null;
     this.histCalories = null;
     this.histAvgCadence = null;
+    this.histAvgHr = null;
+    this.histMaxHr = null;
+
+    this.histHrZoneSection = null;
+    this.histHrZoneSummary = null;
+    this.histHrZoneDistBar = null;
+    this.histHrZoneDistLegend = null;
+
+    this.maxHeartRate = 190;
+    this.restingHeartRate = 60;
 
     this.btnRefreshHistory = null;
     this.btnOpenActivitiesDir = null;
@@ -67,6 +77,13 @@ class SessionHistoryController {
     this.histMaxPower = document.getElementById('histMaxPower');
     this.histCalories = document.getElementById('histCalories');
     this.histAvgCadence = document.getElementById('histAvgCadence');
+    this.histAvgHr = document.getElementById('histAvgHr');
+    this.histMaxHr = document.getElementById('histMaxHr');
+
+    this.histHrZoneSection = document.getElementById('histHrZoneSection');
+    this.histHrZoneSummary = document.getElementById('histHrZoneSummary');
+    this.histHrZoneDistBar = document.getElementById('histHrZoneDistBar');
+    this.histHrZoneDistLegend = document.getElementById('histHrZoneDistLegend');
 
     this.btnRefreshHistory = document.getElementById('btnRefreshHistory');
     this.btnOpenActivitiesDir = document.getElementById('btnOpenActivitiesDir');
@@ -131,6 +148,14 @@ class SessionHistoryController {
     if (!this.btnFollowHistoryPoint) return;
     this.btnFollowHistoryPoint.classList.toggle('active', this.followPoint);
     this.btnFollowHistoryPoint.textContent = this.followPoint ? '📍 自動追従: ON' : '📍 自動追従: OFF';
+  }
+
+  setHrConfig(maxHr, restingHr) {
+    if (maxHr) this.maxHeartRate = maxHr;
+    if (restingHr) this.restingHeartRate = restingHr;
+    if (this.currentPoints && this.currentPoints.length > 0) {
+      this.renderHrZoneDistribution(this.currentPoints);
+    }
   }
 
   postMessage(action, payload = {}) {
@@ -512,7 +537,15 @@ class SessionHistoryController {
                 if (context.datasetIndex === 1) return ` 速度: ${val.toFixed(1)} km/h`;
                 if (context.datasetIndex === 2) return ` 目標速度: ${val.toFixed(1)} km/h`;
                 if (context.datasetIndex === 3) return ` パワー: ${Math.round(val)} W`;
-                if (context.datasetIndex === 4) return ` 心拍数: ${Math.round(val)} bpm`;
+                if (context.datasetIndex === 4) {
+                  const hrVal = Math.round(val);
+                  let zText = '';
+                  if (hrVal > 0 && window.getHrZone) {
+                    const z = window.getHrZone(hrVal, this.maxHeartRate, this.restingHeartRate);
+                    if (z && z.zone > 0) zText = ` (${z.shortName} ${z.name})`;
+                  }
+                  return ` 心拍数: ${hrVal} bpm${zText}`;
+                }
                 return ` ${context.dataset.label}: ${val}`;
               }
             }
@@ -621,6 +654,21 @@ class SessionHistoryController {
     if (this.histCalories) this.histCalories.textContent = `${Math.round(item.CaloriesKcal)} kcal`;
     if (this.histAvgCadence) this.histAvgCadence.textContent = `平均ケイデンス: ${Math.round(item.AvgCadence)} rpm`;
 
+    // 心拍スタッツ
+    const avgHr = Math.round(item.AvgHeartRate || 0);
+    const maxHr = Math.round(item.MaxHeartRate || 0);
+    if (this.histAvgHr) {
+      this.histAvgHr.textContent = avgHr > 0 ? `${avgHr} bpm` : '-- bpm';
+    }
+    if (this.histMaxHr) {
+      if (maxHr > 0) {
+        const z = window.getHrZone ? window.getHrZone(maxHr, this.maxHeartRate, this.restingHeartRate) : null;
+        this.histMaxHr.textContent = `Max: ${maxHr} bpm${z && z.zone > 0 ? ` (${z.shortName})` : ''}`;
+      } else {
+        this.histMaxHr.textContent = 'Max: -- bpm';
+      }
+    }
+
     // 詳細データ（トラックポイント配列）を取得要求
     this.postMessage('getHistoryDetail', { fileName: item.FileName });
   }
@@ -635,6 +683,9 @@ class SessionHistoryController {
 
     // 1. 地図にトラックポイント描画 (リアルタイムマップ追跡の位置合わせと完全に一致)
     this.redrawTrack(true);
+
+    // 2. 心拍ゾーン分布の計算・描画
+    this.renderHrZoneDistribution(points);
 
     // 2. 過去グラフ（Chart.js）描画
     if (this.chart) {
@@ -727,7 +778,10 @@ class SessionHistoryController {
     const pwr = Math.round(pt.Power ?? pt.power ?? 0);
     const hr = Math.round(pt.HeartRate ?? pt.hr ?? 0);
     let tooltipText = `📍 ${distKm}km | ${ele}m | ${spd}km/h | ${pwr}W`;
-    if (hr > 0) tooltipText += ` | ❤️${hr}`;
+    if (hr > 0) {
+      const z = window.getHrZone ? window.getHrZone(hr, this.maxHeartRate, this.restingHeartRate) : null;
+      tooltipText += ` | ❤️${hr}${z && z.zone > 0 ? ` (${z.shortName})` : ''}`;
+    }
 
     this.hoverDot.unbindTooltip();
     this.hoverDot.bindTooltip(tooltipText, {
@@ -783,6 +837,116 @@ class SessionHistoryController {
       setTimeout(() => {
         this.chart.resize();
       }, 50);
+    }
+  }
+
+  renderHrZoneDistribution(points) {
+    if (!this.histHrZoneSection) return;
+
+    if (!points || points.length === 0) {
+      this.histHrZoneSection.classList.add('hidden');
+      return;
+    }
+
+    // ゾーンごとの滞在時間（秒数）を集計
+    const zoneSeconds = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    let totalHrSec = 0;
+    let sumHr = 0;
+    let hrCount = 0;
+    let maxHrFound = 0;
+
+    for (let i = 0; i < points.length; i++) {
+      const pt = points[i];
+      const hr = pt.HeartRate ?? pt.hr ?? 0;
+      if (hr > 0) {
+        let dt = 1;
+        if (i > 0 && points[i - 1].Timestamp && pt.Timestamp) {
+          const tPrev = new Date(points[i - 1].Timestamp).getTime();
+          const tCur = new Date(pt.Timestamp).getTime();
+          const diffSec = (tCur - tPrev) / 1000;
+          if (diffSec > 0 && diffSec <= 5) {
+            dt = diffSec;
+          }
+        }
+        sumHr += hr;
+        hrCount++;
+        if (hr > maxHrFound) maxHrFound = hr;
+
+        const z = window.getHrZone ? window.getHrZone(hr, this.maxHeartRate, this.restingHeartRate) : null;
+        if (z && z.zone >= 1 && z.zone <= 5) {
+          zoneSeconds[z.zone] += dt;
+          totalHrSec += dt;
+        }
+      }
+    }
+
+    // 心拍データが無い場合は非表示
+    if (totalHrSec <= 0 || hrCount === 0) {
+      this.histHrZoneSection.classList.add('hidden');
+      return;
+    }
+
+    this.histHrZoneSection.classList.remove('hidden');
+
+    const avgHrCalc = Math.round(sumHr / hrCount);
+    // スタッツカードが未設定だった場合は補完
+    if (this.histAvgHr && (this.histAvgHr.textContent === '-- bpm' || !this.selectedSession?.AvgHeartRate)) {
+      this.histAvgHr.textContent = `${avgHrCalc} bpm`;
+    }
+    if (this.histMaxHr && (this.histMaxHr.textContent === 'Max: -- bpm' || !this.selectedSession?.MaxHeartRate)) {
+      const zMax = window.getHrZone ? window.getHrZone(maxHrFound, this.maxHeartRate, this.restingHeartRate) : null;
+      this.histMaxHr.textContent = `Max: ${Math.round(maxHrFound)} bpm${zMax && zMax.zone > 0 ? ` (${zMax.shortName})` : ''}`;
+    }
+
+    // サマリー表示
+    if (this.histHrZoneSummary) {
+      this.histHrZoneSummary.textContent = `計測: ${this.formatSeconds(totalHrSec)} | 平均: ${avgHrCalc} bpm | 最大: ${Math.round(maxHrFound)} bpm`;
+    }
+
+    // ゾーン範囲一覧を取得
+    const ranges = window.getHrZoneRanges ? window.getHrZoneRanges(this.maxHeartRate, this.restingHeartRate) : [
+      { zone: 1, name: '回復', shortName: 'Z1', min: 60, max: 113, color: '#38bdf8' },
+      { zone: 2, name: '有酸素', shortName: 'Z2', min: 114, max: 132, color: '#22c55e' },
+      { zone: 3, name: 'テンポ', shortName: 'Z3', min: 133, max: 151, color: '#eab308' },
+      { zone: 4, name: '乳酸閾値', shortName: 'Z4', min: 152, max: 170, color: '#f97316' },
+      { zone: 5, name: '無酸素/最大', shortName: 'Z5', min: 171, max: 190, color: '#ef4444' }
+    ];
+
+    // 1. スタックバー生成
+    if (this.histHrZoneDistBar) {
+      let barHtml = '';
+      ranges.forEach(r => {
+        const sec = zoneSeconds[r.zone] || 0;
+        const pct = (sec / totalHrSec) * 100;
+        if (pct > 0) {
+          barHtml += `<div class="hr-zone-dist-bar-seg zone-${r.zone}" style="width: ${pct.toFixed(2)}%;" title="${r.shortName} ${r.name}: ${pct.toFixed(1)}% (${this.formatSeconds(sec)})"></div>`;
+        }
+      });
+      this.histHrZoneDistBar.innerHTML = barHtml;
+    }
+
+    // 2. 凡例グリッド生成
+    if (this.histHrZoneDistLegend) {
+      let legendHtml = '';
+      ranges.forEach(r => {
+        const sec = zoneSeconds[r.zone] || 0;
+        const pct = (sec / totalHrSec) * 100;
+        const rangeText = r.zone === 1 ? `< ${r.max + 1} bpm` : (r.zone === 5 ? `≥ ${r.min} bpm` : `${r.min} - ${r.max} bpm`);
+        legendHtml += `
+          <div class="hr-zone-legend-item">
+            <div class="hr-zone-legend-header">
+              <span class="hr-zone-dot zone-${r.zone}"></span>
+              <span>${r.shortName} ${r.name}</span>
+            </div>
+            <span class="hr-zone-range">${rangeText}</span>
+            <div class="hr-zone-legend-val">
+              <span class="hr-zone-time">${this.formatSeconds(sec)}</span>
+              <span class="hr-zone-pct">${pct.toFixed(1)}%</span>
+            </div>
+          </div>
+        `;
+      });
+      this.histHrZoneDistLegend.innerHTML = legendHtml;
     }
   }
 

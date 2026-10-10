@@ -277,6 +277,14 @@ namespace HorizonCyclingBridge.Core
             Log($"[CONFIG] Rider Max HR set to {_config.MaxHeartRate} bpm.");
         }
 
+        public void SetRestingHeartRate(int restingHr)
+        {
+            if (restingHr < 30 || restingHr > 120) return;
+            _config.RestingHeartRate = restingHr;
+            ConfigManager.Save(_config);
+            Log($"[CONFIG] Rider Resting HR set to {_config.RestingHeartRate} bpm.");
+        }
+
         public void SetProfileRecentDistance(int distanceM)
         {
             int clamped = Math.Clamp(distanceM, 100, 1000);

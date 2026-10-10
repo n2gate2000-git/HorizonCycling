@@ -297,6 +297,10 @@ namespace HorizonCyclingApp
                             {
                                 _bridgeService.SetMaxHeartRate(maxHrProp.GetInt32());
                             }
+                            if (root.TryGetProperty("restingHeartRate", out var restHrProp))
+                            {
+                                _bridgeService.SetRestingHeartRate(restHrProp.GetInt32());
+                            }
                             if (root.TryGetProperty("profileRecentDistance", out var distProp))
                             {
                                 _bridgeService.SetProfileRecentDistance(distProp.GetInt32());
@@ -477,6 +481,7 @@ namespace HorizonCyclingApp
                     difficulty = _bridgeService.Config.TrainerDifficulty,
                     ftp = _bridgeService.Config.Ftp,
                     maxHeartRate = _bridgeService.Config.MaxHeartRate,
+                    restingHeartRate = _bridgeService.Config.RestingHeartRate,
                     pedalBrake = _bridgeService.Config.PedalBrakeEnabled,
                     profileRecentDistance = _bridgeService.Config.ProfileRecentDistanceM,
                     heartRateSourceMacAddress = _bridgeService.Config.HeartRateSourceMacAddress,

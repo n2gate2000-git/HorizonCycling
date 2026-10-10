@@ -128,12 +128,22 @@
             </div>
             <div class="sub-label" id="gainSub">獲得: +0 m</div>
           </div>
-          <div class="metric-card mid-card">
+          <div class="metric-card mid-card hr-metric-card" id="hrCard">
             <span class="metric-label">HEART RATE</span>
             <div class="metric-value-row">
               <span id="hrIcon" class="hr-icon">❤️</span>
               <span id="hrVal" class="large-number text-rose">--</span>
               <span class="unit">bpm</span>
+            </div>
+            <div class="hr-zone-container">
+              <span id="hrZoneBadge" class="hr-zone-badge">Z0 --</span>
+              <div class="hr-zone-bars" id="hrZoneBars">
+                <div class="hr-zone-segment" data-zone="1" title="Z1 回復 (<60%)"></div>
+                <div class="hr-zone-segment" data-zone="2" title="Z2 有酸素 (60-69%)"></div>
+                <div class="hr-zone-segment" data-zone="3" title="Z3 テンポ (70-79%)"></div>
+                <div class="hr-zone-segment" data-zone="4" title="Z4 閾値 (80-89%)"></div>
+                <div class="hr-zone-segment" data-zone="5" title="Z5 無酸素 (90%+)"></div>
+              </div>
             </div>
             <div class="sub-label" id="hrSub">未接続</div>
           </div>
@@ -232,7 +242,10 @@
               </div>
               <div class="stat-item">
                 <span class="stat-label">心拍数</span>
-                <span class="stat-value text-rose" id="profHr">-- <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span></span>
+                <div style="display: flex; align-items: baseline; gap: 6px;">
+                  <span class="stat-value text-rose" id="profHr">-- <span style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span></span>
+                  <span id="profHrZoneBadge" class="hr-zone-badge hr-zone-badge-mini hidden">Z0</span>
+                </div>
               </div>
               <div class="stat-item">
                 <span class="stat-label">獲得標高</span>
@@ -326,10 +339,25 @@
                     <span class="h-stat-sub" id="histMaxPower">NP: 0W / Max: 0W</span>
                   </div>
                   <div class="h-stat-card">
+                    <span class="h-stat-label">❤️ 心拍数</span>
+                    <span class="h-stat-val text-rose" id="histAvgHr">-- bpm</span>
+                    <span class="h-stat-sub" id="histMaxHr">Max: -- bpm</span>
+                  </div>
+                  <div class="h-stat-card">
                     <span class="h-stat-label">🔥 消費エネルギー</span>
                     <span class="h-stat-val" id="histCalories">0 kcal</span>
                     <span class="h-stat-sub" id="histAvgCadence">平均ケイデンス: 0 rpm</span>
                   </div>
+                </div>
+
+                <!-- 心拍ゾーン分布セクション -->
+                <div id="histHrZoneSection" class="history-hr-zone-section hidden">
+                  <div class="history-section-title">
+                    <span>❤️ 心拍ゾーン分布 (HR Zone Distribution)</span>
+                    <span id="histHrZoneSummary" class="hist-hr-zone-summary"></span>
+                  </div>
+                  <div class="hr-zone-dist-bar" id="histHrZoneDistBar"></div>
+                  <div class="hr-zone-dist-legend" id="histHrZoneDistLegend"></div>
                 </div>
 
                 <!-- 過去ルート地図プレビュー & プロファイルグラフ (上下分割) -->
@@ -479,6 +507,10 @@
             <div class="form-group">
               <label>ライダー最大心拍数 (bpm)</label>
               <input type="number" id="settingMaxHr" value="190" min="100" max="230">
+            </div>
+            <div class="form-group">
+              <label>ライダー安静時心拍数 (bpm)</label>
+              <input type="number" id="settingRestingHr" value="60" min="30" max="120">
             </div>
             <div class="form-group">
               <label>プロファイル直近表示距離</label>

@@ -23,6 +23,7 @@ namespace HorizonCyclingBridge.Core
         public string HeartRateSourceName { get; set; } = string.Empty;
         public bool HeartRateEnabled { get; set; } = true;
         public int MaxHeartRate { get; set; } = 190;
+        public int RestingHeartRate { get; set; } = 60; // 安静時心拍数 (デフォルト60bpm)
 
         public int DefaultMode { get; set; } = 2;
         public double TrainerDifficulty { get; set; } = 0.5;

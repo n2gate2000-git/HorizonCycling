@@ -49,6 +49,8 @@ namespace HorizonCyclingBridge.Telemetry
         public double MaxPowerWatts { get; set; }
         public double NormalizedPowerWatts { get; set; }
         public double AvgCadence { get; set; }
+        public double AvgHeartRate { get; set; }
+        public double MaxHeartRate { get; set; }
         public double CaloriesKcal { get; set; }
         public string SavedFilePath { get; set; } = "";
         public string SavedJsonPath { get; set; } = "";
@@ -256,6 +258,9 @@ namespace HorizonCyclingBridge.Telemetry
                     double maxSpeed = 0;
                     double sumCadence = 0;
                     int cadenceCount = 0;
+                    double sumHeartRate = 0;
+                    int hrCount = 0;
+                    double maxHeartRate = 0;
 
                     // NP (Normalized Power) 計算用 (30s ローリング平均の4乗平均の4乗根)
                     List<double> rolling30s = new List<double>();
@@ -272,6 +277,12 @@ namespace HorizonCyclingBridge.Telemetry
                         {
                             sumCadence += pt.Cadence;
                             cadenceCount++;
+                        }
+                        if (pt.HeartRate > 0)
+                        {
+                            sumHeartRate += pt.HeartRate;
+                            hrCount++;
+                            if (pt.HeartRate > maxHeartRate) maxHeartRate = pt.HeartRate;
                         }
 
                         // 30秒ローリング平均
@@ -292,6 +303,8 @@ namespace HorizonCyclingBridge.Telemetry
                     summary.MaxPowerWatts = maxPower;
                     summary.MaxSpeedKmh = maxSpeed;
                     summary.AvgCadence = cadenceCount > 0 ? (sumCadence / cadenceCount) : 0;
+                    summary.AvgHeartRate = hrCount > 0 ? (sumHeartRate / hrCount) : 0;
+                    summary.MaxHeartRate = maxHeartRate;
                     summary.AvgSpeedKmh = summary.MovingDuration.TotalHours > 0 ? (totalDistanceKm / summary.MovingDuration.TotalHours) : 0;
 
                     if (rollingCount > 0)
@@ -429,6 +442,8 @@ namespace HorizonCyclingBridge.Telemetry
                     maxPowerWatts = Math.Round(summary.MaxPowerWatts, 0),
                     normalizedPowerWatts = Math.Round(summary.NormalizedPowerWatts, 0),
                     avgCadence = Math.Round(summary.AvgCadence, 0),
+                    avgHeartRate = Math.Round(summary.AvgHeartRate, 0),
+                    maxHeartRate = Math.Round(summary.MaxHeartRate, 0),
                     caloriesKcal = Math.Round(summary.CaloriesKcal, 0)
                 },
                 points = points

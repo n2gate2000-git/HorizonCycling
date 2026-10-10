@@ -1491,11 +1491,17 @@ body.dark-theme {
   color: #fff;
 }
 
-/* History Stats Grid */
+/* History Stats Grid (6 columns) */
 .history-stats-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 12px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 1400px) {
+  .history-stats-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .h-stat-card {
@@ -1629,6 +1635,202 @@ body.dark-theme {
 }
 .history-map-tooltip::before {
   border-top-color: rgba(245, 158, 11, 0.8) !important;
+}
+
+/* ==========================================================================
+   HEART RATE ZONE INDICATORS & DISTRIBUTION
+   ========================================================================== */
+.hr-zone-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  margin-bottom: 2px;
+}
+
+.hr-zone-badge {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-dim);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+  transition: all 0.2s ease;
+}
+
+.hr-zone-badge-mini {
+  font-size: 10px;
+  padding: 1px 5px;
+}
+
+.hr-zone-badge.zone-1 {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.4);
+}
+.hr-zone-badge.zone-2 {
+  background: rgba(34, 197, 94, 0.18);
+  color: #22c55e;
+  border-color: rgba(34, 197, 94, 0.4);
+}
+.hr-zone-badge.zone-3 {
+  background: rgba(234, 179, 8, 0.18);
+  color: #eab308;
+  border-color: rgba(234, 179, 8, 0.4);
+}
+.hr-zone-badge.zone-4 {
+  background: rgba(249, 115, 22, 0.2);
+  color: #f97316;
+  border-color: rgba(249, 115, 22, 0.4);
+}
+.hr-zone-badge.zone-5 {
+  background: rgba(239, 68, 68, 0.22);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.5);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.3);
+}
+
+.hr-zone-bars {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+  height: 5px;
+}
+
+.hr-zone-segment {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 2px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hr-zone-segment[data-zone="1"].active {
+  background: #38bdf8;
+  box-shadow: 0 0 6px rgba(56, 189, 248, 0.5);
+}
+.hr-zone-segment[data-zone="2"].active {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+.hr-zone-segment[data-zone="3"].active {
+  background: #eab308;
+  box-shadow: 0 0 6px rgba(234, 179, 8, 0.5);
+}
+.hr-zone-segment[data-zone="4"].active {
+  background: #f97316;
+  box-shadow: 0 0 6px rgba(249, 115, 22, 0.5);
+}
+.hr-zone-segment[data-zone="5"].active {
+  background: #ef4444;
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.6);
+}
+
+/* History HR Zone Distribution */
+.history-hr-zone-section {
+  background: var(--bg-card);
+  border: 1px solid var(--bg-card-border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hist-hr-zone-summary {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+.hr-zone-dist-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.hr-zone-dist-bar-seg {
+  height: 100%;
+  transition: width 0.3s ease;
+  position: relative;
+  min-width: 0;
+}
+
+.hr-zone-dist-bar-seg.zone-1 { background: #38bdf8; }
+.hr-zone-dist-bar-seg.zone-2 { background: #22c55e; }
+.hr-zone-dist-bar-seg.zone-3 { background: #eab308; }
+.hr-zone-dist-bar-seg.zone-4 { background: #f97316; }
+.hr-zone-dist-bar-seg.zone-5 { background: #ef4444; }
+
+.hr-zone-dist-legend {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.hr-zone-legend-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 6px 10px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.hr-zone-legend-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.hr-zone-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.hr-zone-dot.zone-1 { background: #38bdf8; }
+.hr-zone-dot.zone-2 { background: #22c55e; }
+.hr-zone-dot.zone-3 { background: #eab308; }
+.hr-zone-dot.zone-4 { background: #f97316; }
+.hr-zone-dot.zone-5 { background: #ef4444; }
+
+.hr-zone-range {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.hr-zone-legend-val {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-top: 2px;
+}
+
+.hr-zone-time {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.hr-zone-pct {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
 }
 
 
