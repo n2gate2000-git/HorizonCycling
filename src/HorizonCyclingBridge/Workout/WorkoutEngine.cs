@@ -21,14 +21,25 @@ namespace HorizonCyclingBridge.Workout
         private string? _activeMessage = null;
         private double _messageRemainingSec = 0.0;
 
+        // ランプテスト管理
+        private bool _isRampTest = false;
+        private double _rampLowCadenceSec = 0.0;
+        private readonly List<double> _rampPowerHistory = new();
+        private double _powerSampleAccumSec = 0.0;
+        private RampTestResult? _rampResult = null;
+        private bool _isRampCooldownMode = false;
+
         public event Action<int>? OnTargetPowerChanged;
         public event Action<WorkoutStateSnapshot>? OnStateUpdated;
         public event Action<string>? OnMessageAlert;
         public event Action? OnWorkoutCompleted;
+        public event Action<RampTestResult>? OnRampTestCompleted;
 
         public string State => _state;
         public bool IsRunning => _state == "Running";
         public bool IsActive => _state == "Running" || _state == "Paused";
+        public bool IsRampTest => _isRampTest;
+        public RampTestResult? RampResult => _rampResult;
         public WorkoutDefinition? CurrentWorkout => _currentWorkout;
         public double IntensityBias => _intensityBias;
 
@@ -47,8 +58,15 @@ namespace HorizonCyclingBridge.Workout
             _activeMessage = null;
             _messageRemainingSec = 0.0;
 
+            _isRampTest = workout.IsRampTest || workout.Title.Contains("Ramp Test", StringComparison.OrdinalIgnoreCase) || workout.Tags.Any(t => t.Equals("RampTest", StringComparison.OrdinalIgnoreCase));
+            _rampLowCadenceSec = 0.0;
+            _rampPowerHistory.Clear();
+            _powerSampleAccumSec = 0.0;
+            _rampResult = null;
+            _isRampCooldownMode = false;
+
             CheckCurrentTextEvents(0);
-            Update(0.0, _ftp);
+            Update(0.0, _ftp, 0.0, 0.0);
         }
 
         public void Pause()
@@ -124,10 +142,10 @@ namespace HorizonCyclingBridge.Workout
         public void SetIntensityBias(double bias)
         {
             _intensityBias = Math.Clamp(bias, 0.70, 1.30); // 70%〜130%
-            Update(0.0, _ftp);
+            Update(0.0, _ftp, 0.0, 0.0);
         }
 
-        public void Update(double deltaSec, double currentFtp)
+        public void Update(double deltaSec, double currentFtp, double actualPower = 0.0, double actualCadence = 0.0)
         {
             if (_currentWorkout == null) return;
             if (currentFtp > 0) _ftp = currentFtp;
@@ -136,6 +154,39 @@ namespace HorizonCyclingBridge.Workout
             {
                 _elapsedSecondsTotal += deltaSec;
                 _elapsedSecondsSegment += deltaSec;
+
+                // ランプテスト中：パワー履歴の蓄積と限界（ケイデンス低下）検知
+                if (_isRampTest && !_isRampCooldownMode)
+                {
+                    _powerSampleAccumSec += deltaSec;
+                    if (_powerSampleAccumSec >= 1.0)
+                    {
+                        _powerSampleAccumSec -= 1.0;
+                        _rampPowerHistory.Add(actualPower > 0 ? actualPower : (double)_lastReportedTargetWatts);
+                    }
+
+                    // ランプ本番ステップ中（ウォームアップ後）のケイデンス低下検知 (50rpm未満が3秒継続で終了)
+                    bool isWarmup = _currentSegmentIndex < _currentWorkout.Segments.Count &&
+                                    _currentWorkout.Segments[_currentSegmentIndex].SegmentType.Equals("Warmup", StringComparison.OrdinalIgnoreCase);
+
+                    if (!isWarmup)
+                    {
+                        if (actualCadence > 0 && actualCadence < 50.0 || (actualCadence == 0 && actualPower < 30.0))
+                        {
+                            _rampLowCadenceSec += deltaSec;
+                            if (_rampLowCadenceSec >= 3.0)
+                            {
+                                // 限界到達！自動終了判定
+                                FinishRampTest();
+                                return;
+                            }
+                        }
+                        else if (actualCadence >= 50.0)
+                        {
+                            _rampLowCadenceSec = 0.0;
+                        }
+                    }
+                }
 
                 // メッセージ表示時間の減衰
                 if (_messageRemainingSec > 0)
@@ -158,7 +209,14 @@ namespace HorizonCyclingBridge.Workout
 
                         if (_currentSegmentIndex >= _currentWorkout.Segments.Count)
                         {
-                            Finish();
+                            if (_isRampTest && !_isRampCooldownMode)
+                            {
+                                FinishRampTest();
+                            }
+                            else
+                            {
+                                Finish();
+                            }
                             return;
                         }
 
@@ -171,7 +229,14 @@ namespace HorizonCyclingBridge.Workout
                 }
                 else
                 {
-                    Finish();
+                    if (_isRampTest && !_isRampCooldownMode)
+                    {
+                        FinishRampTest();
+                    }
+                    else
+                    {
+                        Finish();
+                    }
                     return;
                 }
             }
@@ -189,6 +254,12 @@ namespace HorizonCyclingBridge.Workout
 
         private int CalculateCurrentTargetWatts()
         {
+            if (_isRampCooldownMode)
+            {
+                // クールダウン時は約40〜45% FTP（上限100W）のリカバリー負荷
+                return Math.Max(50, (int)Math.Round(Math.Min(100.0, _ftp * 0.45)));
+            }
+
             if (_currentWorkout == null || _currentSegmentIndex >= _currentWorkout.Segments.Count)
             {
                 return (int)Math.Round(_ftp * 0.55 * _intensityBias);
@@ -224,6 +295,60 @@ namespace HorizonCyclingBridge.Workout
             }
         }
 
+        /// <summary>
+        /// ランプテスト終了判定（限界到達・FTP算出・クールダウン移行）
+        /// </summary>
+        public void FinishRampTest()
+        {
+            if (_rampResult != null) return; // 既に算出済み
+
+            // 最大1分間平均パワー (Best 60-second power) の算出
+            double best1Min = 0.0;
+            if (_rampPowerHistory.Count >= 60)
+            {
+                for (int i = 0; i <= _rampPowerHistory.Count - 60; i++)
+                {
+                    double avg = _rampPowerHistory.Skip(i).Take(60).Average();
+                    if (avg > best1Min) best1Min = avg;
+                }
+            }
+            else if (_rampPowerHistory.Count > 0)
+            {
+                best1Min = _rampPowerHistory.Average();
+            }
+
+            if (best1Min <= 0)
+            {
+                best1Min = _lastReportedTargetWatts > 0 ? _lastReportedTargetWatts : _ftp;
+            }
+
+            // 公式: New FTP = Best 1-min Power * 75%
+            double newFtp = Math.Round(best1Min * 0.75, 1);
+
+            _rampResult = new RampTestResult
+            {
+                OldFtp = _ftp,
+                NewFtp = newFtp,
+                Best1MinPower = Math.Round(best1Min, 1),
+                MaxStepWatts = _lastReportedTargetWatts,
+                TotalTestDurationSec = (int)_elapsedSecondsTotal
+            };
+
+            _isRampCooldownMode = true;
+            _activeMessage = $"🎉 ランプテスト完了！新測定FTP: {newFtp}W (旧: {_ftp}W, {(_rampResult.FtpDelta >= 0 ? "+" : "")}{_rampResult.FtpDelta}W)！";
+            _messageRemainingSec = 30.0;
+
+            OnRampTestCompleted?.Invoke(_rampResult);
+            OnWorkoutCompleted?.Invoke();
+
+            // クールダウン用の目標ワット（軽負荷）を発行
+            int cdWatts = CalculateCurrentTargetWatts();
+            _lastReportedTargetWatts = cdWatts;
+            OnTargetPowerChanged?.Invoke(cdWatts);
+
+            NotifyState();
+        }
+
         private void Finish()
         {
             _state = "Finished";
@@ -238,7 +363,10 @@ namespace HorizonCyclingBridge.Workout
             var snap = new WorkoutStateSnapshot
             {
                 State = _state,
-                IntensityBias = Math.Round(_intensityBias, 2)
+                IntensityBias = Math.Round(_intensityBias, 2),
+                IsRampTest = _isRampTest,
+                RampResult = _rampResult,
+                LowCadenceSeconds = Math.Round(_rampLowCadenceSec, 1)
             };
 
             if (_currentWorkout == null) return snap;

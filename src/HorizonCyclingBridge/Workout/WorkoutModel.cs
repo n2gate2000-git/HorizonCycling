@@ -21,6 +21,7 @@ namespace HorizonCyclingBridge.Workout
         public double EstimatedIf { get; set; }
         public double EstimatedKcal { get; set; }
         public string PrimaryZone { get; set; } = "Z3";
+        public bool IsRampTest { get; set; }
     }
 
     /// <summary>
@@ -111,6 +112,11 @@ namespace HorizonCyclingBridge.Workout
         public int? NextTargetWatts { get; set; }
         public int? NextDurationSec { get; set; }
 
+        // ランプテスト関連
+        public bool IsRampTest { get; set; }
+        public RampTestResult? RampResult { get; set; }
+        public double LowCadenceSeconds { get; set; }
+
         // 各ブロックのリスト（プロファイル用）
         public List<WorkoutSegmentSnapshotItem> Segments { get; set; } = new();
     }
@@ -126,5 +132,21 @@ namespace HorizonCyclingBridge.Workout
         public int Zone { get; set; }
         public bool IsCompleted { get; set; }
         public bool IsCurrent { get; set; }
+    }
+
+    /// <summary>
+    /// ランプテスト（FTP自動計測）測定結果
+    /// </summary>
+    public class RampTestResult
+    {
+        public bool IsSuccess { get; set; } = true;
+        public double OldFtp { get; set; }
+        public double NewFtp { get; set; }
+        public double FtpDelta => Math.Round(NewFtp - OldFtp, 1);
+        public double Best1MinPower { get; set; }
+        public int MaxStepWatts { get; set; }
+        public int TotalTestDurationSec { get; set; }
+        public string FormattedTestDuration => $"{TotalTestDurationSec / 60}分{TotalTestDurationSec % 60:D2}秒";
+        public DateTime CompletedAt { get; set; } = DateTime.Now;
     }
 }

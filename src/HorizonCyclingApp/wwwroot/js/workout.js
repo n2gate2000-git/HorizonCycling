@@ -36,12 +36,25 @@
   const btnSkipActive = document.getElementById('btnSkipActive');
   const btnStopActive = document.getElementById('btnStopActive');
 
+  // ランプテスト関連
+  const btnStartRampTest = document.getElementById('btnStartRampTest');
+  const modalRampResult = document.getElementById('modalRampResult');
+  const btnCloseRampModal = document.getElementById('btnCloseRampModal');
+  const btnCancelRampFtp = document.getElementById('btnCancelRampFtp');
+  const btnApplyRampFtp = document.getElementById('btnApplyRampFtp');
+  const rampModalNewFtp = document.getElementById('rampModalNewFtp');
+  const rampModalFtpDelta = document.getElementById('rampModalFtpDelta');
+  const rampModalOldFtp = document.getElementById('rampModalOldFtp');
+  const rampModalBest1Min = document.getElementById('rampModalBest1Min');
+  const rampModalDuration = document.getElementById('rampModalDuration');
+
   // 内部状態
   let libraryItems = [];
   let selectedFilePath = null;
   let currentDetail = null;
   let currentFtp = 200.0;
   let activeWorkoutSnapshot = null;
+  let pendingRampFtp = null;
 
   // ゾーン色
   const ZONE_COLORS = {
@@ -100,6 +113,36 @@
       workoutCategoriesList.innerHTML = '<div class="workout-loading">更新中...</div>';
       postAction('getWorkoutLibrary');
     });
+
+    // ランプテスト開始
+    if (btnStartRampTest) {
+      btnStartRampTest.addEventListener('click', () => {
+        if (confirm('⚡ FTP自動計測ランプテストを開始しますか？\n\n【テスト仕様】\n・ウォームアップ(100W)から開始し、1分ごとに20Wずつ自動上昇\n・ケイデンスが50rpmを下回ると限界判定で自動終了\n・直前1分間の最大平均パワーの75%から新FTPを算出します')) {
+          postAction('startRampTest');
+        }
+      });
+    }
+
+    // ランプテストモーダル操作
+    if (btnCloseRampModal) {
+      btnCloseRampModal.addEventListener('click', () => {
+        modalRampResult?.classList.add('hidden');
+      });
+    }
+    if (btnCancelRampFtp) {
+      btnCancelRampFtp.addEventListener('click', () => {
+        modalRampResult?.classList.add('hidden');
+      });
+    }
+    if (btnApplyRampFtp) {
+      btnApplyRampFtp.addEventListener('click', () => {
+        if (pendingRampFtp && pendingRampFtp > 0) {
+          postAction('applyRampTestFtp', { newFtp: pendingRampFtp });
+          modalRampResult?.classList.add('hidden');
+          alert(`🎉 新FTP ${Math.round(pendingRampFtp)}W を保存・適用しました！`);
+        }
+      });
+    }
 
     // ワークアウト開始
     btnStartWorkout.addEventListener('click', () => {
@@ -168,6 +211,12 @@
           case 'state':
             handleStateUpdate(msg.payload);
             break;
+
+          case 'rampTestResult':
+            if (msg.payload) {
+              handleRampTestResult(msg.payload);
+            }
+            break;
         }
       });
     }
@@ -177,6 +226,34 @@
     if (window.chrome && window.chrome.webview) {
       window.chrome.webview.postMessage({ action, ...extra });
     }
+  }
+
+  function handleRampTestResult(result) {
+    if (!result || !modalRampResult) return;
+
+    pendingRampFtp = result.NewFtp;
+
+    if (rampModalNewFtp) {
+      rampModalNewFtp.innerHTML = `${Math.round(result.NewFtp)} <span class="unit">W</span>`;
+    }
+    if (rampModalFtpDelta) {
+      const delta = result.FtpDelta;
+      const sign = delta >= 0 ? '+' : '';
+      const pct = result.OldFtp > 0 ? ((delta / result.OldFtp) * 100).toFixed(1) : 0;
+      rampModalFtpDelta.textContent = `${sign}${delta} W (${sign}${pct}%)`;
+      rampModalFtpDelta.className = delta >= 0 ? 'ramp-ftp-diff text-green' : 'ramp-ftp-diff text-orange';
+    }
+    if (rampModalOldFtp) {
+      rampModalOldFtp.textContent = `${Math.round(result.OldFtp)} W`;
+    }
+    if (rampModalBest1Min) {
+      rampModalBest1Min.textContent = `${Math.round(result.Best1MinPower)} W`;
+    }
+    if (rampModalDuration) {
+      rampModalDuration.textContent = result.FormattedTestDuration || `${Math.floor(result.TotalTestDurationSec / 60)}分${result.TotalTestDurationSec % 60}秒`;
+    }
+
+    modalRampResult.classList.remove('hidden');
   }
 
   function handleStateUpdate(state) {

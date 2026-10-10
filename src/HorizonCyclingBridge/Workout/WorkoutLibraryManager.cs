@@ -99,6 +99,96 @@ namespace HorizonCyclingBridge.Workout
         }
 
         /// <summary>
+        /// 標準のFTPランプテスト定義を動的に生成
+        /// (ウォームアップ100W、以降1分毎に+20Wずつ段階上昇、ケイデンス50rpm未満で自動判定)
+        /// </summary>
+        public static WorkoutDefinition CreateStandardRampTest(double currentFtp)
+        {
+            double ftp = currentFtp > 0 ? currentFtp : 200.0;
+            var def = new WorkoutDefinition
+            {
+                Title = "FTP Ramp Test (自動計測)",
+                Author = "HorizonCycling Studio",
+                Description = "100Wから開始し、1分ごとに20Wずつ目標負荷が上昇するFTP自動計測テスト。ケイデンスが50rpmを下回ると限界到達と判定され自動終了します。",
+                SportType = "bike",
+                Tags = new List<string> { "FTP", "Test", "RampTest" },
+                IsRampTest = true
+            };
+
+            int startSec = 0;
+
+            // 1. ウォームアップ (5分間, 100W固定)
+            def.Segments.Add(new WorkoutSegment
+            {
+                SegmentIndex = 0,
+                SegmentType = "Warmup",
+                DurationSec = 300,
+                StartSec = startSec,
+                TargetPowerLowPct = 100.0 / ftp,
+                TargetPowerHighPct = 100.0 / ftp,
+                TargetCadence = 90,
+                TextEvents = new List<WorkoutTextEvent>
+                {
+                    new WorkoutTextEvent { TimeOffsetSec = 0, Message = "⚡ FTP Ramp Test 開始！まずは100Wで5分間のウォームアップです。" },
+                    new WorkoutTextEvent { TimeOffsetSec = 150, Message = "ケイデンス90rpm前後を意識してリラックスしましょう。" },
+                    new WorkoutTextEvent { TimeOffsetSec = 280, Message = "まもなくランプステップ開始！1分ごとに20Wずつ上がります。" }
+                }
+            });
+            startSec += 300;
+
+            // 2. ランプステップ (100Wから20W刻みで最大500Wまで、各60秒)
+            int stepIndex = 1;
+            for (int watts = 100; watts <= 500; watts += 20)
+            {
+                var seg = new WorkoutSegment
+                {
+                    SegmentIndex = stepIndex++,
+                    SegmentType = "SteadyState",
+                    DurationSec = 60,
+                    StartSec = startSec,
+                    TargetPowerLowPct = watts / ftp,
+                    TargetPowerHighPct = watts / ftp,
+                    TargetCadence = 90
+                };
+
+                if (watts == 100)
+                {
+                    seg.TextEvents.Add(new WorkoutTextEvent { TimeOffsetSec = 0, Message = $"ステップ 1: {watts}W (1分間)" });
+                }
+                else if (watts == (int)Math.Round(ftp))
+                {
+                    seg.TextEvents.Add(new WorkoutTextEvent { TimeOffsetSec = 0, Message = $"🔥 現在のFTP({watts}W)に到達！ここからが本番の限界挑戦！" });
+                }
+                else if (watts % 40 == 0)
+                {
+                    seg.TextEvents.Add(new WorkoutTextEvent { TimeOffsetSec = 0, Message = $"ステップ: {watts}W！一定のケイデンスを維持！" });
+                }
+
+                def.Segments.Add(seg);
+                startSec += 60;
+            }
+
+            // 3. 予備クールダウン (5分間, 80W)
+            def.Segments.Add(new WorkoutSegment
+            {
+                SegmentIndex = stepIndex,
+                SegmentType = "Cooldown",
+                DurationSec = 300,
+                StartSec = startSec,
+                TargetPowerLowPct = 80.0 / ftp,
+                TargetPowerHighPct = 70.0 / ftp,
+                TargetCadence = 85,
+                TextEvents = new List<WorkoutTextEvent>
+                {
+                    new WorkoutTextEvent { TimeOffsetSec = 0, Message = "テスト終了！お疲れ様でした。軽くペダルを回してクールダウンしましょう。" }
+                }
+            });
+
+            CalculateStats(def, ftp);
+            return def;
+        }
+
+        /// <summary>
         /// 外部ファイルを Custom カテゴリへインポート
         /// </summary>
         public List<string> ImportFiles(IEnumerable<string> filePaths)

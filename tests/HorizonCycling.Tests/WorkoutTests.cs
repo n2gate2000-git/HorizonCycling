@@ -189,5 +189,78 @@ MINUTES PERCENT
             engine.Stop();
             Assert.False(engine.IsActive);
         }
+
+        [Fact]
+        public void WorkoutLibraryManager_CreatesStandardRampTestCorrectly()
+        {
+            var ramp = WorkoutLibraryManager.CreateStandardRampTest(200.0);
+
+            Assert.True(ramp.IsRampTest);
+            Assert.Contains("Ramp Test", ramp.Title);
+            Assert.True(ramp.Segments.Count >= 20);
+
+            // 最初は Warmup 300秒 100W (100 / 200 = 0.5)
+            Assert.Equal("Warmup", ramp.Segments[0].SegmentType);
+            Assert.Equal(300, ramp.Segments[0].DurationSec);
+            Assert.Equal(0.5, ramp.Segments[0].TargetPowerLowPct);
+
+            // ステップ1: 100W (60秒)
+            Assert.Equal(60, ramp.Segments[1].DurationSec);
+            Assert.Equal(0.5, ramp.Segments[1].TargetPowerLowPct);
+
+            // ステップ2: 120W (60秒) (120 / 200 = 0.6)
+            Assert.Equal(60, ramp.Segments[2].DurationSec);
+            Assert.Equal(0.6, ramp.Segments[2].TargetPowerLowPct);
+        }
+
+        [Fact]
+        public void WorkoutEngine_RampTest_LowCadenceTriggersFailureAndCalculatesFtp()
+        {
+            var ramp = WorkoutLibraryManager.CreateStandardRampTest(200.0);
+            var engine = new WorkoutEngine();
+
+            RampTestResult? capturedResult = null;
+            engine.OnRampTestCompleted += res => capturedResult = res;
+
+            engine.Start(ramp, 200.0);
+            Assert.True(engine.IsRunning);
+
+            // 1. ウォームアップをスキップして本番ランプステップへ
+            engine.SkipStep();
+            var snap = engine.CreateSnapshot();
+            Assert.Equal(1, snap.CurrentSegmentIndex);
+
+            // 2. 60秒間 320W で順調にペダリング (ケイデンス90rpm)
+            for (int i = 0; i < 60; i++)
+            {
+                engine.Update(1.0, 200.0, actualPower: 320.0, actualCadence: 90.0);
+            }
+
+            Assert.Null(capturedResult); // まだ継続中
+
+            // 3. 疲労困憊でケイデンスが45rpmに低下 (< 50rpm)
+            // 1秒目
+            engine.Update(1.0, 200.0, actualPower: 300.0, actualCadence: 45.0);
+            Assert.Null(capturedResult);
+
+            // 2秒目
+            engine.Update(1.0, 200.0, actualPower: 280.0, actualCadence: 42.0);
+            Assert.Null(capturedResult);
+
+            // 3秒目 (3秒継続で限界判定到達！)
+            engine.Update(1.0, 200.0, actualPower: 250.0, actualCadence: 40.0);
+
+            // 限界判定が自動発火したことを検証
+            Assert.NotNull(capturedResult);
+            Assert.Equal(200.0, capturedResult.OldFtp);
+            // 直近60秒最大平均はおよそ320W -> 320 * 0.75 = 240W
+            Assert.True(capturedResult.NewFtp >= 235.0 && capturedResult.NewFtp <= 245.0);
+            Assert.True(capturedResult.FtpDelta > 0);
+
+            // クールダウン（軽負荷）に自動切り替えされたことを確認
+            var cooldownSnap = engine.CreateSnapshot();
+            Assert.True(cooldownSnap.TargetWatts <= 100);
+            Assert.NotNull(cooldownSnap.RampResult);
+        }
     }
 }

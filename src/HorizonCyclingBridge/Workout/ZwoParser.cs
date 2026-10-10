@@ -37,6 +37,10 @@ namespace HorizonCyclingBridge.Workout
                 }
             }
 
+            workout.IsRampTest = workout.Tags.Any(t => t.Equals("RampTest", StringComparison.OrdinalIgnoreCase) || t.Equals("FTPTest", StringComparison.OrdinalIgnoreCase))
+                || workout.Title.Contains("Ramp Test", StringComparison.OrdinalIgnoreCase)
+                || workout.Title.Contains("FTP Test", StringComparison.OrdinalIgnoreCase);
+
             var workoutElem = root.Element("workout");
             if (workoutElem == null) return workout;
 

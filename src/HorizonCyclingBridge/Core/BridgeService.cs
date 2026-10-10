@@ -140,6 +140,7 @@ namespace HorizonCyclingBridge.Core
         public event Action<SessionSummary>? OnSessionSaved;
         public event Action<WorkoutStateSnapshot>? OnWorkoutStateUpdated;
         public event Action<string>? OnWorkoutMessage;
+        public event Action<RampTestResult>? OnRampTestResult;
 
         public CoordinateEngine CoordinateEngine => _coordEngine;
         public ElevationTracker ElevationTracker => _elevationTracker;
@@ -186,6 +187,11 @@ namespace HorizonCyclingBridge.Core
             _workoutEngine.OnWorkoutCompleted += () =>
             {
                 Log("[WORKOUT] 🎉 ワークアウト完了！お疲れ様でした！");
+            };
+            _workoutEngine.OnRampTestCompleted += (res) =>
+            {
+                Log($"[RAMP-TEST] 🎉 ランプテスト完了! 新測定FTP: {res.NewFtp}W (旧: {res.OldFtp}W, {res.FtpDelta:+#;-#;0}W), 1分最大平均: {res.Best1MinPower:F1}W");
+                OnRampTestResult?.Invoke(res);
             };
             _workoutEngine.OnStateUpdated += (snap) =>
             {
@@ -559,6 +565,45 @@ namespace HorizonCyclingBridge.Core
             return _workoutEngine.CreateSnapshot();
         }
 
+        /// <summary>
+        /// ランプテスト（FTP自動計測モード）を開始
+        /// </summary>
+        public bool StartRampTest()
+        {
+            // ライブラリから Ramp Test を検索
+            var library = _workoutLibrary.GetLibrary();
+            var rampItem = library.FirstOrDefault(w => w.Title.Contains("Ramp Test", StringComparison.OrdinalIgnoreCase) || (w.Tags != null && w.Tags.Contains("RampTest")));
+
+            WorkoutDefinition? def = null;
+            if (rampItem != null && File.Exists(rampItem.FilePath))
+            {
+                def = _workoutLibrary.LoadWorkout(rampItem.FilePath);
+            }
+
+            if (def == null)
+            {
+                // ライブラリに見つからない場合は標準ランプテスト（100W開始、毎分+20W）を動的生成
+                def = WorkoutLibraryManager.CreateStandardRampTest(_config.Ftp);
+            }
+
+            def.IsRampTest = true;
+            _workoutEngine.Start(def, _config.Ftp);
+            Log($"[RAMP-TEST] ⚡ ランプテスト開始: \"{def.Title}\" (ウォームアップ後 毎分+20W自動上昇、ケイデンス50rpm以下で自動終了)");
+            PushCurrentSnapshot();
+            return true;
+        }
+
+        /// <summary>
+        /// ランプテストで測定された新FTPを設定ファイルに保存・適用
+        /// </summary>
+        public void ApplyRampTestFtp(double newFtp)
+        {
+            if (newFtp < 50 || newFtp > 600) return;
+            SetFtp(newFtp);
+            Log($"[RAMP-TEST] 💾 新FTP {newFtp:F0}W を設定(config.json)に保存・適用しました。");
+            PushCurrentSnapshot();
+        }
+
         #endregion
 
         public async Task StartAsync()
@@ -601,7 +646,7 @@ namespace HorizonCyclingBridge.Core
             {
                 if (_workoutEngine.IsActive)
                 {
-                    _workoutEngine.Update(1.0, _config.Ftp);
+                    _workoutEngine.Update(1.0, _config.Ftp, _currentPower, _currentCadence);
                 }
                 PushCurrentSnapshot();
             }
@@ -1043,7 +1088,7 @@ namespace HorizonCyclingBridge.Core
 
             if (_workoutEngine.IsActive)
             {
-                _workoutEngine.Update(deltaSec, _config.Ftp);
+                _workoutEngine.Update(deltaSec, _config.Ftp, _currentPower, _currentCadence);
             }
 
             double rawGradePercent = -Math.Tan(packet.Pitch) * 100.0;

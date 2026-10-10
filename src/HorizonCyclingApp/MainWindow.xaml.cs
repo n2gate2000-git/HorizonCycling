@@ -94,6 +94,7 @@ namespace HorizonCyclingApp
                 _bridgeService.OnStateUpdated += BridgeService_OnStateUpdated;
                 _bridgeService.OnLogMessage += BridgeService_OnLogMessage;
                 _bridgeService.OnSessionSaved += BridgeService_OnSessionSaved;
+                _bridgeService.OnRampTestResult += BridgeService_OnRampTestResult;
 
                 await _bridgeService.StartAsync();
 
@@ -212,6 +213,28 @@ namespace HorizonCyclingApp
                         {
                             type = "sessionSaved",
                             payload = summary
+                        });
+                        webView.CoreWebView2.PostWebMessageAsJson(json);
+                    }
+                }
+                catch
+                {
+                }
+            });
+        }
+
+        private void BridgeService_OnRampTestResult(HorizonCyclingBridge.Workout.RampTestResult result)
+        {
+            Dispatcher.InvokeAsync(() =>
+            {
+                try
+                {
+                    if (webView.CoreWebView2 != null)
+                    {
+                        string json = JsonSerializer.Serialize(new
+                        {
+                            type = "rampTestResult",
+                            payload = result
                         });
                         webView.CoreWebView2.PostWebMessageAsJson(json);
                     }
@@ -535,6 +558,34 @@ namespace HorizonCyclingApp
                                     _overlayWindow?.Activate();
                                 });
                             }
+                        }
+                        break;
+                    }
+
+                    case "startRampTest":
+                    {
+                        if (_bridgeService != null)
+                        {
+                            bool started = _bridgeService.StartRampTest();
+                            if (started)
+                            {
+                                Dispatcher.Invoke(() =>
+                                {
+                                    _overlayWindow?.Show();
+                                    _overlayWindow?.Activate();
+                                });
+                            }
+                        }
+                        break;
+                    }
+
+                    case "applyRampTestFtp":
+                    {
+                        if (_bridgeService != null && root.TryGetProperty("newFtp", out var ftpProp))
+                        {
+                            double newFtp = ftpProp.GetDouble();
+                            _bridgeService.ApplyRampTestFtp(newFtp);
+                            SendCurrentConfig();
                         }
                         break;
                     }

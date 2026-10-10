@@ -294,6 +294,7 @@
                   <input type="text" id="workoutSearchInput" placeholder="🔍 ワークアウト検索...">
                 </div>
                 <div class="workout-lib-buttons">
+                  <button id="btnStartRampTest" class="btn-subaction-small btn-highlight" title="FTPを自動計測するランプテストを開始">⚡ ランプテスト(FTP計測)</button>
                   <button id="btnImportWorkout" class="btn-subaction-small" title="ワークアウトファイルを取り込む">📂 取込</button>
                   <button id="btnOpenWorkoutsFolder" class="btn-subaction-small" title="ワークアウト保存フォルダを開く">📁 フォルダ</button>
                   <button id="btnRefreshWorkouts" class="btn-subaction-small" title="ライブラリ更新">🔄</button>
@@ -674,6 +675,47 @@
         </div>
         <div class="modal-footer">
           <button id="btnSaveSettings" class="btn-action">設定を保存して閉じる</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ランプテスト結果モーダル (FTP自動計測完了) -->
+    <div id="modalRampResult" class="modal-overlay hidden">
+      <div class="modal-card ramp-modal-card">
+        <div class="modal-header">
+          <div class="modal-title">🎉 FTPランプテスト完了！</div>
+          <button id="btnCloseRampModal" class="modal-close-btn">✕</button>
+        </div>
+        <div class="modal-body ramp-modal-body">
+          <div class="ramp-ftp-badge-container">
+            <div class="ramp-ftp-badge">
+              <span class="ramp-ftp-sub">新測定 FTP</span>
+              <span id="rampModalNewFtp" class="ramp-ftp-val">245 <span class="unit">W</span></span>
+              <span id="rampModalFtpDelta" class="ramp-ftp-diff text-green">+25 W</span>
+            </div>
+          </div>
+          <div class="ramp-stats-row">
+            <div class="ramp-stat-box">
+              <span class="lbl">旧設定 FTP</span>
+              <span id="rampModalOldFtp" class="val">220 W</span>
+            </div>
+            <div class="ramp-stat-box">
+              <span class="lbl">最大1分間平均パワー</span>
+              <span id="rampModalBest1Min" class="val text-orange">327 W</span>
+            </div>
+            <div class="ramp-stat-box">
+              <span class="lbl">テスト所要時間</span>
+              <span id="rampModalDuration" class="val text-cyan">18分24秒</span>
+            </div>
+          </div>
+          <div class="ramp-modal-desc">
+            ※ 限界直前の最大1分間平均パワーの75%から自動算出されました。<br>
+            「新FTPを設定に保存」をクリックすると、現在のFTP設定（config.json）が即座に更新され、次回からの全ワークアウトやゾーンに反映されます。
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button id="btnCancelRampFtp" class="btn-subaction">今は保存しない</button>
+          <button id="btnApplyRampFtp" class="btn-action btn-highlight">💾 新FTPを設定に保存・適用</button>
         </div>
       </div>
     </div>

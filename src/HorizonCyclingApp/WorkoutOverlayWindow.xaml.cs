@@ -317,6 +317,36 @@ namespace HorizonCyclingApp
                     countdownBanner.Visibility = Visibility.Collapsed;
                 }
 
+                // 6.5 ランプテスト特有のバナー処理 (限界警告・新FTP結果)
+                if (workoutState.IsRampTest)
+                {
+                    if (workoutState.RampResult != null)
+                    {
+                        txtRampNewFtp.Text = $"{workoutState.RampResult.NewFtp:F0} W";
+                        string sign = workoutState.RampResult.FtpDelta >= 0 ? "+" : "";
+                        txtRampFtpDelta.Text = $"({sign}{workoutState.RampResult.FtpDelta:F0}W)";
+                        rampResultBanner.Visibility = Visibility.Visible;
+                        rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
+                    }
+                    else if (workoutState.LowCadenceSeconds > 0.3)
+                    {
+                        double remain = Math.Max(0.0, 3.0 - workoutState.LowCadenceSeconds);
+                        txtRampLowCadenceSec.Text = $"[あと {remain:F1}秒で限界判定]";
+                        rampCadenceWarningBanner.Visibility = Visibility.Visible;
+                        rampResultBanner.Visibility = Visibility.Collapsed;
+                    }
+                    else
+                    {
+                        rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
+                        rampResultBanner.Visibility = Visibility.Collapsed;
+                    }
+                }
+                else
+                {
+                    rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
+                    rampResultBanner.Visibility = Visibility.Collapsed;
+                }
+
                 // 7. コーチメッセージ
                 if (!string.IsNullOrEmpty(workoutState.ActiveMessage))
                 {

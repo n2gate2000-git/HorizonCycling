@@ -206,6 +206,51 @@
 
         <!-- 3. 中央上部: メイン・インターバルアーチHUD (Zwift完全再現 580px) -->
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0">
+            <!-- ランプテスト限界警告バナー (ケイデンス低下時) -->
+            <Border x:Name="rampCadenceWarningBanner"
+                    CornerRadius="20"
+                    Padding="24,8"
+                    HorizontalAlignment="Center"
+                    Margin="0,0,0,10"
+                    Visibility="Collapsed">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#F2DC2626" Offset="0.0"/>
+                        <GradientStop Color="#F2EA580C" Offset="1.0"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="32" ShadowDepth="0" Color="#DC2626" Opacity="0.9"/>
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="⚠️ ケイデンス低下！ 50 RPM以上を維持してください！ " Foreground="#FFFFFF" FontFamily="Segoe UI, Outfit" FontWeight="Black" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="txtRampLowCadenceSec" Text="[2.1s]" Foreground="#FEF08A" FontFamily="Segoe UI, Outfit" FontWeight="Black" FontSize="14" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
+            <!-- ランプテスト完了・新FTP発表バナー -->
+            <Border x:Name="rampResultBanner"
+                    CornerRadius="20"
+                    Padding="26,10"
+                    HorizontalAlignment="Center"
+                    Margin="0,0,0,10"
+                    Visibility="Collapsed">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#F2059669" Offset="0.0"/>
+                        <GradientStop Color="#F20D9488" Offset="1.0"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.Effect>
+                    <DropShadowEffect BlurRadius="36" ShadowDepth="0" Color="#059669" Opacity="0.9"/>
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="🎉 ランプテスト完了！ 新測定FTP: " Foreground="#FFFFFF" FontFamily="Segoe UI, Outfit" FontWeight="Bold" FontSize="15" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="txtRampNewFtp" Text="245 W" Foreground="#FEF08A" FontFamily="Segoe UI, Outfit" FontWeight="Black" FontSize="20" VerticalAlignment="Center" Margin="4,0,4,0"/>
+                    <TextBlock x:Name="txtRampFtpDelta" Text="(+25W)" Foreground="#A7F3D0" FontFamily="Segoe UI, Outfit" FontWeight="ExtraBold" FontSize="14" VerticalAlignment="Center"/>
+                </StackPanel>
+            </Border>
+
             <!-- カウントダウンバナー -->
             <Border x:Name="countdownBanner"
                     CornerRadius="20"
