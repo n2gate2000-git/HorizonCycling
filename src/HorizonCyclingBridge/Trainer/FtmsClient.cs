@@ -383,6 +383,38 @@ namespace HorizonCyclingBridge.Trainer
         }
 
         /// <summary>
+        /// スマートローラーの目標出力パワー (W) を設定します (FTMS ERGモード)。
+        /// </summary>
+        /// <param name="targetWatts">目標パワー（ワット数: 0〜4000）</param>
+        /// <returns>送信成否</returns>
+        public async Task<bool> SetTargetPowerAsync(int targetWatts)
+        {
+            if (_controlPointChar == null || !IsConnected) return false;
+
+            // FTMS仕様: Set Target Power (OpCode 0x05)
+            // 引数: 16-bit signed integer (1W単位)
+            short watts = (short)Math.Clamp(targetWatts, 0, 4000);
+            byte[] cmd = new byte[]
+            {
+                0x05,
+                (byte)(watts & 0xFF),
+                (byte)((watts >> 8) & 0xFF)
+            };
+
+            try
+            {
+                var result = await _controlPointChar.WriteValueAsync(cmd.AsBuffer(), GattWriteOption.WriteWithResponse);
+                return result == GattCommunicationStatus.Success;
+            }
+            catch (Exception ex)
+            {
+                OnStatusMessage?.Invoke($"[BLE] Target power update failed: {ex.Message}");
+                return false;
+            }
+        }
+
+
+        /// <summary>
         /// スマートローラーに対して、CUI版で実証済みの方式（登坂: シミュレーションパラメータOpCode 0x11、平地・下り坂: フリー解放OpCode 0x04）で勾配負荷を送信します。
         /// 万が一OpCode 0x11が未サポートの機器の場合は、OpCode 0x03（Target Inclination）へ自動フォールバックします。
         /// </summary>

@@ -11,6 +11,7 @@ namespace HorizonCyclingApp
     public partial class MainWindow : Window
     {
         private BridgeService? _bridgeService;
+        private WorkoutOverlayWindow? _overlayWindow;
         private DateTime _lastUiUpdateTime = DateTime.MinValue;
         private const int UI_UPDATE_INTERVAL_MS = 33; // 約30HzでUIへスナップショット送信
 
@@ -96,13 +97,51 @@ namespace HorizonCyclingApp
 
                 await _bridgeService.StartAsync();
 
-                // 5. アプリケーションHTMLのロード
+                // 5. ワークアウト最前面オーバーレイウィンドウの事前初期化
+                try
+                {
+                    _overlayWindow = new WorkoutOverlayWindow();
+                    _overlayWindow.OnOverlayCommand += HandleOverlayCommand;
+                    // 最初は非表示
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[Overlay Init Warning] {ex.Message}");
+                }
+
+                // 6. アプリケーションHTMLのロード
                 webView.Source = new Uri("https://horizoncycling.local/index.html");
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"アプリケーションの初期化中にエラーが発生しました:\n{ex.Message}", "HorizonCycling Studio", MessageBoxButton.OK, MessageBoxImage.Error);
             }
+        }
+
+        private void HandleOverlayCommand(string action)
+        {
+            Dispatcher.Invoke(() =>
+            {
+                switch (action)
+                {
+                    case "pauseWorkout":
+                        _bridgeService?.PauseWorkout();
+                        break;
+                    case "resumeWorkout":
+                        _bridgeService?.ResumeWorkout();
+                        break;
+                    case "skipStep":
+                        _bridgeService?.SkipWorkoutStep();
+                        break;
+                    case "prevStep":
+                        _bridgeService?.PreviousWorkoutStep();
+                        break;
+                    case "stopWorkout":
+                        _bridgeService?.StopWorkout();
+                        _overlayWindow?.Hide();
+                        break;
+                }
+            });
         }
 
         private void BridgeService_OnStateUpdated(BridgeStateSnapshot snapshot)
@@ -115,6 +154,7 @@ namespace HorizonCyclingApp
             {
                 try
                 {
+                    // メインGUIへ状態通知
                     if (webView.CoreWebView2 != null)
                     {
                         string json = JsonSerializer.Serialize(new
@@ -123,6 +163,12 @@ namespace HorizonCyclingApp
                             payload = snapshot
                         });
                         webView.CoreWebView2.PostWebMessageAsJson(json);
+                    }
+
+                    // 最前面オーバーレイへ状態通知
+                    if (_overlayWindow != null && _overlayWindow.IsVisible)
+                    {
+                        _overlayWindow.SendState(snapshot, snapshot.Workout);
                     }
                 }
                 catch
@@ -441,6 +487,152 @@ namespace HorizonCyclingApp
                     case "disconnectHeartRate":
                         _bridgeService?.DisconnectHeartRateSensor();
                         break;
+
+                    #region ワークアウト関連アクション
+
+                    case "getWorkoutLibrary":
+                        if (_bridgeService != null && webView.CoreWebView2 != null)
+                        {
+                            var library = _bridgeService.GetWorkoutLibrary();
+                            string libJson = JsonSerializer.Serialize(new
+                            {
+                                type = "workoutLibrary",
+                                payload = library
+                            });
+                            webView.CoreWebView2.PostWebMessageAsJson(libJson);
+                        }
+                        break;
+
+                    case "loadWorkoutDetail":
+                    {
+                        if (_bridgeService != null && webView.CoreWebView2 != null &&
+                            root.TryGetProperty("filePath", out var detailPathProp))
+                        {
+                            string path = detailPathProp.GetString() ?? "";
+                            var detail = _bridgeService.LoadWorkoutDetail(path);
+                            string detailJson = JsonSerializer.Serialize(new
+                            {
+                                type = "workoutDetail",
+                                payload = detail
+                            });
+                            webView.CoreWebView2.PostWebMessageAsJson(detailJson);
+                        }
+                        break;
+                    }
+
+                    case "startWorkout":
+                    {
+                        if (_bridgeService != null &&
+                            root.TryGetProperty("filePath", out var startPathProp))
+                        {
+                            string path = startPathProp.GetString() ?? "";
+                            bool started = _bridgeService.StartWorkout(path);
+                            if (started)
+                            {
+                                Dispatcher.Invoke(() =>
+                                {
+                                    _overlayWindow?.Show();
+                                    _overlayWindow?.Activate();
+                                });
+                            }
+                        }
+                        break;
+                    }
+
+                    case "pauseWorkout":
+                        _bridgeService?.PauseWorkout();
+                        break;
+
+                    case "resumeWorkout":
+                        _bridgeService?.ResumeWorkout();
+                        break;
+
+                    case "stopWorkout":
+                        _bridgeService?.StopWorkout();
+                        Dispatcher.Invoke(() =>
+                        {
+                            _overlayWindow?.Hide();
+                        });
+                        break;
+
+                    case "skipWorkoutStep":
+                        _bridgeService?.SkipWorkoutStep();
+                        break;
+
+                    case "previousWorkoutStep":
+                        _bridgeService?.PreviousWorkoutStep();
+                        break;
+
+                    case "setWorkoutIntensityBias":
+                        if (_bridgeService != null && root.TryGetProperty("bias", out var biasProp))
+                        {
+                            _bridgeService.SetWorkoutIntensityBias(biasProp.GetDouble());
+                        }
+                        break;
+
+                    case "toggleOverlay":
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (_overlayWindow != null)
+                            {
+                                if (_overlayWindow.IsVisible) _overlayWindow.Hide();
+                                else _overlayWindow.Show();
+                            }
+                        });
+                        break;
+
+                    case "toggleOverlayClickThrough":
+                        Dispatcher.Invoke(() =>
+                        {
+                            if (_overlayWindow != null)
+                            {
+                                _overlayWindow.SetClickThrough(!_overlayWindow.IsClickThrough);
+                            }
+                        });
+                        break;
+
+                    case "openWorkoutsFolder":
+                        if (_bridgeService != null)
+                        {
+                            try
+                            {
+                                string dir = _bridgeService.WorkoutLibrary.WorkoutsDirectory;
+                                if (Directory.Exists(dir))
+                                {
+                                    Process.Start(new ProcessStartInfo("explorer.exe", dir) { UseShellExecute = true });
+                                }
+                            }
+                            catch (Exception ex)
+                            {
+                                Debug.WriteLine($"[OpenFolderErr] {ex.Message}");
+                            }
+                        }
+                        break;
+
+                    case "importWorkoutFilesDialog":
+                        Dispatcher.Invoke(() =>
+                        {
+                            var ofd = new Microsoft.Win32.OpenFileDialog
+                            {
+                                Title = "ワークアウトファイルを選択 (複数選択可)",
+                                Filter = "Workout Files (*.zwo;*.mrc;*.erg)|*.zwo;*.mrc;*.erg|Zwift Workout (*.zwo)|*.zwo|MRC/ERG Files (*.mrc;*.erg)|*.mrc;*.erg|All Files (*.*)|*.*",
+                                Multiselect = true
+                            };
+                            if (ofd.ShowDialog() == true)
+                            {
+                                var imported = _bridgeService?.ImportWorkoutFiles(ofd.FileNames);
+                                var library = _bridgeService?.GetWorkoutLibrary();
+                                string libJson = JsonSerializer.Serialize(new
+                                {
+                                    type = "workoutLibrary",
+                                    payload = library
+                                });
+                                webView.CoreWebView2?.PostWebMessageAsJson(libJson);
+                            }
+                        });
+                        break;
+
+                    #endregion
                 }
             }
             catch (Exception ex)
@@ -498,6 +690,11 @@ namespace HorizonCyclingApp
 
         private void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
         {
+            try
+            {
+                _overlayWindow?.Close();
+            }
+            catch { }
             _bridgeService?.Dispose();
         }
     }

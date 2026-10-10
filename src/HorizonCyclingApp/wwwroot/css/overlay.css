@@ -1,0 +1,583 @@
+/* HorizonCycling Studio - In-Game Workout Overlay HUD */
+
+:root {
+  --bg-hud: rgba(10, 14, 23, 0.82);
+  --bg-hud-card: rgba(18, 24, 38, 0.88);
+  --border-hud: rgba(255, 255, 255, 0.12);
+  --border-accent: rgba(6, 182, 212, 0.5);
+
+  --text-main: #f8fafc;
+  --text-sub: #94a3b8;
+  --text-dim: #64748b;
+
+  --accent-cyan: #06b6d4;
+  --accent-green: #10b981;
+  --accent-yellow: #eab308;
+  --accent-orange: #f97316;
+  --accent-red: #ef4444;
+  --accent-purple: #a855f7;
+
+  /* Coggan 7 Zones */
+  --z1-color: #64748b;
+  --z2-color: #3b82f6;
+  --z3-color: #10b981;
+  --z4-color: #eab308;
+  --z5-color: #f97316;
+  --z6-color: #ef4444;
+  --z7-color: #a855f7;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  user-select: none;
+}
+
+body.overlay-body {
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: transparent !important;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  color: var(--text-main);
+}
+
+.overlay-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  pointer-events: auto;
+  transition: opacity 0.2s ease;
+}
+
+/* 上部ツールバー */
+.overlay-toolbar {
+  position: absolute;
+  top: 10px;
+  right: 20px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: var(--bg-hud);
+  border: 1px solid var(--border-hud);
+  border-radius: 30px;
+  backdrop-filter: blur(12px);
+  z-index: 100;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+  opacity: 0.15;
+  transition: opacity 0.25s ease;
+}
+
+.overlay-toolbar:hover,
+body.edit-mode .overlay-toolbar {
+  opacity: 1.0;
+  border-color: var(--accent-cyan);
+  box-shadow: 0 4px 25px rgba(6, 182, 212, 0.35);
+}
+
+.toolbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+}
+
+.toolbar-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  color: var(--text-sub);
+}
+
+.toolbar-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.toolbar-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border-hud);
+}
+
+.tool-btn {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-hud);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tool-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: var(--text-main);
+}
+
+.tool-btn-danger {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.tool-btn-danger:hover {
+  background: rgba(239, 68, 68, 0.4);
+}
+
+.tool-btn-accent {
+  color: #a5f3fc;
+  background: rgba(6, 182, 212, 0.25);
+  border-color: rgba(6, 182, 212, 0.5);
+}
+
+.tool-btn-accent:hover {
+  background: rgba(6, 182, 212, 0.45);
+}
+
+.opacity-control {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.opacity-control input[type="range"] {
+  width: 60px;
+  accent-color: var(--accent-cyan);
+}
+
+/* 左上: ワークアウト進行リスト */
+.segment-list-widget {
+  position: absolute;
+  top: 60px;
+  left: 24px;
+  width: 250px;
+  background: var(--bg-hud);
+  border: 1px solid var(--border-hud);
+  border-radius: 12px;
+  backdrop-filter: blur(12px);
+  padding: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  max-height: 480px;
+  overflow-y: hidden;
+}
+
+.segment-list-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-hud);
+}
+
+.workout-name-badge {
+  font-family: 'Outfit', sans-serif;
+  font-weight: 800;
+  font-size: 13px;
+  color: var(--accent-cyan);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+}
+
+.workout-progress-time {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.segment-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.seg-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
+  border-radius: 8px;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.seg-item.completed {
+  opacity: 0.35;
+  filter: grayscale(0.8);
+}
+
+.seg-item.current {
+  background: rgba(6, 182, 212, 0.15);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.25);
+  transform: scale(1.02);
+}
+
+.seg-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.seg-zone-tag {
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 9px;
+  font-weight: 700;
+  color: #fff;
+}
+
+.seg-label {
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.seg-meta {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 10px;
+  color: var(--text-sub);
+}
+
+/* 中央上部: メイン・インターバルアーチHUD */
+.arch-hud-widget {
+  position: absolute;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  z-index: 50;
+}
+
+/* カウントダウン演出 */
+.countdown-banner {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(249, 115, 22, 0.95));
+  padding: 6px 24px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 0 30px rgba(239, 68, 68, 0.6);
+  animation: pulse-countdown 0.6s infinite alternate;
+}
+
+.countdown-label {
+  font-family: 'Outfit', sans-serif;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  color: #fff;
+}
+
+.countdown-number {
+  font-family: 'Outfit', sans-serif;
+  font-size: 26px;
+  font-weight: 900;
+  color: #fff;
+}
+
+@keyframes pulse-countdown {
+  from { transform: scale(1); }
+  to { transform: scale(1.06); }
+}
+
+/* メインアーチカード */
+.arch-card {
+  width: 580px;
+  background: var(--bg-hud-card);
+  border: 1px solid var(--border-hud);
+  border-radius: 16px;
+  padding: 14px 20px;
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  border-top: 3px solid var(--accent-cyan);
+}
+
+.arch-top-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.arch-block-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--accent-cyan);
+}
+
+.arch-block-remaining {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--accent-yellow);
+}
+
+.arch-metrics-row {
+  display: grid;
+  grid-template-columns: 180px 180px 180px;
+  align-items: center;
+  gap: 12px;
+}
+
+.arch-metric {
+  display: flex;
+  flex-direction: column;
+}
+
+.metric-label {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.metric-main-value {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.val-target {
+  font-family: 'Outfit', sans-serif;
+  font-size: 34px;
+  font-weight: 900;
+  color: var(--text-main);
+  line-height: 1;
+}
+
+.val-unit {
+  font-family: 'Outfit', sans-serif;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
+.metric-sub-actual {
+  font-size: 11px;
+  color: var(--text-sub);
+  margin-top: 2px;
+}
+
+.val-actual {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.val-diff {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.val-diff.match { color: var(--accent-green); }
+.val-diff.low { color: var(--accent-yellow); }
+.val-diff.high { color: var(--accent-red); }
+
+/* パワー差分インジケーターゲージ */
+.arch-diff-gauge-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.gauge-labels {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.5px;
+}
+
+.gauge-track {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.gauge-pointer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  background: var(--accent-green);
+  border-radius: 3px;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: left 0.15s ease, background 0.2s ease;
+  box-shadow: 0 0 8px currentColor;
+}
+
+/* 進行バー */
+.arch-progress-bar-bg {
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+  margin-top: 10px;
+  overflow: hidden;
+}
+
+.arch-progress-bar-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, var(--accent-cyan), var(--accent-green));
+  transition: width 0.2s linear;
+}
+
+/* 字幕コーチングメッセージバナー */
+.coach-message-banner {
+  background: rgba(15, 23, 42, 0.92);
+  border: 1px solid rgba(6, 182, 212, 0.5);
+  border-radius: 20px;
+  padding: 8px 24px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  backdrop-filter: blur(12px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  animation: slide-down 0.3s ease;
+}
+
+.coach-icon {
+  font-size: 16px;
+}
+
+.coach-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e2e8f0;
+}
+
+@keyframes slide-down {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 画面最下部: 全体プロファイル & ゾーンリボン */
+.ribbon-widget {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 28px;
+  background: rgba(10, 14, 23, 0.85);
+  border-top: 1px solid var(--border-hud);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: stretch;
+}
+
+.ribbon-blocks {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  position: relative;
+}
+
+.ribbon-block {
+  height: 100%;
+  border-right: 1px solid rgba(0, 0, 0, 0.3);
+  position: relative;
+  transition: opacity 0.2s;
+}
+
+.ribbon-block.completed {
+  opacity: 0.45;
+}
+
+.ribbon-block.current {
+  opacity: 1.0;
+  box-shadow: inset 0 0 10px rgba(255, 255, 255, 0.4);
+}
+
+.ribbon-pin {
+  position: absolute;
+  top: -16px;
+  left: 0%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: left 0.3s linear;
+  pointer-events: none;
+}
+
+.pin-triangle {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 8px solid #fff;
+  filter: drop-shadow(0 0 4px #fff);
+}
+
+.pin-time {
+  background: #000;
+  color: #fff;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  margin-top: -2px;
+}
+
+/* 編集モード時のヒントバナー */
+.click-through-notice {
+  position: absolute;
+  bottom: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(245, 158, 11, 0.95);
+  color: #000;
+  font-weight: 700;
+  font-size: 12px;
+  padding: 6px 20px;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+  animation: pulse-notice 1s infinite alternate;
+}
+
+@keyframes pulse-notice {
+  from { opacity: 0.85; }
+  to { opacity: 1; }
+}
+
+.hide {
+  display: none !important;
+}

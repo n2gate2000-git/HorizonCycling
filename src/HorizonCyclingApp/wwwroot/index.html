@@ -60,6 +60,9 @@
       </div>
 
       <div class="header-right">
+        <button id="btnToggleOverlay" class="btn-action btn-overlay-hud" title="Forza Horizonの最前面にZwift風HUDを表示/非表示">
+          🖥️ 最前面HUD
+        </button>
         <button id="btnFinishSession" class="btn-action btn-save" title="走行を終了してGPX/FITログを保存">
           💾 終了・保存
         </button>
@@ -202,6 +205,7 @@
         <div class="pane-tabs">
           <button class="tab-btn active" data-tab="tabMap">🗺 リアルタイムマップ追跡</button>
           <button class="tab-btn" data-tab="tabElevation">📈 走行プロファイル</button>
+          <button class="tab-btn" data-tab="tabWorkouts">🏋️ ワークアウト</button>
           <button class="tab-btn" data-tab="tabHistory">📜 走行履歴</button>
           <button class="tab-btn" data-tab="tabLogs">📋 ログ・セッション詳細</button>
         </div>
@@ -280,7 +284,108 @@
           </div>
         </div>
 
-        <!-- TAB 3: Session History Viewer -->
+        <!-- TAB 3: Workouts (ZWO / MRC Library & ERG Mode) -->
+        <div id="tabWorkouts" class="tab-content">
+          <div class="workout-layout">
+            <!-- 左側: ワークアウト一覧 & フィルタ -->
+            <div class="workout-library-pane">
+              <div class="workout-lib-toolbar">
+                <div class="workout-search-box">
+                  <input type="text" id="workoutSearchInput" placeholder="🔍 ワークアウト検索...">
+                </div>
+                <div class="workout-lib-buttons">
+                  <button id="btnImportWorkout" class="btn-subaction-small" title="ワークアウトファイルを取り込む">📂 取込</button>
+                  <button id="btnOpenWorkoutsFolder" class="btn-subaction-small" title="ワークアウト保存フォルダを開く">📁 フォルダ</button>
+                  <button id="btnRefreshWorkouts" class="btn-subaction-small" title="ライブラリ更新">🔄</button>
+                </div>
+              </div>
+              <div id="workoutCategoriesList" class="workout-categories-container">
+                <div class="workout-loading">ワークアウトを読み込み中...</div>
+              </div>
+            </div>
+
+            <!-- 右側: 選択中ワークアウトのプレビュー & コントロール -->
+            <div class="workout-preview-pane">
+              <div id="workoutPreviewEmpty" class="workout-preview-empty">
+                <div class="empty-icon">🏋️</div>
+                <div class="empty-title">ワークアウトを選択してください</div>
+                <div class="empty-desc">左のライブラリから走りたいワークアウトを選択するか、ZWO/MRCファイルを画面にドラッグ＆ドロップしてください。</div>
+              </div>
+
+              <div id="workoutPreviewContent" class="workout-preview-content hidden">
+                <!-- プレビューヘッダー -->
+                <div class="preview-header">
+                  <div class="preview-header-left">
+                    <h2 id="prevTitle" class="prev-title">SST (Sweet Spot Training) 45m</h2>
+                    <div class="prev-author-row">
+                      <span id="prevAuthor" class="prev-author">作: HorizonCycling Studio</span>
+                      <div id="prevTags" class="prev-tags"></div>
+                    </div>
+                  </div>
+                  <div class="prev-action-box">
+                    <button id="btnStartWorkout" class="btn-start-workout">▶ このワークアウトを開始</button>
+                  </div>
+                </div>
+
+                <p id="prevDesc" class="prev-description"></p>
+
+                <!-- スタッツグリッド -->
+                <div class="prev-stats-grid">
+                  <div class="prev-stat-card">
+                    <span class="p-label">⏱ 所要時間</span>
+                    <span id="prevDuration" class="p-val">45分00秒</span>
+                  </div>
+                  <div class="prev-stat-card">
+                    <span class="p-label">⛰ 推定TSS</span>
+                    <span id="prevTss" class="p-val text-yellow">54</span>
+                  </div>
+                  <div class="prev-stat-card">
+                    <span class="p-label">⚡ 運動強度 (IF)</span>
+                    <span id="prevIf" class="p-val text-cyan">0.85</span>
+                  </div>
+                  <div class="prev-stat-card">
+                    <span class="p-label">🎯 主強度ゾーン</span>
+                    <span id="prevZone" class="p-val text-green">Z4 (閾値)</span>
+                  </div>
+                  <div class="prev-stat-card">
+                    <span class="p-label">🔥 推定カロリー</span>
+                    <span id="prevKcal" class="p-val text-orange">420 kcal</span>
+                  </div>
+                </div>
+
+                <!-- ワークアウトプロファイルプレビュー -->
+                <div class="prev-chart-section">
+                  <div class="chart-section-header">
+                    <span>ワークアウトプロファイル (FTP: <span id="prevFtpVal">200</span>W 基準)</span>
+                    <span class="legend-hint">Z1灰 / Z2青 / Z3緑 / Z4黄 / Z5橙 / Z6赤 / Z7紫</span>
+                  </div>
+                  <div class="workout-canvas-container">
+                    <canvas id="workoutPreviewCanvas" width="700" height="140"></canvas>
+                  </div>
+                </div>
+
+                <!-- ステップ詳細リスト -->
+                <div class="prev-steps-section">
+                  <div class="steps-header">ステップ構成 (<span id="prevStepsCount">0</span> ブロック)</div>
+                  <div id="prevStepsList" class="prev-steps-list"></div>
+                </div>
+
+                <!-- 実行中ステータスバー -->
+                <div id="workoutActiveControls" class="workout-active-controls hidden">
+                  <div class="active-badge">● ワークアウト実行中 (ERGモード)</div>
+                  <div class="active-ctrl-buttons">
+                    <button id="btnPrevActive" class="btn-subaction-small">⏮ 前へ</button>
+                    <button id="btnPauseActive" class="btn-subaction-small">⏸ 一時停止</button>
+                    <button id="btnSkipActive" class="btn-subaction-small">⏭ スキップ</button>
+                    <button id="btnStopActive" class="btn-subaction-small btn-danger">⏹ 終了</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 4: Session History Viewer -->
         <div id="tabHistory" class="tab-content">
           <div class="history-container">
             <!-- 左ペイン: セッション履歴リスト -->
@@ -579,6 +684,7 @@
   <script src="js/map.js"></script>
   <script src="js/chart.js"></script>
   <script src="js/history.js"></script>
+  <script src="js/workout.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

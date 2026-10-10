@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>HorizonCycling Workout Overlay</title>
+  <link rel="stylesheet" href="css/overlay.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700;800;900&family=Roboto+Mono:wght@500;700&display=swap" rel="stylesheet">
+</head>
+<body class="overlay-body">
+  <!-- 最前面オーバーレイ コンテナ -->
+  <div id="overlayContainer" class="overlay-container">
+    
+    <!-- 画面上部ツールバー（編集・操作用） -->
+    <div id="overlayToolbar" class="overlay-toolbar">
+      <div class="toolbar-brand">
+        <span class="toolbar-dot"></span>
+        <span class="toolbar-title">🏋️ HORIZON WORKOUT HUD</span>
+      </div>
+      <div class="toolbar-controls">
+        <button id="btnOverlayPrev" class="tool-btn" title="前のブロックへ">⏮</button>
+        <button id="btnOverlayPause" class="tool-btn" title="一時停止/再開">⏸</button>
+        <button id="btnOverlaySkip" class="tool-btn" title="次のブロックへ">⏭</button>
+        <button id="btnOverlayStop" class="tool-btn tool-btn-danger" title="ワークアウト終了">⏹ 終了</button>
+        <div class="toolbar-divider"></div>
+        <div class="opacity-control">
+          <span>透過度:</span>
+          <input type="range" id="sliderOpacity" min="30" max="100" value="95">
+        </div>
+        <button id="btnToggleClickThrough" class="tool-btn tool-btn-accent" title="クリック透過を有効化 (ゲームへ操作を戻す)">🛡️ 操作透過</button>
+      </div>
+    </div>
+
+    <!-- 左上: ワークアウト進行リスト -->
+    <div id="segmentListWidget" class="segment-list-widget">
+      <div class="segment-list-header">
+        <span id="workoutNameBadge" class="workout-name-badge">SST Short</span>
+        <span id="workoutProgressTime" class="workout-progress-time">00:00 / 00:00</span>
+      </div>
+      <div id="segmentListItems" class="segment-list-items">
+        <!-- JSで動的生成 -->
+      </div>
+    </div>
+
+    <!-- 中央上部: メイン・インターバルアーチHUD -->
+    <div id="archHudWidget" class="arch-hud-widget">
+      <!-- カウントダウンバナー -->
+      <div id="countdownBanner" class="countdown-banner hide">
+        <span class="countdown-label">NEXT INTERVAL IN</span>
+        <span id="countdownNumber" class="countdown-number">3</span>
+      </div>
+
+      <!-- メインアーチカード -->
+      <div class="arch-card">
+        <div class="arch-top-meta">
+          <span id="archBlockTitle" class="arch-block-title">BLOCK 1/5: WARMUP</span>
+          <span id="archBlockRemaining" class="arch-block-remaining">⏱ 05:00</span>
+        </div>
+
+        <div class="arch-metrics-row">
+          <!-- 目標パワー & 実測パワー -->
+          <div class="arch-metric arch-power">
+            <div class="metric-label">TARGET POWER</div>
+            <div class="metric-main-value">
+              <span id="archTargetPower" class="val-target">180</span>
+              <span class="val-unit">W</span>
+            </div>
+            <div class="metric-sub-actual">
+              実測: <span id="archActualPower" class="val-actual">182</span> W
+              <span id="archPowerDiff" class="val-diff">(+2W)</span>
+            </div>
+          </div>
+
+          <!-- パワー差分インジケーターゲージ -->
+          <div class="arch-diff-gauge-container">
+            <div class="gauge-labels">
+              <span>DOWN</span>
+              <span>JUST</span>
+              <span>UP</span>
+            </div>
+            <div class="gauge-track">
+              <div id="gaugePointer" class="gauge-pointer"></div>
+            </div>
+          </div>
+
+          <!-- 目標ケイデンス & 実測ケイデンス -->
+          <div class="arch-metric arch-cadence">
+            <div class="metric-label">TARGET CADENCE</div>
+            <div class="metric-main-value">
+              <span id="archTargetCadence" class="val-target">90</span>
+              <span class="val-unit">RPM</span>
+            </div>
+            <div class="metric-sub-actual">
+              実測: <span id="archActualCadence" class="val-actual">89</span> RPM
+            </div>
+          </div>
+        </div>
+
+        <!-- 進行バー -->
+        <div class="arch-progress-bar-bg">
+          <div id="archProgressBar" class="arch-progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <!-- コーチングテキストメッセージ（字幕ポップアップ） -->
+      <div id="coachMessageBanner" class="coach-message-banner hide">
+        <span class="coach-icon">💬</span>
+        <span id="coachMessageText" class="coach-text">ケイデンス90を維持してフォームを意識！</span>
+      </div>
+    </div>
+
+    <!-- 画面最下部: ワークアウト全体プロファイル & ゾーンリボン -->
+    <div id="ribbonWidget" class="ribbon-widget">
+      <div id="ribbonBlocks" class="ribbon-blocks">
+        <!-- 各セグメントが比率幅で並ぶ -->
+      </div>
+      <!-- 現在地ポインターピン -->
+      <div id="ribbonPin" class="ribbon-pin">
+        <div class="pin-triangle"></div>
+        <div class="pin-time" id="ribbonPinTime">12:34</div>
+      </div>
+    </div>
+
+    <!-- 透過解除時のヒントバナー -->
+    <div id="clickThroughNotice" class="click-through-notice hide">
+      ⚠️ 編集モード中（クリック可能）。右上の「⏹ 終了」ボタン、または <b>Ctrl + Shift + Q</b> でいつでも終了できます。
+    </div>
+
+  </div>
+
+  <script src="js/overlay.js"></script>
+</body>
+</html>

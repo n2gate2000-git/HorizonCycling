@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using HorizonCyclingBridge.Controller;
 using HorizonCyclingBridge.Telemetry;
 using HorizonCyclingBridge.Trainer;
+using HorizonCyclingBridge.Workout;
 
 namespace HorizonCyclingBridge.Core
 {
@@ -58,6 +59,10 @@ namespace HorizonCyclingBridge.Core
         public bool IsTeleport { get; set; } = false;
         public string SessionState { get; set; } = "Stopped";
         public double ElapsedSeconds { get; set; } = 0.0;
+
+        // ワークアウト状態
+        public bool IsWorkoutActive { get; set; } = false;
+        public WorkoutStateSnapshot? Workout { get; set; }
     }
 
     public class BleDeviceInfo
@@ -83,6 +88,8 @@ namespace HorizonCyclingBridge.Core
         private readonly CoordinateEngine _coordEngine;
         private readonly ElevationTracker _elevationTracker;
         private readonly SessionManager _sessionManager;
+        private readonly WorkoutLibraryManager _workoutLibrary;
+        private readonly WorkoutEngine _workoutEngine;
 
         private FtmsClient? _ftmsClient;
         private CyclingPowerClient? _powerClient;
@@ -131,10 +138,14 @@ namespace HorizonCyclingBridge.Core
         public event Action<BridgeStateSnapshot>? OnStateUpdated;
         public event Action<string>? OnLogMessage;
         public event Action<SessionSummary>? OnSessionSaved;
+        public event Action<WorkoutStateSnapshot>? OnWorkoutStateUpdated;
+        public event Action<string>? OnWorkoutMessage;
 
         public CoordinateEngine CoordinateEngine => _coordEngine;
         public ElevationTracker ElevationTracker => _elevationTracker;
         public SessionManager SessionManager => _sessionManager;
+        public WorkoutLibraryManager WorkoutLibrary => _workoutLibrary;
+        public WorkoutEngine WorkoutEngine => _workoutEngine;
         public AppConfig Config => _config;
 
         public BridgeService(AppConfig? config = null)
@@ -156,6 +167,30 @@ namespace HorizonCyclingBridge.Core
             };
             _elevationTracker = new ElevationTracker();
             _sessionManager = new SessionManager();
+
+            _workoutLibrary = new WorkoutLibraryManager(ftp: _config.Ftp);
+            _workoutEngine = new WorkoutEngine();
+
+            _workoutEngine.OnTargetPowerChanged += async (watts) =>
+            {
+                if (_isBleConnected && _ftmsClient != null && _ftmsClient.IsConnected)
+                {
+                    await _ftmsClient.SetTargetPowerAsync(watts);
+                }
+            };
+            _workoutEngine.OnMessageAlert += (msg) =>
+            {
+                Log($"[WORKOUT] 💬 {msg}");
+                OnWorkoutMessage?.Invoke(msg);
+            };
+            _workoutEngine.OnWorkoutCompleted += () =>
+            {
+                Log("[WORKOUT] 🎉 ワークアウト完了！お疲れ様でした！");
+            };
+            _workoutEngine.OnStateUpdated += (snap) =>
+            {
+                OnWorkoutStateUpdated?.Invoke(snap);
+            };
 
             _trainerDifficulty = Math.Clamp(_config.TrainerDifficulty, 0.0, 1.0);
             
@@ -261,6 +296,8 @@ namespace HorizonCyclingBridge.Core
             if (ftp <= 0) return;
             _config.Ftp = ftp;
             ConfigManager.Save(_config);
+
+            _workoutLibrary.SetFtp(ftp);
 
             if (_strategy is ArcadeMappingStrategy arcade)
             {
@@ -430,6 +467,100 @@ namespace HorizonCyclingBridge.Core
             return SessionHistoryManager.DeleteHistory(ActivitiesDirectory, fileName);
         }
 
+        #region ワークアウト管理・制御API
+
+        public bool IsWorkoutActive => _workoutEngine.IsActive;
+
+        public List<WorkoutSummaryItem> GetWorkoutLibrary()
+        {
+            return _workoutLibrary.GetLibrary();
+        }
+
+        public WorkoutDefinition? LoadWorkoutDetail(string filePath)
+        {
+            return _workoutLibrary.LoadWorkout(filePath);
+        }
+
+        public List<string> ImportWorkoutFiles(IEnumerable<string> filePaths)
+        {
+            var res = _workoutLibrary.ImportFiles(filePaths);
+            Log($"[WORKOUT] Imported {res.Count} workout file(s).");
+            return res;
+        }
+
+        public bool StartWorkout(string filePath)
+        {
+            var def = _workoutLibrary.LoadWorkout(filePath);
+            if (def == null || def.Segments.Count == 0)
+            {
+                Log($"[WORKOUT-ERR] Failed to load workout: {filePath}");
+                return false;
+            }
+
+            _workoutEngine.Start(def, _config.Ftp);
+            Log($"[WORKOUT] Started: \"{def.Title}\" ({def.TotalDurationSec / 60}m {def.TotalDurationSec % 60}s, {def.Segments.Count} blocks). ERG mode enabled.");
+            PushCurrentSnapshot();
+            return true;
+        }
+
+        public void PauseWorkout()
+        {
+            _workoutEngine.Pause();
+            Log("[WORKOUT] Workout paused.");
+            PushCurrentSnapshot();
+        }
+
+        public void ResumeWorkout()
+        {
+            _workoutEngine.Resume();
+            Log("[WORKOUT] Workout resumed.");
+            PushCurrentSnapshot();
+        }
+
+        public void StopWorkout()
+        {
+            if (_workoutEngine.IsActive)
+            {
+                _workoutEngine.Stop();
+                // 勾配モードへ復帰するため抵抗リセット
+                if (_isBleConnected && _ftmsClient != null)
+                {
+                    _ = _ftmsClient.SetTargetResistanceLevelAsync(0);
+                    _lastSentGrade = 999.0;
+                }
+                Log("[WORKOUT] Stopped workout. Restored normal SIM mode.");
+                PushCurrentSnapshot();
+            }
+        }
+
+        public void SkipWorkoutStep()
+        {
+            _workoutEngine.SkipStep();
+            Log("[WORKOUT] Skipped to next step.");
+            PushCurrentSnapshot();
+        }
+
+        public void PreviousWorkoutStep()
+        {
+            _workoutEngine.PreviousStep();
+            Log("[WORKOUT] Returned to previous step.");
+            PushCurrentSnapshot();
+        }
+
+        public void SetWorkoutIntensityBias(double bias)
+        {
+            _workoutEngine.SetIntensityBias(bias);
+            Log($"[WORKOUT] Intensity bias set to {bias * 100:F0}%.");
+            PushCurrentSnapshot();
+        }
+
+        public WorkoutStateSnapshot GetWorkoutSnapshot()
+        {
+            return _workoutEngine.CreateSnapshot();
+        }
+
+        #endregion
+
         public async Task StartAsync()
         {
             // vJoy 初期化
@@ -464,9 +595,14 @@ namespace HorizonCyclingBridge.Core
         private void OnIdleTimerTick(object? state)
         {
             if (_isDisposed) return;
+
             // 直近1秒以上テレメトリを受信していない待機時に定期スナップショット配信
             if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 1000)
             {
+                if (_workoutEngine.IsActive)
+                {
+                    _workoutEngine.Update(1.0, _config.Ftp);
+                }
                 PushCurrentSnapshot();
             }
         }
@@ -905,6 +1041,11 @@ namespace HorizonCyclingBridge.Core
             _lastPacketTime = now;
             _lastPacket = packet;
 
+            if (_workoutEngine.IsActive)
+            {
+                _workoutEngine.Update(deltaSec, _config.Ftp);
+            }
+
             double rawGradePercent = -Math.Tan(packet.Pitch) * 100.0;
             double trueRoadGrade = rawGradePercent;
             if (packet.SpeedKmh > 3.0f)
@@ -1056,8 +1197,8 @@ namespace HorizonCyclingBridge.Core
                 }
             }
 
-            // スマートローラー負荷フィードバック
-            if (_isBleConnected && _ftmsClient != null && _ftmsClient.IsConnected)
+            // スマートローラー負荷フィードバック (ワークアウト中はERGモード固定のため勾配送信をスキップ)
+            if (_isBleConnected && _ftmsClient != null && _ftmsClient.IsConnected && !_workoutEngine.IsActive)
             {
                 // 車両停止中（< 1.0 km/h）またはレース非アクティブ時は負荷をフリー(0.0%)に解放
                 bool shouldReleaseLoad = !packet.IsRaceOn || packet.SpeedKmh < 1.0f;
@@ -1188,7 +1329,10 @@ namespace HorizonCyclingBridge.Core
                 TotalDistanceKm = _elevationTracker.TotalDistanceMeters / 1000.0,
 
                 SessionState = _sessionManager.State.ToString(),
-                ElapsedSeconds = _sessionManager.ElapsedTime.TotalSeconds
+                ElapsedSeconds = _sessionManager.ElapsedTime.TotalSeconds,
+
+                IsWorkoutActive = _workoutEngine.IsActive,
+                Workout = _workoutEngine.IsActive ? _workoutEngine.CreateSnapshot() : null
             };
         }
 
