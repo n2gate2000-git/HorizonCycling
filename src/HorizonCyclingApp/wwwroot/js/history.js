@@ -109,7 +109,11 @@ class SessionHistoryController {
     if (this.btnDeleteSelectedSession) {
       this.btnDeleteSelectedSession.addEventListener('click', () => {
         if (!this.selectedSession) return;
-        if (confirm(`選択中の走行ログ (${this.selectedSession.FileName}) を削除しますか？`)) {
+        const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+        const msg = isEn 
+          ? `Delete selected activity log (${this.selectedSession.FileName})?`
+          : `選択中の走行ログ (${this.selectedSession.FileName}) を削除しますか？`;
+        if (confirm(msg)) {
           this.postMessage('deleteHistory', { fileName: this.selectedSession.FileName });
         }
       });
@@ -140,14 +144,31 @@ class SessionHistoryController {
       this.updateFollowButton();
     }
 
+    window.addEventListener('languageChanged', () => {
+      this.updateFollowButton();
+      this.updateChartLanguage();
+      if (this.historyList) {
+        this.handleHistoryList(this.historyList);
+      }
+      if (this.selectedSession) {
+        this.updateSessionStats();
+      }
+      if (this.currentPoints && this.currentPoints.length > 0) {
+        this.renderHrZoneDistribution(this.currentPoints);
+      }
+    });
+
     // 初回履歴読み込み
     this.refreshList();
   }
 
   updateFollowButton() {
     if (!this.btnFollowHistoryPoint) return;
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
     this.btnFollowHistoryPoint.classList.toggle('active', this.followPoint);
-    this.btnFollowHistoryPoint.textContent = this.followPoint ? '📍 自動追従: ON' : '📍 自動追従: OFF';
+    this.btnFollowHistoryPoint.textContent = isEn
+      ? (this.followPoint ? '📍 Auto-follow: ON' : '📍 Auto-follow: OFF')
+      : (this.followPoint ? '📍 自動追従: ON' : '📍 自動追従: OFF');
   }
 
   setHrConfig(maxHr, restingHr) {
@@ -330,6 +351,8 @@ class SessionHistoryController {
     const ctx = document.getElementById('historyChart');
     if (!ctx) return;
 
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+
     const eleGradient = ctx.getContext('2d').createLinearGradient(0, 0, 0, 240);
     eleGradient.addColorStop(0, 'rgba(16, 185, 129, 0.28)');
     eleGradient.addColorStop(1, 'rgba(16, 185, 129, 0.0)');
@@ -340,7 +363,7 @@ class SessionHistoryController {
         labels: [],
         datasets: [
           {
-            label: '標高 (m)',
+            label: isEn ? 'Elevation (m)' : '標高 (m)',
             data: [],
             yAxisID: 'yElevation',
             borderColor: '#10b981',
@@ -353,7 +376,7 @@ class SessionHistoryController {
             order: 4
           },
           {
-            label: '速度 (km/h)',
+            label: isEn ? 'Speed (km/h)' : '速度 (km/h)',
             data: [],
             yAxisID: 'ySpeed',
             borderColor: '#06b6d4',
@@ -365,7 +388,7 @@ class SessionHistoryController {
             order: 2
           },
           {
-            label: '目標速度 (km/h)',
+            label: isEn ? 'Target Speed (km/h)' : '目標速度 (km/h)',
             data: [],
             yAxisID: 'ySpeed',
             borderColor: '#a855f7',
@@ -378,7 +401,7 @@ class SessionHistoryController {
             order: 3
           },
           {
-            label: 'パワー (W)',
+            label: isEn ? 'Power (W)' : 'パワー (W)',
             data: [],
             yAxisID: 'yPower',
             borderColor: '#f59e0b',
@@ -390,7 +413,7 @@ class SessionHistoryController {
             order: 1
           },
           {
-            label: '心拍数 (bpm)',
+            label: isEn ? 'Heart Rate (bpm)' : '心拍数 (bpm)',
             data: [],
             yAxisID: 'yHeartRate',
             borderColor: '#f43f5e',
@@ -429,7 +452,7 @@ class SessionHistoryController {
             },
             title: {
               display: true,
-              text: '走行距離 (km)',
+              text: isEn ? 'Distance (km)' : '走行距離 (km)',
               color: '#64748b',
               font: { size: 11, weight: 'bold' }
             }
@@ -445,7 +468,7 @@ class SessionHistoryController {
             },
             title: {
               display: true,
-              text: '標高 (m)',
+              text: isEn ? 'Elevation (m)' : '標高 (m)',
               color: '#10b981',
               font: { size: 11, weight: 'bold' }
             }
@@ -463,7 +486,7 @@ class SessionHistoryController {
             },
             title: {
               display: true,
-              text: '速度 (km/h)',
+              text: isEn ? 'Speed (km/h)' : '速度 (km/h)',
               color: '#06b6d4',
               font: { size: 11, weight: 'bold' }
             }
@@ -481,7 +504,7 @@ class SessionHistoryController {
             },
             title: {
               display: true,
-              text: 'パワー (W)',
+              text: isEn ? 'Power (W)' : 'パワー (W)',
               color: '#f59e0b',
               font: { size: 11, weight: 'bold' }
             }
@@ -499,7 +522,7 @@ class SessionHistoryController {
             },
             title: {
               display: true,
-              text: '心拍 (bpm)',
+              text: isEn ? 'Heart Rate (bpm)' : '心拍 (bpm)',
               color: '#f43f5e',
               font: { size: 11, weight: 'bold' }
             }
@@ -528,15 +551,17 @@ class SessionHistoryController {
             callbacks: {
               title: (items) => {
                 if (!items.length) return '';
-                return `距離: ${items[0].label}`;
+                const isEnNow = window.i18n && window.i18n.getLanguage() === 'en';
+                return isEnNow ? `Distance: ${items[0].label}` : `距離: ${items[0].label}`;
               },
               label: (context) => {
+                const isEnNow = window.i18n && window.i18n.getLanguage() === 'en';
                 const val = context.parsed.y;
                 if (val === null || val === undefined) return '';
-                if (context.datasetIndex === 0) return ` 標高: ${val.toFixed(1)} m`;
-                if (context.datasetIndex === 1) return ` 速度: ${val.toFixed(1)} km/h`;
-                if (context.datasetIndex === 2) return ` 目標速度: ${val.toFixed(1)} km/h`;
-                if (context.datasetIndex === 3) return ` パワー: ${Math.round(val)} W`;
+                if (context.datasetIndex === 0) return isEnNow ? ` Elevation: ${val.toFixed(1)} m` : ` 標高: ${val.toFixed(1)} m`;
+                if (context.datasetIndex === 1) return isEnNow ? ` Speed: ${val.toFixed(1)} km/h` : ` 速度: ${val.toFixed(1)} km/h`;
+                if (context.datasetIndex === 2) return isEnNow ? ` Target Speed: ${val.toFixed(1)} km/h` : ` 目標速度: ${val.toFixed(1)} km/h`;
+                if (context.datasetIndex === 3) return isEnNow ? ` Power: ${Math.round(val)} W` : ` パワー: ${Math.round(val)} W`;
                 if (context.datasetIndex === 4) {
                   const hrVal = Math.round(val);
                   let zText = '';
@@ -544,7 +569,7 @@ class SessionHistoryController {
                     const z = window.getHrZone(hrVal, this.maxHeartRate, this.restingHeartRate);
                     if (z && z.zone > 0) zText = ` (${z.shortName} ${z.name})`;
                   }
-                  return ` 心拍数: ${hrVal} bpm${zText}`;
+                  return isEnNow ? ` Heart Rate: ${hrVal} bpm${zText}` : ` 心拍数: ${hrVal} bpm${zText}`;
                 }
                 return ` ${context.dataset.label}: ${val}`;
               }
@@ -559,9 +584,34 @@ class SessionHistoryController {
     });
   }
 
+  updateChartLanguage() {
+    if (!this.chart) return;
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+
+    if (this.chart.data && this.chart.data.datasets && this.chart.data.datasets.length >= 5) {
+      this.chart.data.datasets[0].label = isEn ? 'Elevation (m)' : '標高 (m)';
+      this.chart.data.datasets[1].label = isEn ? 'Speed (km/h)' : '速度 (km/h)';
+      this.chart.data.datasets[2].label = isEn ? 'Target Speed (km/h)' : '目標速度 (km/h)';
+      this.chart.data.datasets[3].label = isEn ? 'Power (W)' : 'パワー (W)';
+      this.chart.data.datasets[4].label = isEn ? 'Heart Rate (bpm)' : '心拍数 (bpm)';
+    }
+
+    if (this.chart.options && this.chart.options.scales) {
+      const s = this.chart.options.scales;
+      if (s.x && s.x.title) s.x.title.text = isEn ? 'Distance (km)' : '走行距離 (km)';
+      if (s.yElevation && s.yElevation.title) s.yElevation.title.text = isEn ? 'Elevation (m)' : '標高 (m)';
+      if (s.ySpeed && s.ySpeed.title) s.ySpeed.title.text = isEn ? 'Speed (km/h)' : '速度 (km/h)';
+      if (s.yPower && s.yPower.title) s.yPower.title.text = isEn ? 'Power (W)' : 'パワー (W)';
+      if (s.yHeartRate && s.yHeartRate.title) s.yHeartRate.title.text = isEn ? 'Heart Rate (bpm)' : '心拍 (bpm)';
+    }
+
+    this.chart.update('none');
+  }
+
   refreshList() {
     if (this.listContainer) {
-      this.listContainer.innerHTML = '<div class="history-loading">履歴を読み込み中...</div>';
+      const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+      this.listContainer.innerHTML = `<div class="history-loading">${isEn ? 'Loading history...' : '履歴を読み込み中...'}</div>`;
     }
     this.postMessage('getHistoryList');
   }
@@ -571,7 +621,8 @@ class SessionHistoryController {
     if (!this.listContainer) return;
 
     if (this.historyList.length === 0) {
-      this.listContainer.innerHTML = '<div class="history-empty">保存された走行ログはありません</div>';
+      const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+      this.listContainer.innerHTML = `<div class="history-empty">${isEn ? 'No saved activity logs' : '保存された走行ログはありません'}</div>`;
       this.showEmptyState();
       return;
     }
@@ -587,6 +638,7 @@ class SessionHistoryController {
       // 日時フォーマット
       const dateStr = this.formatDate(item.StartTime);
       const movingTimeStr = this.formatSeconds(item.MovingDurationSec);
+      const isEn = window.i18n && window.i18n.getLanguage() === 'en';
 
       card.innerHTML = `
         <div class="h-card-header">
@@ -595,15 +647,15 @@ class SessionHistoryController {
         </div>
         <div class="h-card-stats">
           <div class="h-stat-mini">
-            <span class="h-stat-mini-label">距離</span>
+            <span class="h-stat-mini-label">${isEn ? 'Distance' : '距離'}</span>
             <span class="h-stat-mini-val text-orange">${item.DistanceKm.toFixed(2)} km</span>
           </div>
           <div class="h-stat-mini">
-            <span class="h-stat-mini-label">獲得標高</span>
+            <span class="h-stat-mini-label">${isEn ? 'Elev Gain' : '獲得標高'}</span>
             <span class="h-stat-mini-val text-green">+${Math.round(item.ElevationGainM)} m</span>
           </div>
           <div class="h-stat-mini">
-            <span class="h-stat-mini-label">平均パワー</span>
+            <span class="h-stat-mini-label">${isEn ? 'Avg Power' : '平均パワー'}</span>
             <span class="h-stat-mini-val text-amber">${Math.round(item.AvgPowerWatts)} W</span>
           </div>
         </div>
@@ -619,6 +671,40 @@ class SessionHistoryController {
     // 選択されていない場合、先頭（最新）を自動選択
     if (!this.selectedSession && this.historyList.length > 0) {
       this.selectSession(this.historyList[0]);
+    }
+  }
+
+  updateSessionStats() {
+    if (!this.selectedSession) return;
+    const item = this.selectedSession;
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+
+    if (this.histTitleDate) this.histTitleDate.textContent = this.formatDate(item.StartTime);
+    if (this.histSessionIdBadge) this.histSessionIdBadge.textContent = `ID: ${item.SessionId || item.FileName.replace('.json', '')}`;
+    if (this.histMovingTime) this.histMovingTime.textContent = this.formatSeconds(item.MovingDurationSec);
+    if (this.histTotalTime) this.histTotalTime.textContent = isEn ? `Total: ${this.formatSeconds(item.TotalDurationSec)}` : `総時間: ${this.formatSeconds(item.TotalDurationSec)}`;
+    if (this.histDistance) this.histDistance.textContent = `${item.DistanceKm.toFixed(2)} km`;
+    if (this.histAvgSpeed) this.histAvgSpeed.textContent = isEn ? `Avg: ${item.AvgSpeedKmh.toFixed(1)} km/h` : `平均: ${item.AvgSpeedKmh.toFixed(1)} km/h`;
+    if (this.histElevationGain) this.histElevationGain.textContent = `+${Math.round(item.ElevationGainM)} m`;
+    if (this.histMaxSpeed) this.histMaxSpeed.textContent = isEn ? `Max: ${item.MaxSpeedKmh.toFixed(1)} km/h` : `最高速: ${item.MaxSpeedKmh.toFixed(1)} km/h`;
+    if (this.histAvgPower) this.histAvgPower.textContent = `${Math.round(item.AvgPowerWatts)} W`;
+    if (this.histMaxPower) this.histMaxPower.textContent = `NP: ${Math.round(item.NormalizedPowerWatts)}W / Max: ${Math.round(item.MaxPowerWatts)}W`;
+    if (this.histCalories) this.histCalories.textContent = `${Math.round(item.CaloriesKcal)} kcal`;
+    if (this.histAvgCadence) this.histAvgCadence.textContent = isEn ? `Avg Cadence: ${Math.round(item.AvgCadence)} rpm` : `平均ケイデンス: ${Math.round(item.AvgCadence)} rpm`;
+
+    // 心拍スタッツ
+    const avgHr = Math.round(item.AvgHeartRate || 0);
+    const maxHr = Math.round(item.MaxHeartRate || 0);
+    if (this.histAvgHr) {
+      this.histAvgHr.textContent = avgHr > 0 ? `${avgHr} bpm` : '-- bpm';
+    }
+    if (this.histMaxHr) {
+      if (maxHr > 0) {
+        const z = window.getHrZone ? window.getHrZone(maxHr, this.maxHeartRate, this.restingHeartRate) : null;
+        this.histMaxHr.textContent = `Max: ${maxHr} bpm${z && z.zone > 0 ? ` (${z.shortName})` : ''}`;
+      } else {
+        this.histMaxHr.textContent = 'Max: -- bpm';
+      }
     }
   }
 
@@ -641,33 +727,7 @@ class SessionHistoryController {
     if (this.detailPane) this.detailPane.classList.remove('hidden');
 
     // サマリースタッツの即時反映
-    if (this.histTitleDate) this.histTitleDate.textContent = this.formatDate(item.StartTime);
-    if (this.histSessionIdBadge) this.histSessionIdBadge.textContent = `ID: ${item.SessionId || item.FileName.replace('.json', '')}`;
-    if (this.histMovingTime) this.histMovingTime.textContent = this.formatSeconds(item.MovingDurationSec);
-    if (this.histTotalTime) this.histTotalTime.textContent = `総時間: ${this.formatSeconds(item.TotalDurationSec)}`;
-    if (this.histDistance) this.histDistance.textContent = `${item.DistanceKm.toFixed(2)} km`;
-    if (this.histAvgSpeed) this.histAvgSpeed.textContent = `平均: ${item.AvgSpeedKmh.toFixed(1)} km/h`;
-    if (this.histElevationGain) this.histElevationGain.textContent = `+${Math.round(item.ElevationGainM)} m`;
-    if (this.histMaxSpeed) this.histMaxSpeed.textContent = `最高速: ${item.MaxSpeedKmh.toFixed(1)} km/h`;
-    if (this.histAvgPower) this.histAvgPower.textContent = `${Math.round(item.AvgPowerWatts)} W`;
-    if (this.histMaxPower) this.histMaxPower.textContent = `NP: ${Math.round(item.NormalizedPowerWatts)}W / Max: ${Math.round(item.MaxPowerWatts)}W`;
-    if (this.histCalories) this.histCalories.textContent = `${Math.round(item.CaloriesKcal)} kcal`;
-    if (this.histAvgCadence) this.histAvgCadence.textContent = `平均ケイデンス: ${Math.round(item.AvgCadence)} rpm`;
-
-    // 心拍スタッツ
-    const avgHr = Math.round(item.AvgHeartRate || 0);
-    const maxHr = Math.round(item.MaxHeartRate || 0);
-    if (this.histAvgHr) {
-      this.histAvgHr.textContent = avgHr > 0 ? `${avgHr} bpm` : '-- bpm';
-    }
-    if (this.histMaxHr) {
-      if (maxHr > 0) {
-        const z = window.getHrZone ? window.getHrZone(maxHr, this.maxHeartRate, this.restingHeartRate) : null;
-        this.histMaxHr.textContent = `Max: ${maxHr} bpm${z && z.zone > 0 ? ` (${z.shortName})` : ''}`;
-      } else {
-        this.histMaxHr.textContent = 'Max: -- bpm';
-      }
-    }
+    this.updateSessionStats();
 
     // 詳細データ（トラックポイント配列）を取得要求
     this.postMessage('getHistoryDetail', { fileName: item.FileName });
@@ -811,7 +871,8 @@ class SessionHistoryController {
       }
       this.refreshList();
     } else {
-      alert('ファイルの削除に失敗しました。');
+      const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+      alert(isEn ? 'Failed to delete activity log.' : 'ファイルの削除に失敗しました。');
     }
   }
 
@@ -898,18 +959,22 @@ class SessionHistoryController {
       this.histMaxHr.textContent = `Max: ${Math.round(maxHrFound)} bpm${zMax && zMax.zone > 0 ? ` (${zMax.shortName})` : ''}`;
     }
 
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+
     // サマリー表示
     if (this.histHrZoneSummary) {
-      this.histHrZoneSummary.textContent = `計測: ${this.formatSeconds(totalHrSec)} | 平均: ${avgHrCalc} bpm | 最大: ${Math.round(maxHrFound)} bpm`;
+      this.histHrZoneSummary.textContent = isEn
+        ? `Duration: ${this.formatSeconds(totalHrSec)} | Avg: ${avgHrCalc} bpm | Max: ${Math.round(maxHrFound)} bpm`
+        : `計測: ${this.formatSeconds(totalHrSec)} | 平均: ${avgHrCalc} bpm | 最大: ${Math.round(maxHrFound)} bpm`;
     }
 
     // ゾーン範囲一覧を取得
     const ranges = window.getHrZoneRanges ? window.getHrZoneRanges(this.maxHeartRate, this.restingHeartRate) : [
-      { zone: 1, name: '回復', shortName: 'Z1', min: 60, max: 113, color: '#38bdf8' },
-      { zone: 2, name: '有酸素', shortName: 'Z2', min: 114, max: 132, color: '#22c55e' },
-      { zone: 3, name: 'テンポ', shortName: 'Z3', min: 133, max: 151, color: '#eab308' },
-      { zone: 4, name: '乳酸閾値', shortName: 'Z4', min: 152, max: 170, color: '#f97316' },
-      { zone: 5, name: '無酸素/最大', shortName: 'Z5', min: 171, max: 190, color: '#ef4444' }
+      { zone: 1, name: isEn ? 'Recovery' : '回復', shortName: 'Z1', min: 60, max: 113, color: '#38bdf8' },
+      { zone: 2, name: isEn ? 'Aerobic' : '有酸素', shortName: 'Z2', min: 114, max: 132, color: '#22c55e' },
+      { zone: 3, name: isEn ? 'Tempo' : 'テンポ', shortName: 'Z3', min: 133, max: 151, color: '#eab308' },
+      { zone: 4, name: isEn ? 'Threshold' : '乳酸閾値', shortName: 'Z4', min: 152, max: 170, color: '#f97316' },
+      { zone: 5, name: isEn ? 'Anaerobic/Max' : '無酸素/最大', shortName: 'Z5', min: 171, max: 190, color: '#ef4444' }
     ];
 
     // 1. スタックバー生成
@@ -951,7 +1016,8 @@ class SessionHistoryController {
   }
 
   formatDate(isoString) {
-    if (!isoString) return '日付不明';
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+    if (!isoString) return isEn ? 'Unknown date' : '日付不明';
     try {
       const d = new Date(isoString);
       if (isNaN(d.getTime())) return isoString;

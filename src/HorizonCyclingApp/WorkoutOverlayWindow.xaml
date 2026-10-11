@@ -233,7 +233,7 @@
                     <DropShadowEffect BlurRadius="32" ShadowDepth="0" Color="#DC2626" Opacity="0.9"/>
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="⚠️ ケイデンス低下！ 50 RPM以上を維持してください！ " Foreground="#FFFFFF" FontFamily="Segoe UI, Outfit" FontWeight="Black" FontSize="14" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="lblRampCadenceWarning" Text="⚠️ ケイデンス低下！ 50 RPM以上を維持してください！ " Foreground="#FFFFFF" FontFamily="Segoe UI, Outfit" FontWeight="Black" FontSize="14" VerticalAlignment="Center"/>
                     <TextBlock x:Name="txtRampLowCadenceSec" Text="[2.1s]" Foreground="#FEF08A" FontFamily="Segoe UI, Outfit" FontWeight="Black" FontSize="14" VerticalAlignment="Center"/>
                 </StackPanel>
             </Border>
@@ -255,7 +255,7 @@
                     <DropShadowEffect BlurRadius="36" ShadowDepth="0" Color="#059669" Opacity="0.9"/>
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                    <TextBlock Text="🎉 ランプテスト完了！ 新測定FTP: " Foreground="#FFFFFF" FontFamily="Segoe UI, Outfit" FontWeight="Bold" FontSize="15" VerticalAlignment="Center"/>
+                    <TextBlock x:Name="lblRampResultTitle" Text="🎉 ランプテスト完了！ 新測定FTP: " Foreground="#FFFFFF" FontFamily="Segoe UI, Outfit" FontWeight="Bold" FontSize="15" VerticalAlignment="Center"/>
                     <TextBlock x:Name="txtRampNewFtp" Text="245 W" Foreground="#FEF08A" FontFamily="Segoe UI, Outfit" FontWeight="Black" FontSize="20" VerticalAlignment="Center" Margin="4,0,4,0"/>
                     <TextBlock x:Name="txtRampFtpDelta" Text="(+25W)" Foreground="#A7F3D0" FontFamily="Segoe UI, Outfit" FontWeight="ExtraBold" FontSize="14" VerticalAlignment="Center"/>
                 </StackPanel>
@@ -452,7 +452,8 @@
                 <Border.Effect>
                     <DropShadowEffect BlurRadius="20" ShadowDepth="4" Direction="270" Opacity="0.5"/>
                 </Border.Effect>
-                <TextBlock Text="⚠️ 編集モード中（マウス操作可能）。「⏹ 終了」ボタン、または Ctrl + Shift + Q で終了できます"
+                <TextBlock x:Name="lblEditModeHint"
+                           Text="⚠️ 編集モード中（マウス操作可能）。「⏹ 終了」ボタン、または Ctrl + Shift + Q で終了できます"
                            Foreground="#000000"
                            FontFamily="Segoe UI, Inter, Arial"
                            FontSize="12"
@@ -564,9 +565,9 @@
                         </StackPanel>
                         
                         <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center" HorizontalAlignment="Right">
-                            <TextBlock Text="標高: " Foreground="#64748B" FontSize="11" FontWeight="Bold"/>
+                            <TextBlock x:Name="lblFreerideElevation" Text="標高: " Foreground="#64748B" FontSize="11" FontWeight="Bold"/>
                             <TextBlock x:Name="txtFreerideElevation" Text="0 m" Foreground="#CBD5E1" FontSize="12" FontWeight="Bold" Margin="0,0,8,0"/>
-                            <TextBlock Text="獲得: " Foreground="#64748B" FontSize="11" FontWeight="Bold"/>
+                            <TextBlock x:Name="lblFreerideGain" Text="獲得: " Foreground="#64748B" FontSize="11" FontWeight="Bold"/>
                             <TextBlock x:Name="txtFreerideGain" Text="+0 m" Foreground="#10B981" FontSize="12" FontWeight="Bold"/>
                         </StackPanel>
                     </StackPanel>

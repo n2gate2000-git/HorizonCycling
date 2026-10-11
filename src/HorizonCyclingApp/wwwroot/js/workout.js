@@ -67,20 +67,40 @@
     7: '#a855f7'
   };
 
-  const ZONE_NAMES = {
-    1: '回復 (Z1)',
-    2: '有酸素 (Z2)',
-    3: 'テンポ (Z3)',
-    4: '閾値 (Z4)',
-    5: 'VO2Max (Z5)',
-    6: '無酸素 (Z6)',
-    7: '神経筋 (Z7)'
-  };
+  function getZoneName(zone) {
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+    const namesJa = {
+      1: '回復 (Z1)',
+      2: '有酸素 (Z2)',
+      3: 'テンポ (Z3)',
+      4: '閾値 (Z4)',
+      5: 'VO2Max (Z5)',
+      6: '無酸素 (Z6)',
+      7: '神経筋 (Z7)'
+    };
+    const namesEn = {
+      1: 'Recovery (Z1)',
+      2: 'Endurance (Z2)',
+      3: 'Tempo (Z3)',
+      4: 'Threshold (Z4)',
+      5: 'VO2Max (Z5)',
+      6: 'Anaerobic (Z6)',
+      7: 'Neuromuscular (Z7)'
+    };
+    return (isEn ? namesEn[zone] : namesJa[zone]) || `Z${zone}`;
+  }
 
   function init() {
     setupEventListeners();
     setupSoundSettings();
     setupIpcListener();
+
+    window.addEventListener('languageChanged', () => {
+      if (currentWorkoutDetail) {
+        renderWorkoutDetails(currentWorkoutDetail);
+      }
+      renderLibraryList();
+    });
 
     // 初期ライブラリ取得
     setTimeout(() => {
@@ -275,15 +295,18 @@
       window.workoutSoundEngine.update(workout);
     }
 
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
     if (state.IsWorkoutActive && workout) {
       workoutActiveControls.classList.remove('hidden');
-      btnPauseActive.textContent = workout.State === 'Paused' ? '▶ 再開' : '⏸ 一時停止';
-      btnStartWorkout.textContent = '● ワークアウト実行中';
+      btnPauseActive.textContent = workout.State === 'Paused' 
+        ? (isEn ? '▶ Resume' : '▶ 再開') 
+        : (isEn ? '⏸ Pause' : '⏸ 一時停止');
+      btnStartWorkout.textContent = isEn ? '● Workout In Progress' : '● ワークアウト実行中';
       btnStartWorkout.disabled = true;
       btnStartWorkout.style.opacity = '0.6';
     } else {
       workoutActiveControls.classList.add('hidden');
-      btnStartWorkout.textContent = '▶ このワークアウトを開始';
+      btnStartWorkout.textContent = isEn ? '▶ Start Workout' : '▶ このワークアウトを開始';
       btnStartWorkout.disabled = false;
       btnStartWorkout.style.opacity = '1.0';
     }
@@ -497,9 +520,10 @@
     workoutPreviewEmpty.classList.add('hidden');
     workoutPreviewContent.classList.remove('hidden');
 
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
     prevTitle.textContent = detail.Title || 'Untitled Workout';
-    prevAuthor.textContent = detail.Author ? `作: ${detail.Author}` : '';
-    prevDesc.textContent = detail.Description || '説明はありません。';
+    prevAuthor.textContent = detail.Author ? (isEn ? `By: ${detail.Author}` : `作: ${detail.Author}`) : '';
+    prevDesc.textContent = detail.Description || (isEn ? 'No description available.' : '説明はありません。');
 
     // タグ
     if (detail.Tags && detail.Tags.length > 0) {
@@ -511,12 +535,12 @@
     // スタッツ
     const m = Math.floor(detail.TotalDurationSec / 60);
     const s = detail.TotalDurationSec % 60;
-    prevDuration.textContent = `${m}分${s.toString().padStart(2, '0')}秒`;
+    prevDuration.textContent = isEn ? `${m}m ${s.toString().padStart(2, '0')}s` : `${m}分${s.toString().padStart(2, '0')}秒`;
     prevTss.textContent = detail.EstimatedTss;
     prevIf.textContent = detail.EstimatedIf;
 
     const zNum = parseInt((detail.PrimaryZone || 'Z3').replace('Z', ''), 10) || 3;
-    prevZone.textContent = ZONE_NAMES[zNum] || detail.PrimaryZone;
+    prevZone.textContent = getZoneName(zNum);
     prevZone.style.color = ZONE_COLORS[zNum] || '#10b981';
 
     prevKcal.textContent = `${detail.EstimatedKcal || Math.round(detail.EstimatedTss * 7.5)} kcal`;
@@ -619,12 +643,13 @@
       const wattsLow = Math.round(seg.TargetPowerLowPct * currentFtp);
       const wattsHigh = Math.round(seg.TargetPowerHighPct * currentFtp);
 
+      const isEn = window.i18n && window.i18n.getLanguage() === 'en';
       const m = Math.floor(seg.DurationSec / 60);
       const s = seg.DurationSec % 60;
-      const durStr = `${m}分${s > 0 ? `${s}秒` : ''}`;
+      const durStr = isEn ? `${m}m ${s > 0 ? `${s}s` : ''}` : `${m}分${s > 0 ? `${s}秒` : ''}`;
 
       const powerStr = Math.abs(wattsHigh - wattsLow) > 3 ? `${wattsLow}W ➔ ${wattsHigh}W` : `${wattsLow}W (${Math.round(seg.TargetPowerLowPct * 100)}%)`;
-      const cadStr = seg.TargetCadence ? ` • ケイデンス ${seg.TargetCadence}rpm` : '';
+      const cadStr = seg.TargetCadence ? ` • ${isEn ? 'Cadence' : 'ケイデンス'} ${seg.TargetCadence}rpm` : '';
 
       html += `
         <div class="step-row">

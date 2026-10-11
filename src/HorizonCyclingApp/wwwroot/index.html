@@ -50,27 +50,23 @@
         <div class="control-pill">
           <span class="pill-label">MODE</span>
           <select id="modeSelect" class="pill-select">
-            <option value="2">SIMULATION (リアル実走)</option>
-            <option value="1">ARCADE (パワー直結)</option>
+            <option value="2" data-i18n="header.modeSimulation">SIMULATION (リアル実走)</option>
+            <option value="1" data-i18n="header.modeArcade">ARCADE (パワー直結)</option>
           </select>
-        </div>
-
-        <!-- Difficulty Slider -->
-        <div class="control-pill difficulty-pill">
-          <span class="pill-label">DIFFICULTY</span>
-          <input type="range" id="diffSlider" min="0" max="100" value="50" step="5">
-          <span id="diffValue" class="pill-val">50%</span>
         </div>
       </div>
 
       <div class="header-right">
-        <button id="btnToggleOverlay" class="btn-action btn-overlay-hud" title="Forza Horizonの最前面にZwift風HUDを表示/非表示">
+        <button id="btnLangToggle" class="btn-lang" title="表示言語を切り替え (Switch Language)">
+          🌐 日本語
+        </button>
+        <button id="btnToggleOverlay" class="btn-action btn-overlay-hud" data-i18n="header.overlayBtn" data-i18n-title="header.overlayBtnTitle" title="Forza Horizonの最前面にZwift風HUDを表示/非表示">
           🖥️ 最前面HUD
         </button>
-        <button id="btnFinishSession" class="btn-action btn-save" title="走行を終了してGPX/FITログを保存">
+        <button id="btnFinishSession" class="btn-action btn-save" data-i18n="header.saveBtn" data-i18n-title="header.saveBtnTitle" title="走行を終了してGPX/FITログを保存">
           💾 保存
         </button>
-        <button id="btnSettings" class="btn-icon" title="設定">
+        <button id="btnSettings" class="btn-icon" data-i18n-title="header.settingsBtnTitle" title="設定">
           ⚙
         </button>
       </div>
@@ -105,7 +101,7 @@
               <span id="carSpeedVal" class="large-number">0.0</span>
               <span class="unit">km/h</span>
             </div>
-            <div class="sub-label">実車速</div>
+            <div class="sub-label" data-i18n="metrics.actualSpeed">実車速</div>
           </div>
           <div class="metric-card">
             <span class="metric-label">TARGET SPEED</span>
@@ -113,7 +109,7 @@
               <span id="targetSpeedVal" class="large-number text-cyan">0.0</span>
               <span class="unit">km/h</span>
             </div>
-            <div class="sub-label">目標速度 (PID)</div>
+            <div class="sub-label" data-i18n="metrics.targetSpeed">目標速度 (PID)</div>
           </div>
         </div>
 
@@ -152,7 +148,7 @@
                 <div class="hr-zone-segment" data-zone="5" title="Z5 無酸素 (90%+)"></div>
               </div>
             </div>
-            <div class="sub-label" id="hrSub">未接続</div>
+            <div class="sub-label" id="hrSub" data-i18n="metrics.notConnected">未接続</div>
           </div>
         </div>
 
@@ -209,11 +205,11 @@
       <!-- RIGHT PANE: MAP & ELEVATION PROFILE & HISTORY & LOGS (Tabbed) -->
       <section class="right-pane">
         <div class="pane-tabs">
-          <button class="tab-btn active" data-tab="tabMap">🗺 リアルタイムマップ追跡</button>
-          <button class="tab-btn" data-tab="tabElevation">📈 走行プロファイル</button>
-          <button class="tab-btn" data-tab="tabWorkouts">🏋️ ワークアウト</button>
-          <button class="tab-btn" data-tab="tabHistory">📜 走行履歴</button>
-          <button class="tab-btn" data-tab="tabLogs">📋 ログ・セッション詳細</button>
+          <button class="tab-btn active" data-tab="tabMap" data-i18n="nav.map">🗺 リアルタイムマップ追跡</button>
+          <button class="tab-btn" data-tab="tabElevation" data-i18n="nav.profile">📈 走行プロファイル</button>
+          <button class="tab-btn" data-tab="tabWorkouts" data-i18n="nav.workouts">🏋️ ワークアウト</button>
+          <button class="tab-btn" data-tab="tabHistory" data-i18n="nav.history">📜 走行履歴</button>
+          <button class="tab-btn" data-tab="tabLogs" data-i18n="nav.logs">📋 ログ・セッション詳細</button>
         </div>
 
         <!-- TAB 1: Real-time Map Tracker (Leaflet) -->
@@ -221,15 +217,15 @@
           <div class="map-controls">
             <button id="btnFollowCar" class="map-ctrl-btn active">📍 自車追従: ON</button>
             <button id="btnTogglePins" class="map-ctrl-btn active">📌 スポット: ON</button>
-            <button id="btnCalibrate" class="map-ctrl-btn highlight">🎯 位置合わせ</button>
-            <button id="btnResetView" class="map-ctrl-btn">🔍 全体表示</button>
-            <button id="btnClearTrack" class="map-ctrl-btn">🧹 軌跡クリア</button>
+            <button id="btnCalibrate" class="map-ctrl-btn highlight" data-i18n="map.calibrate">🎯 位置合わせ</button>
+            <button id="btnResetView" class="map-ctrl-btn" data-i18n="map.resetView">🔍 全体表示</button>
+            <button id="btnClearTrack" class="map-ctrl-btn" data-i18n="map.clearTrack">🧹 軌跡クリア</button>
             <span id="coordDisplay" class="map-coord-tag">X: 0.0, Z: 0.0</span>
           </div>
           <!-- キャリブレーションモード時のガイドバー -->
           <div id="calibrationBanner" class="calibration-banner hidden">
-            <span>🎯 地図上の「現在走行している場所（道路やスポット）」をクリックしてください</span>
-            <button id="btnCancelCalibrate" class="btn-banner-cancel">✕ 取消</button>
+            <span data-i18n="map.calibrateBanner">🎯 地図上の「現在走行している場所（道路やスポット）」をクリックしてください</span>
+            <button id="btnCancelCalibrate" class="btn-banner-cancel" data-i18n="map.cancel">✕ 取消</button>
           </div>
           <div id="mapView" class="map-container"></div>
         </div>
@@ -239,21 +235,21 @@
           <div class="profile-stats-bar">
             <div class="profile-stats-left">
               <div class="stat-item">
-                <span class="stat-label">現在標高</span>
+                <span class="stat-label" data-i18n="profile.currentElev">現在標高</span>
                 <span class="stat-value text-green" id="profCurEle">0 m</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">速度 / 目標</span>
+                <span class="stat-label" data-i18n="profile.speedTarget">速度 / 目標</span>
                 <span class="stat-value text-cyan" id="profSpeed">0.0 / 0.0 <span
                     style="font-size:12px; font-weight:normal; color:var(--text-dim);">km/h</span></span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">パワー</span>
+                <span class="stat-label" data-i18n="profile.power">パワー</span>
                 <span class="stat-value text-orange" id="profPower">0 <span
                     style="font-size:12px; font-weight:normal; color:var(--text-dim);">W</span></span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">心拍数</span>
+                <span class="stat-label" data-i18n="profile.heartRate">心拍数</span>
                 <div style="display: flex; align-items: baseline; gap: 6px;">
                   <span class="stat-value text-rose" id="profHr">-- <span
                       style="font-size:12px; font-weight:normal; color:var(--text-dim);">bpm</span></span>
@@ -261,24 +257,24 @@
                 </div>
               </div>
               <div class="stat-item">
-                <span class="stat-label">獲得標高</span>
+                <span class="stat-label" data-i18n="profile.elevationGain">獲得標高</span>
                 <span class="stat-value" id="profEleGain">+0 m</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">総走行距離</span>
+                <span class="stat-label" data-i18n="profile.totalDistance">総走行距離</span>
                 <span class="stat-value" id="profDist">0.00 km</span>
               </div>
               <div class="stat-item">
-                <span class="stat-label">消費カロリー</span>
+                <span class="stat-label" data-i18n="profile.calories">消費カロリー</span>
                 <span class="stat-value text-orange" id="profCal">0 kcal</span>
               </div>
             </div>
             <div class="profile-view-toggle">
               <div class="profile-recent-group active" id="profileRecentGroup">
                 <button id="btnProfileRecent" class="profile-toggle-btn active" data-mode="recent"
-                  title="直近プロファイルを表示">🔍 直近</button>
+                  data-i18n="profile.recentBtn" data-i18n-title="profile.recentBtnTitle" title="直近プロファイルを表示">🔍 直近</button>
                 <select id="selectProfileRecentDistance" class="profile-distance-select"
-                  title="直近表示の距離を選択 (100m〜1000m)">
+                  data-i18n-title="profile.recentDistanceTitle" title="直近表示の距離を選択 (100m〜1000m)">
                   <option value="100">100m</option>
                   <option value="200" selected>200m</option>
                   <option value="300">300m</option>
@@ -291,8 +287,7 @@
                   <option value="1000">1000m</option>
                 </select>
               </div>
-              <button id="btnProfileAll" class="profile-toggle-btn" data-mode="all" title="スタートからの全走行プロファイルを表示">🗺
-                全走行距離</button>
+              <button id="btnProfileAll" class="profile-toggle-btn" data-mode="all" data-i18n="profile.allBtn" data-i18n-title="profile.allBtnTitle" title="スタートからの全走行プロファイルを表示">🗺 全走行距離</button>
             </div>
           </div>
           <div class="chart-wrapper">
@@ -307,15 +302,13 @@
             <div class="workout-library-pane">
               <div class="workout-lib-toolbar">
                 <div class="workout-search-box">
-                  <input type="text" id="workoutSearchInput" placeholder="🔍 ワークアウト検索...">
+                  <input type="text" id="workoutSearchInput" data-i18n-placeholder="workout.searchPlaceholder" placeholder="🔍 ワークアウト検索...">
                 </div>
                 <div class="workout-lib-buttons">
-                  <button id="btnStartRampTest" class="btn-subaction-small btn-highlight" title="FTPを自動計測するランプテストを開始">⚡
-                    ランプテスト(FTP計測)</button>
-                  <button id="btnImportWorkout" class="btn-subaction-small" title="ワークアウトファイルを取り込む">📂 取込</button>
-                  <button id="btnOpenWorkoutsFolder" class="btn-subaction-small" title="ワークアウト保存フォルダを開く">📁
-                    フォルダ</button>
-                  <button id="btnRefreshWorkouts" class="btn-subaction-small" title="ライブラリ更新">🔄</button>
+                  <button id="btnStartRampTest" class="btn-subaction-small btn-highlight" data-i18n="workout.rampTestBtn" data-i18n-title="workout.rampTestBtnTitle" title="FTPを自動計測するランプテストを開始">⚡ ランプテスト(FTP計測)</button>
+                  <button id="btnImportWorkout" class="btn-subaction-small" data-i18n="workout.importBtn" data-i18n-title="workout.importBtnTitle" title="ワークアウトファイルを取り込む">📂 取込</button>
+                  <button id="btnOpenWorkoutsFolder" class="btn-subaction-small" data-i18n="workout.folderBtn" data-i18n-title="workout.folderBtnTitle" title="ワークアウト保存フォルダを開く">📁 フォルダ</button>
+                  <button id="btnRefreshWorkouts" class="btn-subaction-small" data-i18n-title="workout.refreshBtnTitle" title="ライブラリ更新">🔄</button>
                 </div>
               </div>
               <div id="workoutCategoriesList" class="workout-categories-container">
@@ -327,19 +320,19 @@
             <div class="workout-preview-pane">
               <!-- 実行中ステータスバー (ペイン最上部に常時配置) -->
               <div id="workoutActiveControls" class="workout-active-controls hidden">
-                <div class="active-badge">● ワークアウト実行中 (ERGモード)</div>
+                <div class="active-badge" data-i18n="workout.activeWorkout">● ワークアウト実行中 (ERGモード)</div>
                 <div class="active-ctrl-buttons">
-                  <button id="btnPrevActive" class="btn-subaction-small">⏮ 前へ</button>
-                  <button id="btnPauseActive" class="btn-subaction-small">⏸ 一時停止</button>
-                  <button id="btnSkipActive" class="btn-subaction-small">⏭ スキップ</button>
-                  <button id="btnStopActive" class="btn-subaction-small btn-danger">⏹ 終了</button>
+                  <button id="btnPrevActive" class="btn-subaction-small" data-i18n-title="workout.prevStepBtnTitle">⏮</button>
+                  <button id="btnPauseActive" class="btn-subaction-small">⏸</button>
+                  <button id="btnSkipActive" class="btn-subaction-small" data-i18n-title="workout.skipStepBtnTitle">⏭</button>
+                  <button id="btnStopActive" class="btn-subaction-small btn-danger" data-i18n="workout.stopBtn">⏹ 終了</button>
                 </div>
               </div>
 
               <div id="workoutPreviewEmpty" class="workout-preview-empty">
                 <div class="empty-icon">🏋️</div>
-                <div class="empty-title">ワークアウトを選択してください</div>
-                <div class="empty-desc">左のライブラリから走りたいワークアウトを選択するか、ZWO/MRCファイルを画面にドラッグ＆ドロップしてください。</div>
+                <div class="empty-title" data-i18n="workout.selectPromptTitle">ワークアウトを選択してください</div>
+                <div class="empty-desc" data-i18n="workout.selectPromptDesc">左のライブラリから走りたいワークアウトを選択するか、ZWO/MRCファイルを画面にドラッグ＆ドロップしてください。</div>
               </div>
 
               <div id="workoutPreviewContent" class="workout-preview-content hidden">
@@ -353,7 +346,7 @@
                     </div>
                   </div>
                   <div class="prev-action-box">
-                    <button id="btnStartWorkout" class="btn-start-workout">▶ このワークアウトを開始</button>
+                    <button id="btnStartWorkout" class="btn-start-workout" data-i18n="workout.startBtn">▶ このワークアウトを開始</button>
                   </div>
                 </div>
 
@@ -410,14 +403,14 @@
             <!-- 左ペイン: セッション履歴リスト -->
             <div class="history-sidebar">
               <div class="history-sidebar-header">
-                <span class="history-title">📜 走行ログ一覧</span>
+                <span class="history-title" data-i18n="history.sidebarTitle">📜 走行ログ一覧</span>
                 <div class="history-actions">
-                  <button id="btnRefreshHistory" class="btn-subaction-small" title="履歴を再読込">🔄 更新</button>
-                  <button id="btnOpenActivitiesDir" class="btn-subaction-small" title="ログ保存フォルダを開く">📂 フォルダ</button>
+                  <button id="btnRefreshHistory" class="btn-subaction-small" data-i18n="history.refreshBtn" data-i18n-title="history.refreshBtnTitle" title="履歴を再読込">🔄 更新</button>
+                  <button id="btnOpenActivitiesDir" class="btn-subaction-small" data-i18n="history.openFolderBtn" data-i18n-title="history.openFolderBtnTitle" title="ログ保存フォルダを開く">📂 フォルダ</button>
                 </div>
               </div>
               <div id="historyListContainer" class="history-list">
-                <div class="history-loading">履歴を読み込み中...</div>
+                <div class="history-loading" data-i18n="history.loading">履歴を読み込み中...</div>
               </div>
             </div>
 
@@ -425,7 +418,7 @@
             <div class="history-main" id="historyMainPane">
               <div class="history-empty-state" id="historyEmptyState">
                 <div class="empty-icon">📂</div>
-                <div class="empty-text">左側のリストから走行記録を選択してください</div>
+                <div class="empty-text" data-i18n="history.emptyPrompt">左側のリストから走行記録を選択してください</div>
               </div>
 
               <div class="history-detail hidden" id="historyDetailPane">
@@ -436,39 +429,39 @@
                     <span id="histSessionIdBadge" class="hist-badge">ID: 20260928_210530</span>
                   </div>
                   <div class="history-header-actions">
-                    <button id="btnOpenSelectedGpx" class="btn-action-small">📤 GPXを開く</button>
-                    <button id="btnDeleteSelectedSession" class="btn-action-small btn-danger">🗑 削除</button>
+                    <button id="btnOpenSelectedGpx" class="btn-action-small" data-i18n="history.openGpxBtn">📤 GPXを開く</button>
+                    <button id="btnDeleteSelectedSession" class="btn-action-small btn-danger" data-i18n="history.deleteBtn">🗑 削除</button>
                   </div>
                 </div>
 
                 <div class="history-stats-grid">
                   <div class="h-stat-card">
-                    <span class="h-stat-label">⏱ 走行時間</span>
+                    <span class="h-stat-label" data-i18n="history.statTime">⏱ 走行時間</span>
                     <span class="h-stat-val text-cyan" id="histMovingTime">00:00:00</span>
                     <span class="h-stat-sub" id="histTotalTime">総時間: 00:00:00</span>
                   </div>
                   <div class="h-stat-card">
-                    <span class="h-stat-label">📏 走行距離</span>
+                    <span class="h-stat-label" data-i18n="history.statDistance">📏 走行距離</span>
                     <span class="h-stat-val text-orange" id="histDistance">0.00 km</span>
                     <span class="h-stat-sub" id="histAvgSpeed">平均: 0.0 km/h</span>
                   </div>
                   <div class="h-stat-card">
-                    <span class="h-stat-label">⛰ 獲得標高</span>
+                    <span class="h-stat-label" data-i18n="history.statElevationGain">⛰ 獲得標高</span>
                     <span class="h-stat-val text-green" id="histElevationGain">+0 m</span>
                     <span class="h-stat-sub" id="histMaxSpeed">最高速: 0.0 km/h</span>
                   </div>
                   <div class="h-stat-card">
-                    <span class="h-stat-label">⚡ 平均パワー</span>
+                    <span class="h-stat-label" data-i18n="history.statAvgPower">⚡ 平均パワー</span>
                     <span class="h-stat-val text-orange" id="histAvgPower">0 W</span>
                     <span class="h-stat-sub" id="histMaxPower">NP: 0W / Max: 0W</span>
                   </div>
                   <div class="h-stat-card">
-                    <span class="h-stat-label">❤️ 心拍数</span>
+                    <span class="h-stat-label" data-i18n="history.statHeartRate">❤️ 心拍数</span>
                     <span class="h-stat-val text-rose" id="histAvgHr">-- bpm</span>
                     <span class="h-stat-sub" id="histMaxHr">Max: -- bpm</span>
                   </div>
                   <div class="h-stat-card">
-                    <span class="h-stat-label">🔥 消費エネルギー</span>
+                    <span class="h-stat-label" data-i18n="history.statCalories">🔥 消費エネルギー</span>
                     <span class="h-stat-val" id="histCalories">0 kcal</span>
                     <span class="h-stat-sub" id="histAvgCadence">平均ケイデンス: 0 rpm</span>
                   </div>
@@ -477,7 +470,7 @@
                 <!-- 心拍ゾーン分布セクション -->
                 <div id="histHrZoneSection" class="history-hr-zone-section hidden">
                   <div class="history-section-title">
-                    <span>❤️ 心拍ゾーン分布 (HR Zone Distribution)</span>
+                    <span data-i18n="history.hrZoneSectionTitle">❤️ 心拍ゾーン分布 (HR Zone Distribution)</span>
                     <span id="histHrZoneSummary" class="hist-hr-zone-summary"></span>
                   </div>
                   <div class="hr-zone-dist-bar" id="histHrZoneDistBar"></div>
@@ -488,18 +481,16 @@
                 <div class="history-views">
                   <div class="history-map-wrapper">
                     <div class="history-section-title">
-                      <span>🗺 走行ルート軌跡 (Forza Horizon 6 マップ)</span>
+                      <span data-i18n="history.mapSectionTitle">🗺 走行ルート軌跡 (Forza Horizon 6 マップ)</span>
                       <div class="history-map-tools">
-                        <button id="btnFollowHistoryPoint" class="btn-subaction-small active" title="カーソル位置にマップを自動追従">📍
-                          自動追従: ON</button>
-                        <button id="btnFitHistoryRoute" class="btn-subaction-small" title="ルート全体を表示領域にフィット">🔍
-                          全体表示</button>
+                        <button id="btnFollowHistoryPoint" class="btn-subaction-small active">📍 自動追従: ON</button>
+                        <button id="btnFitHistoryRoute" class="btn-subaction-small" data-i18n="history.fitRouteBtn" data-i18n-title="history.fitRouteBtnTitle" title="ルート全体を表示領域にフィット">🔍 全体表示</button>
                       </div>
                     </div>
                     <div id="historyMapView" class="history-map-container"></div>
                   </div>
                   <div class="history-chart-wrapper">
-                    <div class="history-section-title">📈 走行プロファイル推移 (高度 / 速度 / 目標 / パワー)</div>
+                    <div class="history-section-title" data-i18n="history.chartSectionTitle">📈 走行プロファイル推移 (高度 / 速度 / 目標 / パワー)</div>
                     <div class="history-chart-box">
                       <canvas id="historyChart"></canvas>
                     </div>
@@ -562,35 +553,49 @@
     <div id="settingsModal" class="modal-overlay hidden">
       <div class="modal-box modal-wide">
         <div class="modal-header">
-          <h3>⚙ システム & センサー設定</h3>
+          <h3 data-i18n="settings.modalTitle">⚙ システム & センサー設定</h3>
           <button id="btnCloseSettings" class="btn-close">&times;</button>
         </div>
         <div class="modal-body">
+          <!-- 0. 言語設定 (Language) -->
+          <div class="settings-section">
+            <div class="section-title">
+              <span data-i18n="settings.sectionLanguage">🌐 言語 / Language</span>
+            </div>
+            <div class="form-group">
+              <label data-i18n="settings.languageLabel">表示言語 (Display Language)</label>
+              <select id="settingLanguage">
+                <option value="ja">日本語 (Japanese)</option>
+                <option value="en">English (英語)</option>
+              </select>
+            </div>
+          </div>
+
           <!-- 1. スマートローラー (FTMS) -->
           <div class="settings-section">
             <div class="section-title">
-              <span>🚴 スマートローラー (負荷制御 / トレーナー)</span>
-              <button id="btnScanBle" class="btn-small btn-primary">🔍 デバイスを検索</button>
+              <span data-i18n="settings.sectionTrainer">🚴 スマートローラー (負荷制御 / トレーナー)</span>
+              <button id="btnScanBle" class="btn-small btn-primary" data-i18n="settings.scanTrainerBtn">🔍 デバイスを検索</button>
             </div>
 
             <div class="current-device-row">
-              <span class="device-label">現在設定中:</span>
+              <span class="device-label" data-i18n="settings.currentConfigured">現在設定中:</span>
               <span id="currentDeviceText" class="device-name">None</span>
             </div>
 
             <!-- スキャン中表示 -->
             <div id="bleScanningIndicator" class="scan-status hidden">
               <span class="spinner"></span>
-              <span>周囲のBluetoothスマートローラーを検索中 (約7秒)...</span>
+              <span data-i18n="settings.scanningTrainer">周囲のBluetoothスマートローラーを検索中 (約7秒)...</span>
             </div>
 
             <!-- 見つかったデバイス一覧 -->
             <div id="bleDeviceList" class="device-list-container">
-              <div class="device-list-empty">「デバイスを検索」ボタンを押して、スマートローラーをスキャンしてください。</div>
+              <div class="device-list-empty" data-i18n="settings.emptyTrainer">「デバイスを検索」ボタンを押して、スマートローラーをスキャンしてください。</div>
             </div>
 
             <div class="connect-action-row">
-              <button id="btnConnectBle" class="btn-action btn-connect" disabled>選択したデバイスに接続</button>
+              <button id="btnConnectBle" class="btn-action btn-connect" disabled data-i18n="settings.connectTrainerBtn">選択したデバイスに接続</button>
               <span id="bleConnectStatus" class="connect-status-text"></span>
             </div>
           </div>
@@ -598,36 +603,35 @@
           <!-- 1-B. ケイデンス / パワーメーター (Magene PES-P505 等) -->
           <div class="settings-section">
             <div class="section-title">
-              <span>⚡ ケイデンス / パワーメーター (Magene PES-P505 等)</span>
-              <button id="btnScanCad" class="btn-small btn-primary">🔍 センサーを検索</button>
+              <span data-i18n="settings.sectionCadence">⚡ ケイデンス / パワーメーター (Magene PES-P505 等)</span>
+              <button id="btnScanCad" class="btn-small btn-primary" data-i18n="settings.scanCadenceBtn">🔍 センサーを検索</button>
             </div>
 
             <div class="current-device-row">
-              <span class="device-label">現在設定中:</span>
+              <span class="device-label" data-i18n="settings.currentConfigured">現在設定中:</span>
               <span id="currentCadDeviceText" class="device-name">None</span>
-              <button id="btnDisconnectCad" class="btn-small btn-secondary hidden"
-                style="margin-left: auto;">切断</button>
+              <button id="btnDisconnectCad" class="btn-small btn-secondary hidden" style="margin-left: auto;" data-i18n="settings.disconnectBtn">切断</button>
             </div>
 
             <!-- スキャン中表示 -->
             <div id="cadScanningIndicator" class="scan-status hidden">
               <span class="spinner"></span>
-              <span>周囲のケイデンス/パワーメーターを検索中 (約7秒)...</span>
+              <span data-i18n="settings.scanningCadence">周囲のケイデンス/パワーメーターを検索中 (約7秒)...</span>
             </div>
 
             <!-- 見つかったデバイス一覧 -->
             <div id="cadDeviceList" class="device-list-container">
-              <div class="device-list-empty">「センサーを検索」ボタンを押して、Magene PES-P505等をスキャンしてください。</div>
+              <div class="device-list-empty" data-i18n="settings.emptyCadence">「センサーを検索」ボタンを押して、Magene PES-P505等をスキャンしてください。</div>
             </div>
 
             <div class="connect-action-row">
-              <button id="btnConnectCad" class="btn-action btn-connect" disabled>選択したセンサーに接続</button>
+              <button id="btnConnectCad" class="btn-action btn-connect" disabled data-i18n="settings.connectCadenceBtn">選択したセンサーに接続</button>
               <span id="cadConnectStatus" class="connect-status-text"></span>
             </div>
 
             <div class="form-group"
               style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
-              <label title="パワー値もスマートトレーナーではなくパワーメーターの正確な数値を優先して使用します">パワー値もこのパワーメーターを優先</label>
+              <label data-i18n="settings.preferPowerMeterLabel" data-i18n-title="settings.preferPowerMeterTitle" title="パワー値もスマートトレーナーではなくパワーメーターの正確な数値を優先して使用します">パワー値もこのパワーメーターを優先</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingPreferPowerMeter" checked>
                 <span class="slider"></span>
@@ -638,29 +642,29 @@
           <!-- 1-C. Bluetooth 心拍計 -->
           <div class="settings-section">
             <div class="section-title">
-              <span>❤️ Bluetooth 心拍計 (Heart Rate Monitor)</span>
-              <button id="btnScanHr" class="btn-small btn-primary">🔍 心拍計を検索</button>
+              <span data-i18n="settings.sectionHr">❤️ Bluetooth 心拍計 (Heart Rate Monitor)</span>
+              <button id="btnScanHr" class="btn-small btn-primary" data-i18n="settings.scanHrBtn">🔍 心拍計を検索</button>
             </div>
 
             <div class="current-device-row">
-              <span class="device-label">現在設定中:</span>
+              <span class="device-label" data-i18n="settings.currentConfigured">現在設定中:</span>
               <span id="currentHrDeviceText" class="device-name">None</span>
-              <button id="btnDisconnectHr" class="btn-small btn-secondary hidden" style="margin-left: auto;">切断</button>
+              <button id="btnDisconnectHr" class="btn-small btn-secondary hidden" style="margin-left: auto;" data-i18n="settings.disconnectBtn">切断</button>
             </div>
 
             <!-- スキャン中表示 -->
             <div id="hrScanningIndicator" class="scan-status hidden">
               <span class="spinner"></span>
-              <span>周囲のBluetooth心拍計を検索中 (約7秒)...</span>
+              <span data-i18n="settings.scanningHr">周囲のBluetooth心拍計を検索中 (約7秒)...</span>
             </div>
 
             <!-- 見つかった心拍計一覧 -->
             <div id="hrDeviceList" class="device-list-container">
-              <div class="device-list-empty">「心拍計を検索」ボタンを押してスキャンしてください。</div>
+              <div class="device-list-empty" data-i18n="settings.emptyHr">「心拍計を検索」ボタンを押してスキャンしてください。</div>
             </div>
 
             <div class="connect-action-row">
-              <button id="btnConnectHr" class="btn-action btn-connect" disabled>選択した心拍計に接続</button>
+              <button id="btnConnectHr" class="btn-action btn-connect" disabled data-i18n="settings.connectHrBtn">選択した心拍計に接続</button>
               <span id="hrConnectStatus" class="connect-status-text"></span>
             </div>
           </div>
@@ -668,26 +672,42 @@
           <!-- 2. 基本パラメータ -->
           <div class="settings-section">
             <div class="section-title">
-              <span>⚙ サイクリング設定</span>
+              <span data-i18n="settings.sectionCycling">⚙ サイクリング設定</span>
+            </div>
+            <div class="form-group form-group-slider">
+              <label data-i18n="settings.trainerDifficulty">トレーナー難易度 / 負荷再現割合 (0〜100%)</label>
+              <div class="slider-control-box">
+                <div class="range-row">
+                  <input type="range" id="settingDifficulty" min="0" max="100" value="50" step="5">
+                  <span id="settingDifficultyVal" class="range-val-badge">50%</span>
+                </div>
+                <div class="scale-presets diff-presets">
+                  <button type="button" class="btn-preset btn-diff-preset" data-diff="0">0%</button>
+                  <button type="button" class="btn-preset btn-diff-preset" data-diff="25">25%</button>
+                  <button type="button" class="btn-preset btn-diff-preset active" data-diff="50" data-i18n="settings.diffPresetStandard">50% (標準)</button>
+                  <button type="button" class="btn-preset btn-diff-preset" data-diff="75">75%</button>
+                  <button type="button" class="btn-preset btn-diff-preset" data-diff="100" data-i18n="settings.diffPresetRealistic">100% (実勾配)</button>
+                </div>
+              </div>
             </div>
             <div class="form-group">
-              <label>ライダー FTP (W)</label>
+              <label data-i18n="settings.riderFtp">ライダー FTP (W)</label>
               <input type="number" id="settingFtp" value="200" min="50" max="600">
             </div>
             <div class="form-group">
-              <label>ライダー体重 (kg)</label>
+              <label data-i18n="settings.riderWeight">ライダー体重 (kg)</label>
               <input type="number" id="settingWeight" value="70.0" min="30" max="250" step="0.5">
             </div>
             <div class="form-group">
-              <label>ライダー最大心拍数 (bpm)</label>
+              <label data-i18n="settings.riderMaxHr">ライダー最大心拍数 (bpm)</label>
               <input type="number" id="settingMaxHr" value="190" min="100" max="230">
             </div>
             <div class="form-group">
-              <label>ライダー安静時心拍数 (bpm)</label>
+              <label data-i18n="settings.riderRestingHr">ライダー安静時心拍数 (bpm)</label>
               <input type="number" id="settingRestingHr" value="60" min="30" max="120">
             </div>
             <div class="form-group">
-              <label>プロファイル直近表示距離</label>
+              <label data-i18n="settings.recentDistance">プロファイル直近表示距離</label>
               <select id="settingProfileRecentDistance">
                 <option value="100">100m</option>
                 <option value="200" selected>200m</option>
@@ -702,14 +722,14 @@
               </select>
             </div>
             <div class="form-group">
-              <label>ペダル自動ブレーキ (脚を止めたら制動)</label>
+              <label data-i18n="settings.pedalBrake">ペダル自動ブレーキ (脚を止めたら制動)</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingPedalBrake">
                 <span class="slider"></span>
               </label>
             </div>
             <div class="form-group">
-              <label>通常走行時も最前面HUDオーバーレイを表示</label>
+              <label data-i18n="settings.freerideOverlay">通常走行時も最前面HUDオーバーレイを表示</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingFreerideOverlay">
                 <span class="slider"></span>
@@ -720,84 +740,86 @@
           <!-- 2-B. ワークアウト音響・サウンド設定 -->
           <div class="settings-section">
             <div class="section-title">
-              <span>🔊 ワークアウト音響・通知設定</span>
+              <span data-i18n="settings.sectionSound">🔊 ワークアウト音響・通知設定</span>
             </div>
             <div class="form-group">
-              <label>効果音を有効化</label>
+              <label data-i18n="settings.soundEnabled">効果音を有効化</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingSoundEnabled" checked>
                 <span class="slider"></span>
               </label>
             </div>
             <div class="form-group">
-              <label>効果音音量 (0〜100%)</label>
+              <label data-i18n="settings.soundVolume">効果音音量 (0〜100%)</label>
               <div class="range-row">
                 <input type="range" id="settingSoundVolume" min="0" max="100" value="80">
                 <span id="settingSoundVolumeVal" class="range-val-badge">80%</span>
               </div>
             </div>
             <div class="form-group">
-              <label>セグメント切り替え音 (Work/Rest)</label>
+              <label data-i18n="settings.transitionSound">セグメント切り替え音 (Work/Rest)</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingTransitionSound" checked>
                 <span class="slider"></span>
               </label>
             </div>
             <div class="form-group">
-              <label>3秒前カウントダウン予告音 (3, 2, 1)</label>
+              <label data-i18n="settings.countdownSound">3秒前カウントダウン予告音 (3, 2, 1)</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingCountdownSound" checked>
                 <span class="slider"></span>
               </label>
             </div>
             <div class="form-group">
-              <label>音声ガイダンス(TTS)によるテキスト読み上げ</label>
+              <label data-i18n="settings.ttsEnabled">音声ガイダンス(TTS)によるテキスト読み上げ</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingTtsEnabled">
                 <span class="slider"></span>
               </label>
             </div>
             <div class="sound-test-row">
-              <button type="button" id="btnTestWorkSound" class="btn-subaction">🔊 Work開始音</button>
-              <button type="button" id="btnTestRestSound" class="btn-subaction">🔊 Rest回復音</button>
-              <button type="button" id="btnTestCountdownSound" class="btn-subaction">🔊 カウントダウン</button>
-              <button type="button" id="btnTestTts" class="btn-subaction">🗣️ 音声テスト</button>
+              <button type="button" id="btnTestWorkSound" class="btn-subaction" data-i18n="settings.testWorkBtn">🔊 Work開始音</button>
+              <button type="button" id="btnTestRestSound" class="btn-subaction" data-i18n="settings.testRestBtn">🔊 Rest回復音</button>
+              <button type="button" id="btnTestCountdownSound" class="btn-subaction" data-i18n="settings.testCountdownBtn">🔊 カウントダウン</button>
+              <button type="button" id="btnTestTts" class="btn-subaction" data-i18n="settings.testTtsBtn">🗣️ 音声テスト</button>
             </div>
           </div>
 
           <!-- 3. マップ座標・縮尺設定 -->
           <div class="settings-section">
             <div class="section-title">
-              <span>🗺️ マップ座標・縮尺設定</span>
+              <span data-i18n="settings.sectionMap">🗺️ マップ座標・縮尺設定</span>
+            </div>
+            <div class="form-group form-group-slider">
+              <label data-i18n="settings.mapScale">地図縮尺 (スケール: 0.150〜0.400 px/m, 0.001刻み)</label>
+              <div class="slider-control-box">
+                <div class="range-row">
+                  <input type="range" id="settingMapScale" min="0.150" max="0.400" step="0.001" value="0.252">
+                  <span id="settingMapScaleVal" class="range-val-badge">0.252</span>
+                </div>
+                <div class="scale-presets">
+                  <button type="button" class="btn-preset active" data-scale="0.252" data-i18n="settings.scalePresetOptimal">0.252 (実寸最適)</button>
+                  <button type="button" class="btn-preset" data-scale="0.263" data-i18n="settings.scalePresetStandard">0.263 (標準)</button>
+                  <button type="button" class="btn-preset" data-scale="0.240">0.240</button>
+                  <button type="button" class="btn-preset" data-scale="0.280">0.280</button>
+                  <button type="button" class="btn-preset" data-scale="0.300">0.300</button>
+                </div>
+              </div>
             </div>
             <div class="form-group">
-              <label>地図縮尺 (スケール: 0.150〜0.400 px/m, 0.001刻み)</label>
-              <div class="range-row">
-                <input type="range" id="settingMapScale" min="0.150" max="0.400" step="0.001" value="0.252">
-                <span id="settingMapScaleVal" class="range-val-badge">0.252</span>
-              </div>
-              <div class="scale-presets">
-                <button type="button" class="btn-preset active" data-scale="0.252">0.252 (実寸最適)</button>
-                <button type="button" class="btn-preset" data-scale="0.263">0.263 (標準)</button>
-                <button type="button" class="btn-preset" data-scale="0.240">0.240</button>
-                <button type="button" class="btn-preset" data-scale="0.280">0.280</button>
-                <button type="button" class="btn-preset" data-scale="0.300">0.300</button>
-              </div>
-            </div>
-            <div class="form-group">
-              <label>Z軸反転 (上下の進行方向を反転)</label>
+              <label data-i18n="settings.invertZ">Z軸反転 (上下の進行方向を反転)</label>
               <label class="toggle-switch">
                 <input type="checkbox" id="settingInvertZ" checked>
                 <span class="slider"></span>
               </label>
             </div>
             <div class="form-group">
-              <button id="btnResetMapOrigin" class="btn-subaction">原点を初期位置 (4096, 4096) にリセット</button>
+              <button id="btnResetMapOrigin" class="btn-subaction" data-i18n="settings.resetOriginBtn">原点を初期位置 (4096, 4096) にリセット</button>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button id="btnSaveSettings" class="btn-action">設定を保存して閉じる</button>
+          <button id="btnSaveSettings" class="btn-action" data-i18n="settings.saveBtn">設定を保存して閉じる</button>
         </div>
       </div>
     </div>
@@ -806,34 +828,33 @@
     <div id="modalRampResult" class="modal-overlay hidden">
       <div class="modal-card ramp-modal-card">
         <div class="modal-header">
-          <div class="modal-title">🎉 FTPランプテスト完了！</div>
+          <div class="modal-title" data-i18n="rampModal.title">🎉 FTPランプテスト完了！</div>
           <button id="btnCloseRampModal" class="modal-close-btn">✕</button>
         </div>
         <div class="modal-body ramp-modal-body">
           <div class="ramp-ftp-badge-container">
             <div class="ramp-ftp-badge">
-              <span class="ramp-ftp-sub">新測定 FTP</span>
+              <span class="ramp-ftp-sub" data-i18n="rampModal.newFtp">新測定 FTP</span>
               <span id="rampModalNewFtp" class="ramp-ftp-val">245 <span class="unit">W</span></span>
               <span id="rampModalFtpDelta" class="ramp-ftp-diff text-green">+25 W</span>
             </div>
           </div>
           <div class="ramp-stats-row">
             <div class="ramp-stat-box">
-              <span class="lbl">旧設定 FTP</span>
+              <span class="lbl" data-i18n="rampModal.prevFtp">旧設定 FTP</span>
               <span id="rampModalOldFtp" class="val">220 W</span>
             </div>
             <div class="ramp-stat-box">
-              <span class="lbl">最大1分間平均パワー</span>
+              <span class="lbl" data-i18n="rampModal.best1Min">最大1分間平均パワー</span>
               <span id="rampModalBest1Min" class="val text-orange">327 W</span>
             </div>
             <div class="ramp-stat-box">
-              <span class="lbl">テスト所要時間</span>
+              <span class="lbl" data-i18n="rampModal.duration">テスト所要時間</span>
               <span id="rampModalDuration" class="val text-cyan">18分24秒</span>
             </div>
           </div>
-          <div class="ramp-modal-desc">
-            ※ 限界直前の最大1分間平均パワーの75%から自動算出されました。<br>
-            「新FTPを設定に保存」をクリックすると、現在のFTP設定（config.json）が即座に更新され、次回からの全ワークアウトやゾーンに反映されます。
+          <div class="ramp-modal-desc" data-i18n="rampModal.desc">
+            お疲れ様でした！新しく測定されたFTPをシステム設定に自動反映しました。今後のワークアウトはこのFTPを基準に負荷が自動調整されます。
           </div>
         </div>
         <div class="modal-footer">
@@ -846,6 +867,7 @@
   </div>
 
   <!-- Application Scripts -->
+  <script src="js/i18n.js"></script>
   <script src="js/soundEngine.js"></script>
   <script src="js/map.js"></script>
   <script src="js/chart.js"></script>

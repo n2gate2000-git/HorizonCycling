@@ -72,11 +72,39 @@ namespace HorizonCyclingApp
         private HwndSource? _hwndSource;
         private bool _isClickThrough = true;
         private string _lastRenderedTitle = "";
+        private string _currentLanguage = "ja";
 
         public event Action<string>? OnOverlayCommand;
         public bool IsClickThrough => _isClickThrough;
         public bool IsUserForcedVisible { get; set; } = false;
         public bool IsUserDismissed { get; set; } = false;
+        public string CurrentLanguage => _currentLanguage;
+
+        public void SetLanguage(string lang)
+        {
+            if (string.IsNullOrWhiteSpace(lang)) return;
+            _currentLanguage = lang.ToLowerInvariant().StartsWith("en") ? "en" : "ja";
+            UpdateLanguageTexts();
+        }
+
+        private void UpdateLanguageTexts()
+        {
+            bool isEn = _currentLanguage == "en";
+            btnStopWorkout.Content = isEn ? "⏹ Stop" : "⏹ 終了";
+            btnStopFreeride.Content = isEn ? "💾 Save & Exit" : "💾 終了・保存";
+            btnHideFreeride.Content = isEn ? "✕ Hide" : "✕ 非表示";
+            btnToggleClickThrough.Content = _isClickThrough 
+                ? (isEn ? "🛡️ Pass-through" : "🛡️ 操作透過中") 
+                : (isEn ? "🔓 Edit Mode (Clickable)" : "🔓 編集モード (クリック可)");
+            
+            lblRampCadenceWarning.Text = isEn ? "⚠️ Low Cadence! Maintain 50+ RPM! " : "⚠️ ケイデンス低下！ 50 RPM以上を維持してください！ ";
+            lblRampResultTitle.Text = isEn ? "🎉 Ramp Test Complete! New FTP: " : "🎉 ランプテスト完了！ 新測定FTP: ";
+            lblEditModeHint.Text = isEn 
+                ? "⚠️ Edit Mode (Mouse Enabled). Click \"⏹ Stop\" or press Ctrl + Shift + Q to exit." 
+                : "⚠️ 編集モード中（マウス操作可能）。「⏹ 終了」ボタン、または Ctrl + Shift + Q で終了できます";
+            lblFreerideElevation.Text = isEn ? "Elev: " : "標高: ";
+            lblFreerideGain.Text = isEn ? "Gain: " : "獲得: ";
+        }
 
         public WorkoutOverlayWindow()
         {
@@ -187,7 +215,7 @@ namespace HorizonCyclingApp
                 // 透過モード
                 toolbarBorder.Opacity = 0.25;
                 toolbarBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(38, 255, 255, 255));
-                btnToggleClickThrough.Content = "🛡️ 操作透過中";
+                btnToggleClickThrough.Content = _currentLanguage == "en" ? "🛡️ Pass-through" : "🛡️ 操作透過中";
                 btnToggleClickThrough.Foreground = new SolidColorBrush(Color.FromRgb(165, 243, 252));
                 editModeBanner.Visibility = Visibility.Collapsed;
             }
@@ -196,7 +224,7 @@ namespace HorizonCyclingApp
                 // 編集モード（クリック可能）
                 toolbarBorder.Opacity = 1.0;
                 toolbarBorder.BorderBrush = new SolidColorBrush(Color.FromRgb(6, 182, 212));
-                btnToggleClickThrough.Content = "🔓 編集モード (クリック可)";
+                btnToggleClickThrough.Content = _currentLanguage == "en" ? "🔓 Edit Mode (Clickable)" : "🔓 編集モード (クリック可)";
                 btnToggleClickThrough.Foreground = new SolidColorBrush(Color.FromRgb(252, 165, 165));
                 editModeBanner.Visibility = Visibility.Visible;
                 Activate();
@@ -505,7 +533,7 @@ namespace HorizonCyclingApp
                 else if (workoutState.LowCadenceSeconds > 0.3)
                 {
                     double remain = Math.Max(0.0, 3.0 - workoutState.LowCadenceSeconds);
-                    txtRampLowCadenceSec.Text = $"[あと {remain:F1}秒で限界判定]";
+                    txtRampLowCadenceSec.Text = _currentLanguage == "en" ? $"[{remain:F1}s until failure]" : $"[あと {remain:F1}秒で限界判定]";
                     rampCadenceWarningBanner.Visibility = Visibility.Visible;
                     rampResultBanner.Visibility = Visibility.Collapsed;
                 }

@@ -102,6 +102,7 @@ namespace HorizonCyclingApp
                 try
                 {
                     _overlayWindow = new WorkoutOverlayWindow();
+                    _overlayWindow.SetLanguage(_bridgeService.Language);
                     _overlayWindow.OnOverlayCommand += HandleOverlayCommand;
                     // 最初は非表示
                 }
@@ -390,6 +391,10 @@ namespace HorizonCyclingApp
                             {
                                 _bridgeService.SetRiderWeight(weightProp.GetDouble());
                             }
+                            if (root.TryGetProperty("difficulty", out var diffSettingProp))
+                            {
+                                _bridgeService.SetDifficulty(diffSettingProp.GetDouble());
+                            }
                             if (root.TryGetProperty("pedalBrake", out var brakeProp))
                             {
                                 _bridgeService.SetPedalBrake(brakeProp.GetBoolean());
@@ -414,6 +419,28 @@ namespace HorizonCyclingApp
                             if (root.TryGetProperty("profileRecentDistance", out var distProp))
                             {
                                 _bridgeService.SetProfileRecentDistance(distProp.GetInt32());
+                            }
+                            if (root.TryGetProperty("language", out var langProp))
+                            {
+                                string lang = langProp.GetString() ?? "ja";
+                                _bridgeService.SetLanguage(lang);
+                                if (_overlayWindow != null)
+                                {
+                                    _overlayWindow.SetLanguage(lang);
+                                }
+                            }
+                            SendCurrentConfig();
+                        }
+                        break;
+
+                    case "setLanguage":
+                        if (_bridgeService != null && root.TryGetProperty("language", out var setLangProp))
+                        {
+                            string newLang = setLangProp.GetString() ?? "ja";
+                            _bridgeService.SetLanguage(newLang);
+                            if (_overlayWindow != null)
+                            {
+                                _overlayWindow.SetLanguage(newLang);
                             }
                             SendCurrentConfig();
                         }
@@ -829,7 +856,8 @@ namespace HorizonCyclingApp
                     mapScale = _bridgeService.CoordinateEngine.WorldScale,
                     invertZ = _bridgeService.CoordinateEngine.InvertZ,
                     mapOriginX = _bridgeService.CoordinateEngine.WorldOriginX,
-                    mapOriginZ = _bridgeService.CoordinateEngine.WorldOriginZ
+                    mapOriginZ = _bridgeService.CoordinateEngine.WorldOriginZ,
+                    language = _bridgeService.Language
                 }
             });
             webView.CoreWebView2.PostWebMessageAsJson(configJson);

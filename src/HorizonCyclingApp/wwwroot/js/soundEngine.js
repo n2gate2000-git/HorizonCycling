@@ -238,16 +238,19 @@
       if (!window.speechSynthesis) return;
       try {
         window.speechSynthesis.cancel(); // 連続発話時のキューをクリア
+        const isEn = window.i18n && window.i18n.getLanguage() === 'en';
         const uttr = new SpeechSynthesisUtterance(text);
-        uttr.lang = 'ja-JP';
+        uttr.lang = isEn ? 'en-US' : 'ja-JP';
         uttr.volume = this.volume;
         uttr.rate = 1.1; // やや早口でテンポ良く
         uttr.pitch = 1.05;
 
-        // 日本語音声を優先探索
+        // 言語に応じた音声を優先探索
         const voices = window.speechSynthesis.getVoices();
-        const jaVoice = voices.find(v => v.lang && (v.lang.startsWith('ja') || v.lang === 'ja_JP'));
-        if (jaVoice) uttr.voice = jaVoice;
+        const targetVoice = isEn
+          ? voices.find(v => v.lang && v.lang.startsWith('en'))
+          : voices.find(v => v.lang && (v.lang.startsWith('ja') || v.lang === 'ja_JP'));
+        if (targetVoice) uttr.voice = targetVoice;
 
         window.speechSynthesis.speak(uttr);
       } catch (e) {
@@ -264,7 +267,8 @@
         if (this.lastWorkoutState === 'Running' && workout && workout.State === 'Finished') {
           this.playFinished();
           if (this.ttsEnabled) {
-            this.speak('ワークアウト完了です。素晴らしい走りでした！');
+            const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+            this.speak(isEn ? 'Workout completed! Great effort!' : 'ワークアウト完了です。素晴らしい走りでした！');
           }
         }
         this.lastSegmentIndex = -1;

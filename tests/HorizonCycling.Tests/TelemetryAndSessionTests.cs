@@ -638,5 +638,27 @@ namespace HorizonCycling.Tests
             Assert.Equal(expected, bridge.ProfileRecentDistanceM);
             bridge.Dispose();
         }
+
+        [Fact]
+        public void AppConfig_Language_DefaultsToJa()
+        {
+            var config = new HorizonCyclingBridge.Core.AppConfig();
+            Assert.Equal("ja", config.Language);
+        }
+
+        [Theory]
+        [InlineData("en", "en")]
+        [InlineData("EN", "en")]
+        [InlineData("English", "en")]
+        [InlineData("ja", "ja")]
+        [InlineData("JA", "ja")]
+        [InlineData("Japanese", "ja")]
+        public void BridgeService_SetLanguage_NormalizesToEnOrJa(string input, string expected)
+        {
+            var bridge = new HorizonCyclingBridge.Core.BridgeService();
+            bridge.SetLanguage(input);
+            Assert.Equal(expected, bridge.Language);
+            bridge.Dispose();
+        }
     }
 }

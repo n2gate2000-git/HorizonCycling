@@ -45,8 +45,6 @@ document.addEventListener('DOMContentLoaded', () => {
   const sessionTimer = document.getElementById('sessionTimer');
   const autoPauseBadge = document.getElementById('autoPauseBadge');
   const modeSelect = document.getElementById('modeSelect');
-  const diffSlider = document.getElementById('diffSlider');
-  const diffValue = document.getElementById('diffValue');
   const btnFinishSession = document.getElementById('btnFinishSession');
 
   // マップコントロール
@@ -94,11 +92,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const logConsole = document.getElementById('logConsole');
   const btnClearLogs = document.getElementById('btnClearLogs');
 
-  // 設定モーダル
+  // 設定モーダル & 言語
+  const btnLangToggle = document.getElementById('btnLangToggle');
+  const settingLanguage = document.getElementById('settingLanguage');
   const btnSettings = document.getElementById('btnSettings');
   const settingsModal = document.getElementById('settingsModal');
   const btnCloseSettings = document.getElementById('btnCloseSettings');
   const btnSaveSettings = document.getElementById('btnSaveSettings');
+  const settingDifficulty = document.getElementById('settingDifficulty');
+  const settingDifficultyVal = document.getElementById('settingDifficultyVal');
+  const diffPresetBtns = document.querySelectorAll('.btn-diff-preset');
   const settingFtp = document.getElementById('settingFtp');
   const settingWeight = document.getElementById('settingWeight');
   const settingPedalBrake = document.getElementById('settingPedalBrake');
@@ -160,21 +163,23 @@ document.addEventListener('DOMContentLoaded', () => {
       pct = (hr / maxHr) * 100;
     }
 
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
     if (pct >= 90) {
-      return { zone: 5, pct: Math.round(pct), name: '無酸素/最大', shortName: 'Z5', color: '#ef4444' };
+      return { zone: 5, pct: Math.round(pct), name: isEn ? 'Anaerobic' : '無酸素/最大', shortName: 'Z5', color: '#ef4444' };
     } else if (pct >= 80) {
-      return { zone: 4, pct: Math.round(pct), name: '乳酸閾値', shortName: 'Z4', color: '#f97316' };
+      return { zone: 4, pct: Math.round(pct), name: isEn ? 'Threshold' : '乳酸閾値', shortName: 'Z4', color: '#f97316' };
     } else if (pct >= 70) {
-      return { zone: 3, pct: Math.round(pct), name: 'テンポ', shortName: 'Z3', color: '#eab308' };
+      return { zone: 3, pct: Math.round(pct), name: isEn ? 'Tempo' : 'テンポ', shortName: 'Z3', color: '#eab308' };
     } else if (pct >= 60) {
-      return { zone: 2, pct: Math.round(pct), name: '有酸素', shortName: 'Z2', color: '#22c55e' };
+      return { zone: 2, pct: Math.round(pct), name: isEn ? 'Endurance' : '有酸素', shortName: 'Z2', color: '#22c55e' };
     } else {
-      return { zone: 1, pct: Math.max(0, Math.round(pct)), name: '回復', shortName: 'Z1', color: '#38bdf8' };
+      return { zone: 1, pct: Math.max(0, Math.round(pct)), name: isEn ? 'Recovery' : '回復', shortName: 'Z1', color: '#38bdf8' };
     }
   };
 
   // 各ゾーンの心拍数範囲 (bpm) 取得ヘルパー
   window.getHrZoneRanges = function(maxHr = currentMaxHr, restingHr = currentRestingHr) {
+    const isEn = window.i18n && window.i18n.getLanguage() === 'en';
     const calc = (pct) => {
       if (restingHr > 0 && maxHr > restingHr) {
         return Math.round(restingHr + (maxHr - restingHr) * (pct / 100));
@@ -182,11 +187,11 @@ document.addEventListener('DOMContentLoaded', () => {
       return Math.round(maxHr * (pct / 100));
     };
     return [
-      { zone: 1, name: '回復', shortName: 'Z1', min: restingHr > 0 ? restingHr : calc(50), max: calc(60) - 1, color: '#38bdf8' },
-      { zone: 2, name: '有酸素', shortName: 'Z2', min: calc(60), max: calc(70) - 1, color: '#22c55e' },
-      { zone: 3, name: 'テンポ', shortName: 'Z3', min: calc(70), max: calc(80) - 1, color: '#eab308' },
-      { zone: 4, name: '乳酸閾値', shortName: 'Z4', min: calc(80), max: calc(90) - 1, color: '#f97316' },
-      { zone: 5, name: '無酸素/最大', shortName: 'Z5', min: calc(90), max: maxHr, color: '#ef4444' }
+      { zone: 1, name: isEn ? 'Recovery' : '回復', shortName: 'Z1', min: restingHr > 0 ? restingHr : calc(50), max: calc(60) - 1, color: '#38bdf8' },
+      { zone: 2, name: isEn ? 'Endurance' : '有酸素', shortName: 'Z2', min: calc(60), max: calc(70) - 1, color: '#22c55e' },
+      { zone: 3, name: isEn ? 'Tempo' : 'テンポ', shortName: 'Z3', min: calc(70), max: calc(80) - 1, color: '#eab308' },
+      { zone: 4, name: isEn ? 'Threshold' : '乳酸閾値', shortName: 'Z4', min: calc(80), max: calc(90) - 1, color: '#f97316' },
+      { zone: 5, name: isEn ? 'Anaerobic' : '無酸素/最大', shortName: 'Z5', min: calc(90), max: maxHr, color: '#ef4444' }
     ];
   };
 
@@ -247,11 +252,36 @@ document.addEventListener('DOMContentLoaded', () => {
     postMessageToHost('setMode', { mode: parseInt(e.target.value) });
   });
 
-  diffSlider.addEventListener('input', (e) => {
-    const val = parseInt(e.target.value);
-    diffValue.textContent = `${val}%`;
-    postMessageToHost('setDifficulty', { difficulty: val / 100.0 });
-  });
+  // 難易度 (Trainer Difficulty) UI更新ヘルパー
+  function updateDifficultyUI(val, sendToHost = true) {
+    if (settingDifficulty) settingDifficulty.value = val;
+    if (settingDifficultyVal) settingDifficultyVal.textContent = `${val}%`;
+    if (diffPresetBtns) {
+      diffPresetBtns.forEach(btn => {
+        const btnVal = parseInt(btn.dataset.diff);
+        btn.classList.toggle('active', btnVal === val);
+      });
+    }
+    if (sendToHost) {
+      postMessageToHost('setDifficulty', { difficulty: val / 100.0 });
+    }
+  }
+
+  if (settingDifficulty) {
+    settingDifficulty.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value);
+      updateDifficultyUI(val, true);
+    });
+  }
+
+  if (diffPresetBtns) {
+    diffPresetBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const val = parseInt(btn.dataset.diff);
+        updateDifficultyUI(val, true);
+      });
+    });
+  }
 
   btnRecord.addEventListener('click', () => {
     const isRecording = btnRecord.classList.contains('recording');
@@ -300,16 +330,49 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  function updateMapButtonsText() {
+    if (btnFollowCar) {
+      btnFollowCar.textContent = window.i18n.t('map.followCar', { state: mapTracker.followCar ? 'ON' : 'OFF' });
+    }
+    if (btnTogglePins) {
+      btnTogglePins.textContent = window.i18n.t('map.pins', { state: mapTracker.showPins ? 'ON' : 'OFF' });
+    }
+  }
+
   btnFollowCar.addEventListener('click', () => {
     mapTracker.followCar = !mapTracker.followCar;
     btnFollowCar.classList.toggle('active', mapTracker.followCar);
-    btnFollowCar.textContent = mapTracker.followCar ? '📍 自車追従: ON' : '📍 自車追従: OFF';
+    updateMapButtonsText();
   });
 
   btnTogglePins.addEventListener('click', () => {
     const isVisible = mapTracker.togglePins();
     btnTogglePins.classList.toggle('active', isVisible);
-    btnTogglePins.textContent = isVisible ? '📌 スポット: ON' : '📌 スポット: OFF';
+    updateMapButtonsText();
+  });
+
+  // 言語切り替えボタン (ヘッダー)
+  if (btnLangToggle) {
+    btnLangToggle.addEventListener('click', () => {
+      const current = window.i18n.getLanguage();
+      const next = current === 'en' ? 'ja' : 'en';
+      window.i18n.setLanguage(next);
+      if (settingLanguage) settingLanguage.value = next;
+      postMessageToHost('setLanguage', { language: next });
+    });
+  }
+
+  // 言語選択セレクトボックス (設定モーダル)
+  if (settingLanguage) {
+    settingLanguage.addEventListener('change', () => {
+      const next = settingLanguage.value;
+      window.i18n.setLanguage(next);
+      postMessageToHost('setLanguage', { language: next });
+    });
+  }
+
+  window.addEventListener('languageChanged', () => {
+    updateMapButtonsText();
   });
 
   // キャリブレーション（位置合わせモード）
@@ -546,24 +609,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const pedalBrake = settingPedalBrake.checked;
     const freerideOverlay = settingFreerideOverlay ? settingFreerideOverlay.checked : false;
     const recentDist = parseInt(settingProfileRecentDistance ? settingProfileRecentDistance.value : 200) || 200;
+    const lang = settingLanguage ? settingLanguage.value : window.i18n.getLanguage();
     currentFtp = ftp;
     currentRiderWeight = weight;
     currentMaxHr = maxHr;
     currentRestingHr = restingHr;
+    window.i18n.setLanguage(lang);
     elevationChart.setRecentDistance(recentDist);
     if (elevationChart.setHrConfig) elevationChart.setHrConfig(maxHr, restingHr);
     if (window.historyController && window.historyController.setHrConfig) {
       window.historyController.setHrConfig(maxHr, restingHr);
     }
     if (selectProfileRecentDistance) selectProfileRecentDistance.value = recentDist.toString();
+    const diffVal = settingDifficulty ? (parseInt(settingDifficulty.value) || 50) : 50;
     postMessageToHost('updateSettings', {
       ftp,
       weight,
+      difficulty: diffVal / 100.0,
       pedalBrake,
       freerideOverlay,
       maxHeartRate: maxHr,
       restingHeartRate: restingHr,
-      profileRecentDistance: recentDist
+      profileRecentDistance: recentDist,
+      language: lang
     });
 
     // マップ設定も保存
@@ -663,8 +731,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (typeof data.payload.difficulty !== 'undefined') {
           const diffPct = Math.round(data.payload.difficulty * 100);
-          diffSlider.value = diffPct;
-          diffValue.textContent = `${diffPct}%`;
+          updateDifficultyUI(diffPct, false);
         }
         if (data.payload.ftp) {
           currentFtp = data.payload.ftp;
@@ -698,6 +765,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (data.payload.powerSourceName && currentDeviceText) {
           currentDeviceText.textContent = data.payload.powerSourceName;
+        }
+        if (data.payload.language) {
+          window.i18n.setLanguage(data.payload.language, false);
+          if (settingLanguage) {
+            settingLanguage.value = data.payload.language;
+          }
         }
         if (data.payload.cadenceSourceName && currentCadDeviceText) {
           currentCadDeviceText.textContent = data.payload.cadenceSourceName;
@@ -869,10 +942,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. 勾配・標高・心拍
     const gradeSign = s.RawGrade >= 0 ? '+' : '';
     gradeVal.textContent = `${gradeSign}${s.RawGrade.toFixed(1)}`;
-    sentGradeSub.textContent = `送信: ${s.SentGrade.toFixed(1)}%`;
+    sentGradeSub.textContent = window.i18n.t('metrics.sentGrade', { grade: s.SentGrade.toFixed(1) });
 
     elevationVal.textContent = Math.round(s.ElevationMeters);
-    gainSub.textContent = `獲得: +${Math.round(s.ElevationGainMeters)} m`;
+    gainSub.textContent = window.i18n.t('metrics.gain', { gain: Math.round(s.ElevationGainMeters) });
 
     if (hrVal) {
       if (s.HeartRate && s.HeartRate > 0) {

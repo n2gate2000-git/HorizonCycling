@@ -375,6 +375,17 @@ namespace HorizonCyclingBridge.Core
             PushCurrentSnapshot();
         }
 
+        public void SetLanguage(string lang)
+        {
+            if (string.IsNullOrWhiteSpace(lang)) return;
+            string normalized = lang.ToLowerInvariant().StartsWith("en") ? "en" : "ja";
+            _config.Language = normalized;
+            ConfigManager.Save(_config);
+            Log($"[CONFIG] Language set to {normalized}.");
+        }
+
+        public string Language => _config.Language;
+
         public int ProfileRecentDistanceM => _config.ProfileRecentDistanceM;
 
         private string? _activitiesDirectory;

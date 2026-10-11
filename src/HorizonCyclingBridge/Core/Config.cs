@@ -39,6 +39,7 @@ namespace HorizonCyclingBridge.Core
         public bool PedalBrakeEnabled { get; set; } = false; // ペダルブレーキ有効フラグ（デフォルトOFF）
         public bool FreerideOverlayEnabled { get; set; } = false; // 通常走行時の最前面HUDオーバーレイ表示（オプション、デフォルトOFF）
         public int ProfileRecentDistanceM { get; set; } = 200; // 直近プロファイル表示距離（100m〜1000m、100m刻み、デフォルト200m）
+        public string Language { get; set; } = "ja"; // 表示言語設定 ("ja" または "en")
 
         // マップ座標変換パラメータ
         public double MapOriginX { get; set; } = 0.0;
