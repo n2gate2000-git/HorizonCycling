@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const cadenceVal = document.getElementById('cadenceVal');
   const gearVal = document.getElementById('gearVal');
   const distVal = document.getElementById('distVal');
+  const calSub = document.getElementById('calSub');
   const throttleBar = document.getElementById('throttleBar');
   const throttleVal = document.getElementById('throttleVal');
   const brakeBar = document.getElementById('brakeBar');
@@ -66,6 +67,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const profEleGain = document.getElementById('profEleGain');
   const profEleLoss = document.getElementById('profEleLoss');
   const profDist = document.getElementById('profDist');
+  const profCal = document.getElementById('profCal');
   const btnProfileRecent = document.getElementById('btnProfileRecent');
   const btnProfileAll = document.getElementById('btnProfileAll');
   const profileRecentGroup = document.getElementById('profileRecentGroup');
@@ -75,6 +77,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // ステータスフッター
   const bleDot = document.getElementById('bleDot');
   const bleText = document.getElementById('bleText');
+  const cadDot = document.getElementById('cadDot');
+  const cadText = document.getElementById('cadText');
+  const cadStatusContainer = document.getElementById('cadStatusContainer');
   const hrDot = document.getElementById('hrDot');
   const hrText = document.getElementById('hrText');
   const hrStatusContainer = document.getElementById('hrStatusContainer');
@@ -95,13 +100,14 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnCloseSettings = document.getElementById('btnCloseSettings');
   const btnSaveSettings = document.getElementById('btnSaveSettings');
   const settingFtp = document.getElementById('settingFtp');
+  const settingWeight = document.getElementById('settingWeight');
   const settingPedalBrake = document.getElementById('settingPedalBrake');
   const settingMapScale = document.getElementById('settingMapScale');
   const settingMapScaleVal = document.getElementById('settingMapScaleVal');
   const settingInvertZ = document.getElementById('settingInvertZ');
   const btnResetMapOrigin = document.getElementById('btnResetMapOrigin');
 
-  // BLE センサー設定要素
+  // BLE センサー設定要素 (スマートローラー)
   const bleStatusContainer = document.getElementById('bleStatusContainer');
   const btnScanBle = document.getElementById('btnScanBle');
   const currentDeviceText = document.getElementById('currentDeviceText');
@@ -109,6 +115,16 @@ document.addEventListener('DOMContentLoaded', () => {
   const bleDeviceList = document.getElementById('bleDeviceList');
   const btnConnectBle = document.getElementById('btnConnectBle');
   const bleConnectStatus = document.getElementById('bleConnectStatus');
+
+  // ケイデンス / パワーメーター設定要素 (Magene PES-P505 等)
+  const btnScanCad = document.getElementById('btnScanCad');
+  const currentCadDeviceText = document.getElementById('currentCadDeviceText');
+  const btnDisconnectCad = document.getElementById('btnDisconnectCad');
+  const cadScanningIndicator = document.getElementById('cadScanningIndicator');
+  const cadDeviceList = document.getElementById('cadDeviceList');
+  const btnConnectCad = document.getElementById('btnConnectCad');
+  const cadConnectStatus = document.getElementById('cadConnectStatus');
+  const settingPreferPowerMeter = document.getElementById('settingPreferPowerMeter');
 
   // 心拍計設定要素
   const btnScanHr = document.getElementById('btnScanHr');
@@ -122,10 +138,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingRestingHr = document.getElementById('settingRestingHr');
 
   let currentFtp = 200;
+  let currentRiderWeight = 70.0;
   let currentMaxHr = 190;
   let currentRestingHr = 60;
   let lastSavedFilePath = '';
   let selectedBleDevice = null;
+  let selectedCadDevice = null;
   let selectedHrDevice = null;
 
   // 心拍ゾーン判定共通ヘルパー (カルボーネン法 / HRR 予備心拍数基準)
@@ -421,6 +439,60 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
+  // フッターのケイデンスインジケータークリックで設定を開く
+  if (cadStatusContainer) {
+    cadStatusContainer.addEventListener('click', () => {
+      settingsModal.classList.remove('hidden');
+    });
+  }
+
+  // ケイデンス / パワーメーター スキャン開始
+  if (btnScanCad) {
+    btnScanCad.addEventListener('click', () => {
+      if (cadScanningIndicator) cadScanningIndicator.classList.remove('hidden');
+      btnScanCad.disabled = true;
+      if (btnConnectCad) btnConnectCad.disabled = true;
+      if (cadConnectStatus) cadConnectStatus.textContent = '';
+      if (cadDeviceList) cadDeviceList.innerHTML = '<div class="device-list-empty">周囲のケイデンス/パワーメーターを検索中...</div>';
+      selectedCadDevice = null;
+      postMessageToHost('scanBle');
+    });
+  }
+
+  // 選択したケイデンス / パワーメーターへの接続
+  if (btnConnectCad) {
+    btnConnectCad.addEventListener('click', () => {
+      if (!selectedCadDevice) return;
+      btnConnectCad.disabled = true;
+      if (cadConnectStatus) cadConnectStatus.textContent = `接続中: ${selectedCadDevice.Name}...`;
+      postMessageToHost('connectCadence', {
+        mac: selectedCadDevice.Address,
+        name: selectedCadDevice.Name
+      });
+    });
+  }
+
+  // ケイデンス / パワーメーター切断
+  if (btnDisconnectCad) {
+    btnDisconnectCad.addEventListener('click', () => {
+      postMessageToHost('disconnectCadence');
+      if (currentCadDeviceText) currentCadDeviceText.textContent = 'None';
+      btnDisconnectCad.classList.add('hidden');
+      if (cadConnectStatus) cadConnectStatus.textContent = 'センサーを切断しました。';
+      if (btnConnectCad) btnConnectCad.disabled = true;
+
+      if (cadDot) cadDot.className = 'status-dot disconnected';
+      if (cadText) cadText.textContent = 'CAD: 切断';
+    });
+  }
+
+  // パワー値優先チェックボックス
+  if (settingPreferPowerMeter) {
+    settingPreferPowerMeter.addEventListener('change', (e) => {
+      postMessageToHost('setPreferPowerMeterWatts', { prefer: e.target.checked });
+    });
+  }
+
   // 心拍計スキャン開始
   if (btnScanHr) {
     btnScanHr.addEventListener('click', () => {
@@ -467,11 +539,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
   btnSaveSettings.addEventListener('click', () => {
     const ftp = parseInt(settingFtp.value) || 200;
+    const weight = parseFloat(settingWeight ? settingWeight.value : 70.0) || 70.0;
     const maxHr = parseInt(settingMaxHr ? settingMaxHr.value : 190) || 190;
     const restingHr = parseInt(settingRestingHr ? settingRestingHr.value : 60) || 60;
     const pedalBrake = settingPedalBrake.checked;
     const recentDist = parseInt(settingProfileRecentDistance ? settingProfileRecentDistance.value : 200) || 200;
     currentFtp = ftp;
+    currentRiderWeight = weight;
     currentMaxHr = maxHr;
     currentRestingHr = restingHr;
     elevationChart.setRecentDistance(recentDist);
@@ -482,6 +556,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (selectProfileRecentDistance) selectProfileRecentDistance.value = recentDist.toString();
     postMessageToHost('updateSettings', {
       ftp,
+      weight,
       pedalBrake,
       maxHeartRate: maxHr,
       restingHeartRate: restingHr,
@@ -552,6 +627,17 @@ document.addEventListener('DOMContentLoaded', () => {
           bleConnectStatus.textContent = `❌ 接続失敗: ${data.payload.name}`;
           btnConnectBle.disabled = false;
         }
+      } else if (data.type === 'cadenceConnectResult') {
+        if (data.payload.success) {
+          if (cadConnectStatus) cadConnectStatus.textContent = `✅ 接続完了: ${data.payload.name}`;
+          if (currentCadDeviceText) currentCadDeviceText.textContent = data.payload.name;
+          if (btnDisconnectCad) btnDisconnectCad.classList.remove('hidden');
+          if (cadDot) cadDot.className = 'status-dot connected';
+          if (cadText) cadText.textContent = `CAD: Connected (${data.payload.name})`;
+        } else {
+          if (cadConnectStatus) cadConnectStatus.textContent = `❌ 接続失敗: ${data.payload.name}`;
+          if (btnConnectCad) btnConnectCad.disabled = false;
+        }
       } else if (data.type === 'hrConnectResult') {
         if (data.payload.success) {
           hrConnectStatus.textContent = `✅ 接続完了: ${data.payload.name}`;
@@ -581,6 +667,12 @@ document.addEventListener('DOMContentLoaded', () => {
           currentFtp = data.payload.ftp;
           settingFtp.value = currentFtp;
         }
+        if (typeof data.payload.weight !== 'undefined') {
+          currentRiderWeight = data.payload.weight;
+          if (settingWeight) {
+            settingWeight.value = currentRiderWeight;
+          }
+        }
         if (data.payload.maxHeartRate && settingMaxHr) {
           currentMaxHr = data.payload.maxHeartRate;
           settingMaxHr.value = currentMaxHr;
@@ -597,6 +689,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (data.payload.powerSourceName && currentDeviceText) {
           currentDeviceText.textContent = data.payload.powerSourceName;
+        }
+        if (data.payload.cadenceSourceName && currentCadDeviceText) {
+          currentCadDeviceText.textContent = data.payload.cadenceSourceName;
+          if (btnDisconnectCad) btnDisconnectCad.classList.remove('hidden');
+        }
+        if (typeof data.payload.preferPowerMeterWatts !== 'undefined' && settingPreferPowerMeter) {
+          settingPreferPowerMeter.checked = data.payload.preferPowerMeterWatts;
         }
         if (data.payload.heartRateSourceName && currentHrDeviceText) {
           currentHrDeviceText.textContent = data.payload.heartRateSourceName;
@@ -623,25 +722,29 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // BLEデバイス一覧の描画 (トレーナーと心拍計に分別)
+  // BLEデバイス一覧の描画 (トレーナー、ケイデンス/パワーメーター、心拍計に分別)
   function renderBleDevices(devices) {
     bleScanningIndicator.classList.add('hidden');
+    if (cadScanningIndicator) cadScanningIndicator.classList.add('hidden');
     if (hrScanningIndicator) hrScanningIndicator.classList.add('hidden');
     btnScanBle.disabled = false;
+    if (btnScanCad) btnScanCad.disabled = false;
     if (btnScanHr) btnScanHr.disabled = false;
 
     if (!devices || devices.length === 0) {
       bleDeviceList.innerHTML = '<div class="device-list-empty">デバイスが見つかりませんでした。電源やBluetoothがONになっているか確認してください。</div>';
+      if (cadDeviceList) cadDeviceList.innerHTML = '<div class="device-list-empty">ケイデンス/パワーメーターが見つかりませんでした。</div>';
       if (hrDeviceList) hrDeviceList.innerHTML = '<div class="device-list-empty">心拍計が見つかりませんでした。</div>';
       return;
     }
 
     const trainerDevices = devices.filter(d => d.Category === 'trainer' || d.SensorTypeInt === 1 || d.SensorTypeInt === 2 || d.Category === 'other');
+    const cadenceDevices = devices.filter(d => d.Category === 'cadence' || d.SensorTypeInt === 2 || d.SensorTypeInt === 1 || d.Category === 'other');
     const hrDevices = devices.filter(d => d.Category === 'heartrate' || d.SensorTypeInt === 3 || d.Category === 'other');
 
     // 1. トレーナー一覧描画
     if (trainerDevices.length === 0) {
-      bleDeviceList.innerHTML = '<div class="device-list-empty">スマートローラー・パワーメーターが見つかりませんでした。</div>';
+      bleDeviceList.innerHTML = '<div class="device-list-empty">スマートローラーが見つかりませんでした。</div>';
     } else {
       bleDeviceList.innerHTML = '';
       trainerDevices.forEach(dev => {
@@ -650,10 +753,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const isPower = dev.SensorTypeInt === 2;
         const isOther = dev.Category === 'other';
         const badgeText = isOther ? 'Bluetooth' : dev.TypeName;
-        const badgeClass = isPower ? 'power' : (isOther ? '' : '');
+        const badgeClass = isPower ? 'power' : '';
         item.innerHTML = `
           <div class="device-item-left">
-            <span class="device-item-name">${dev.Name}</span>
+            <span class="device-item-name">🚴 ${dev.Name}</span>
             <span class="device-item-sub">MAC: ${dev.FormattedMac} ${dev.IsPaired ? '[ペアリング済]' : ''}</span>
           </div>
           <span class="device-item-badge ${badgeClass}">${badgeText}</span>
@@ -669,10 +772,40 @@ document.addEventListener('DOMContentLoaded', () => {
       });
     }
 
-    // 2. 心拍計一覧描画
+    // 2. ケイデンス / パワーメーター一覧描画 (Magene PES-P505 等)
+    if (cadDeviceList) {
+      if (cadenceDevices.length === 0) {
+        cadDeviceList.innerHTML = '<div class="device-list-empty">ケイデンス/パワーメーターが見つかりませんでした。</div>';
+      } else {
+        cadDeviceList.innerHTML = '';
+        cadenceDevices.forEach(dev => {
+          const item = document.createElement('div');
+          item.className = 'device-item';
+          const isMageneOrP505 = dev.Name.toUpperCase().includes('PES') || dev.Name.toUpperCase().includes('P505') || dev.Name.toUpperCase().includes('MAGENE');
+          const badgeText = isMageneOrP505 ? 'P505 / Power' : dev.TypeName;
+          item.innerHTML = `
+            <div class="device-item-left">
+              <span class="device-item-name">⚡ ${dev.Name}</span>
+              <span class="device-item-sub">MAC: ${dev.FormattedMac} ${dev.IsPaired ? '[ペアリング済]' : ''}</span>
+            </div>
+            <span class="device-item-badge power">${badgeText}</span>
+          `;
+          item.addEventListener('click', () => {
+            cadDeviceList.querySelectorAll('.device-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            selectedCadDevice = dev;
+            if (btnConnectCad) btnConnectCad.disabled = false;
+            if (cadConnectStatus) cadConnectStatus.textContent = `選択中: ${dev.Name}`;
+          });
+          cadDeviceList.appendChild(item);
+        });
+      }
+    }
+
+    // 3. 心拍計一覧描画
     if (hrDeviceList) {
       if (hrDevices.length === 0) {
-        hrDeviceList.innerHTML = '<div class="device-list-empty">周囲にBluetooth心拍計が見つかりませんでした。心拍計が装着されており、Bluetoothがオンになっているか確認してください。</div>';
+        hrDeviceList.innerHTML = '<div class="device-list-empty">周囲にBluetooth心拍計が見つかりませんでした。</div>';
       } else {
         hrDeviceList.innerHTML = '';
         hrDevices.forEach(dev => {
@@ -710,9 +843,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if (s.Ftp && s.Ftp > 0) {
       currentFtp = s.Ftp;
     }
+    if (s.RiderWeightKg && s.RiderWeightKg > 0) {
+      currentRiderWeight = s.RiderWeightKg;
+    }
     const power = Math.round(s.Power);
     powerVal.textContent = power;
-    const wkg = (power / 70.0).toFixed(1); // 基準体重70kg換算
+    const wkg = (s.Wkg && s.Wkg > 0) ? s.Wkg.toFixed(1) : (power / currentRiderWeight).toFixed(1);
     wkgVal.textContent = `${wkg} W/kg`;
     const zonePercent = Math.min(100, (power / (currentFtp * 1.5)) * 100);
     powerZoneIndicator.style.width = `${zonePercent}%`;
@@ -766,10 +902,13 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
 
-    // 4. ケイデンス・ギア・距離
+    // 4. ケイデンス・ギア・距離・カロリー
     cadenceVal.textContent = s.Cadence > 0 ? Math.round(s.Cadence) : '--';
     gearVal.textContent = s.IsTelemetryActive ? (s.Gear === 0 ? 'R' : `${s.Gear}`) : '--';
     distVal.textContent = s.TotalDistanceKm.toFixed(2);
+    if (calSub) {
+      calSub.textContent = `${Math.round(s.CaloriesKcal || 0)} kcal`;
+    }
 
     // 5. スロットル・ブレーキ
     const throttlePct = Math.round(s.Throttle * 100);
@@ -823,6 +962,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     if (profEleGain) profEleGain.textContent = `+${Math.round(s.ElevationGainMeters)} m`;
     if (profDist) profDist.textContent = `${s.TotalDistanceKm.toFixed(2)} km`;
+    if (profCal) profCal.textContent = `${Math.round(s.CaloriesKcal || 0)} kcal`;
     elevationChart.update(s.ElevationMeters, s.TotalDistanceKm, s.CarSpeedKmh, s.TargetSpeedKmh, s.Power, s.HeartRate);
 
     // 9. ステータスインジケーター
@@ -841,6 +981,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if (s.ConnectedHrDeviceName && s.ConnectedHrDeviceName !== 'None' && currentHrDeviceText) {
       currentHrDeviceText.textContent = s.ConnectedHrDeviceName;
       if (btnDisconnectHr) btnDisconnectHr.classList.remove('hidden');
+    }
+
+    if (cadDot) {
+      cadDot.className = `status-dot ${s.IsCadenceConnected ? 'connected' : 'disconnected'}`;
+    }
+    if (cadText) {
+      cadText.textContent = `CAD: ${s.CadenceStatus || (s.IsCadenceConnected ? '接続' : '切断')}`;
+    }
+    if (s.ConnectedCadenceDeviceName && s.ConnectedCadenceDeviceName !== 'None' && currentCadDeviceText) {
+      currentCadDeviceText.textContent = s.ConnectedCadenceDeviceName;
+      if (btnDisconnectCad) btnDisconnectCad.classList.remove('hidden');
     }
 
     udpDot.className = `status-dot ${s.IsTelemetryActive ? 'connected' : 'disconnected'}`;

@@ -63,8 +63,20 @@ namespace HorizonCyclingBridge.Telemetry
         private DateTime _sessionStartTime;
         private DateTime _lastRecordTime;
         private double _movingSeconds = 0.0;
+        private double _accumulatedCaloriesKcal = 0.0;
         private bool _isManuallyPaused = false;
         private bool _isCurrentlyMoving = false;
+
+        /// <summary>
+        /// 現在セッションのリアルタイム累積消費カロリー (kcal)
+        /// </summary>
+        public double CurrentCaloriesKcal
+        {
+            get
+            {
+                lock (_lock) return Math.Round(_accumulatedCaloriesKcal, 1);
+            }
+        }
 
         public SessionState State
         {
@@ -117,6 +129,7 @@ namespace HorizonCyclingBridge.Telemetry
                 _trackPoints.Clear();
                 _sessionStartTime = DateTime.UtcNow;
                 _movingSeconds = 0.0;
+                _accumulatedCaloriesKcal = 0.0;
                 _lastRecordTime = DateTime.MinValue;
                 _isManuallyPaused = false;
                 _isCurrentlyMoving = false;
@@ -140,9 +153,9 @@ namespace HorizonCyclingBridge.Telemetry
         }
 
         /// <summary>
-        /// 走行状態の更新および移動時間の積算
+        /// 走行状態の更新および移動時間・消費カロリーの積算
         /// </summary>
-        public void UpdateMovingState(bool isMoving, double deltaSeconds)
+        public void UpdateMovingState(bool isMoving, double deltaSeconds, double powerWatts = 0.0, double speedKmh = 0.0, double riderWeightKg = 70.0)
         {
             lock (_lock)
             {
@@ -156,8 +169,36 @@ namespace HorizonCyclingBridge.Telemetry
                 if (isMoving && deltaSeconds > 0 && deltaSeconds < 2.0)
                 {
                     _movingSeconds += deltaSeconds;
+
+                    // 体重連動カロリー計算 (kcal)
+                    double safeWeight = riderWeightKg > 0 ? riderWeightKg : 70.0;
+                    double deltaHours = deltaSeconds / 3600.0;
+
+                    if (powerWatts > 0)
+                    {
+                        // パワー(W)ベース計算:
+                        // 機械的仕事量 Work(kJ) = Power(W) * deltaSeconds / 1000
+                        // 人間の運動効率約24% (1 kcal ≈ 4.184 kJ) により Work(kJ) * 1.0 kcal
+                        // 加えて体重に応じた安静時代謝(1.0 METs * weight * time)を加算
+                        double workKj = (powerWatts * deltaSeconds) / 1000.0;
+                        _accumulatedCaloriesKcal += (workKj * 1.0) + (safeWeight * deltaHours);
+                    }
+                    else if (speedKmh >= 2.0)
+                    {
+                        // パワーゼロ時の走行METs推定（下り坂・惰性走行）
+                        double mets = speedKmh < 15.0 ? 4.0 : (speedKmh < 22.0 ? 6.0 : (speedKmh < 28.0 ? 8.0 : 10.0));
+                        _accumulatedCaloriesKcal += mets * safeWeight * deltaHours * 1.05;
+                    }
                 }
             }
+        }
+
+        /// <summary>
+        /// 互換用オーバーロード
+        /// </summary>
+        public void UpdateMovingState(bool isMoving, double deltaSeconds)
+        {
+            UpdateMovingState(isMoving, deltaSeconds, 0.0, 0.0, 70.0);
         }
 
         /// <summary>
@@ -223,7 +264,7 @@ namespace HorizonCyclingBridge.Telemetry
             AddTrackPoint(lat, lon, 0, 0, ele, speedKmh, targetSpeedKmh, power, cadence, heartRate, grade, distKm);
         }
 
-        public SessionSummary StopAndExport(string outputDirectory, double totalDistanceKm, double elevationGainM)
+        public SessionSummary StopAndExport(string outputDirectory, double totalDistanceKm, double elevationGainM, double riderWeightKg = 70.0)
         {
             lock (_lock)
             {
@@ -316,9 +357,17 @@ namespace HorizonCyclingBridge.Telemetry
                         summary.NormalizedPowerWatts = Math.Round(summary.AvgPowerWatts);
                     }
 
-                    // カロリー概算: Work(kJ) = AvgPower(W) * MovingTime(s) / 1000, 運動効率20-25%のため kJ ≈ kcal
-                    double workKj = (summary.AvgPowerWatts * summary.MovingDuration.TotalSeconds) / 1000.0;
-                    summary.CaloriesKcal = Math.Round(workKj * 1.05);
+                    // 体重連動カロリー計算: リアルタイム積算値がある場合はそれを採用、なければ仕事量＋体重安静代謝から算出
+                    double safeWeight = riderWeightKg > 0 ? riderWeightKg : 70.0;
+                    if (_accumulatedCaloriesKcal > 0)
+                    {
+                        summary.CaloriesKcal = Math.Round(_accumulatedCaloriesKcal, 0);
+                    }
+                    else
+                    {
+                        double workKj = (summary.AvgPowerWatts * summary.MovingDuration.TotalSeconds) / 1000.0;
+                        summary.CaloriesKcal = Math.Round(workKj * 1.0 + (safeWeight * summary.MovingDuration.TotalHours), 0);
+                    }
 
                     Directory.CreateDirectory(outputDirectory);
                     string timeStampStr = DateTime.Now.ToString("yyyyMMdd_HHmmss");

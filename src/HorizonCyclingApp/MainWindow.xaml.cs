@@ -358,6 +358,10 @@ namespace HorizonCyclingApp
                             {
                                 _bridgeService.SetFtp(ftpProp.GetDouble());
                             }
+                            if (root.TryGetProperty("weight", out var weightProp))
+                            {
+                                _bridgeService.SetRiderWeight(weightProp.GetDouble());
+                            }
                             if (root.TryGetProperty("pedalBrake", out var brakeProp))
                             {
                                 _bridgeService.SetPedalBrake(brakeProp.GetBoolean());
@@ -509,6 +513,40 @@ namespace HorizonCyclingApp
 
                     case "disconnectHeartRate":
                         _bridgeService?.DisconnectHeartRateSensor();
+                        break;
+
+                    case "connectCadence":
+                        if (_bridgeService != null &&
+                            root.TryGetProperty("mac", out var cadMacProp) &&
+                            root.TryGetProperty("name", out var cadNameProp))
+                        {
+                            ulong mac = cadMacProp.GetUInt64();
+                            string name = cadNameProp.GetString() ?? "";
+                            _ = Task.Run(async () =>
+                            {
+                                bool success = await _bridgeService.ConnectCadenceSensorAsync(mac, name);
+                                Dispatcher.Invoke(() =>
+                                {
+                                    string connJson = JsonSerializer.Serialize(new
+                                    {
+                                        type = "cadenceConnectResult",
+                                        payload = new { success, name, mac }
+                                    });
+                                    webView.CoreWebView2?.PostWebMessageAsJson(connJson);
+                                });
+                            });
+                        }
+                        break;
+
+                    case "disconnectCadence":
+                        _bridgeService?.DisconnectCadenceSensor();
+                        break;
+
+                    case "setPreferPowerMeterWatts":
+                        if (_bridgeService != null && root.TryGetProperty("prefer", out var prefProp))
+                        {
+                            _bridgeService.SetPreferPowerMeterWatts(prefProp.GetBoolean());
+                        }
                         break;
 
                     #region ワークアウト関連アクション
@@ -723,10 +761,15 @@ namespace HorizonCyclingApp
                     defaultMode = _bridgeService.Config.DefaultMode,
                     difficulty = _bridgeService.Config.TrainerDifficulty,
                     ftp = _bridgeService.Config.Ftp,
+                    weight = _bridgeService.Config.RiderWeightKg,
                     maxHeartRate = _bridgeService.Config.MaxHeartRate,
                     restingHeartRate = _bridgeService.Config.RestingHeartRate,
                     pedalBrake = _bridgeService.Config.PedalBrakeEnabled,
-                    profileRecentDistance = _bridgeService.Config.ProfileRecentDistanceM,
+                    powerSourceName = _bridgeService.Config.PowerSourceName,
+                    cadenceSourceMacAddress = _bridgeService.Config.CadenceSourceMacAddress,
+                    cadenceSourceName = _bridgeService.Config.CadenceSourceName,
+                    cadenceSourceEnabled = _bridgeService.Config.CadenceSourceEnabled,
+                    preferPowerMeterWatts = _bridgeService.Config.PreferPowerMeterWatts,
                     heartRateSourceMacAddress = _bridgeService.Config.HeartRateSourceMacAddress,
                     heartRateSourceName = _bridgeService.Config.HeartRateSourceName,
                     heartRateEnabled = _bridgeService.Config.HeartRateEnabled,

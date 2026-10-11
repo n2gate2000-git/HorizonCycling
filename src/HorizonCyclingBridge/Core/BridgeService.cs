@@ -23,14 +23,22 @@ namespace HorizonCyclingBridge.Core
         public string HrStatus { get; set; } = "Disconnected";
         public string ConnectedHrDeviceName { get; set; } = "None";
 
+        // セカンダリ ケイデンス / パワーメーター (Magene PES-P505 等) ステータス
+        public bool IsCadenceConnected { get; set; } = false;
+        public string CadenceStatus { get; set; } = "Disconnected";
+        public string ConnectedCadenceDeviceName { get; set; } = "None";
+
         public bool IsVJoyActive { get; set; } = false;
         public bool IsTelemetryActive { get; set; } = false;
         public bool PedalBrakeEnabled { get; set; } = true;
         public double Difficulty { get; set; } = 0.5;
         public double Ftp { get; set; } = 200.0;
+        public double RiderWeightKg { get; set; } = 70.0;
 
         // リアルタイムメトリクス
         public double Power { get; set; } = 0.0;
+        public double Wkg { get; set; } = 0.0;
+        public double CaloriesKcal { get; set; } = 0.0;
         public double Cadence { get; set; } = 0.0;
         public double HeartRate { get; set; } = 0.0;
         public double TargetSpeedKmh { get; set; } = 0.0;
@@ -94,6 +102,7 @@ namespace HorizonCyclingBridge.Core
         private FtmsClient? _ftmsClient;
         private CyclingPowerClient? _powerClient;
         private HeartRateClient? _heartRateClient;
+        private CyclingPowerClient? _cadenceClient; // セカンダリ ケイデンス / パワーメーター (Magene PES-P505 等)
         private IPowerMappingStrategy _strategy;
 
         private double _currentPower = 0.0;
@@ -119,6 +128,13 @@ namespace HorizonCyclingBridge.Core
 
         private bool _isHrConnected = false;
         private string _hrStatus = "Disconnected";
+
+        private bool _isCadenceConnected = false;
+        private string _cadenceStatus = "Disconnected";
+        private double _cadencePower = 0.0;
+        private double _ftmsPower = 0.0;
+        private double _cadenceSensorCadence = 0.0;
+        private double _ftmsCadence = 0.0;
         private DateTime _lastLoopTime = DateTime.UtcNow;
 
         // メニュー画面・0,0,0ワープ対策用キャッシュ
@@ -207,7 +223,7 @@ namespace HorizonCyclingBridge.Core
             }
             else
             {
-                _strategy = new SimulationMappingStrategy();
+                _strategy = new SimulationMappingStrategy { RiderWeightKg = _config.RiderWeightKg };
             }
             _strategy.PedalBrakeEnabled = _config.PedalBrakeEnabled;
 
@@ -272,7 +288,7 @@ namespace HorizonCyclingBridge.Core
             }
             else
             {
-                _strategy = new SimulationMappingStrategy();
+                _strategy = new SimulationMappingStrategy { RiderWeightKg = _config.RiderWeightKg };
                 Log("[MODE] Switched to SIMULATION MODE.");
             }
             _strategy.PedalBrakeEnabled = _config.PedalBrakeEnabled;
@@ -310,6 +326,19 @@ namespace HorizonCyclingBridge.Core
                 arcade.Ftp = ftp;
             }
             Log($"[CONFIG] Rider FTP set to {_config.Ftp:F0}W.");
+        }
+
+        public void SetRiderWeight(double weight)
+        {
+            if (weight < 30.0 || weight > 250.0) return;
+            _config.RiderWeightKg = Math.Round(weight, 1);
+            ConfigManager.Save(_config);
+            if (_strategy is SimulationMappingStrategy sim)
+            {
+                sim.RiderWeightKg = _config.RiderWeightKg;
+            }
+            Log($"[CONFIG] Rider Weight set to {_config.RiderWeightKg:F1}kg (Power-to-weight and physics updated).");
+            PushCurrentSnapshot();
         }
 
         public void SetMaxHeartRate(int maxHr)
@@ -409,7 +438,7 @@ namespace HorizonCyclingBridge.Core
                 _sessionManager.AddTrackPoint(lat, lon, pixelX, pixelY, _elevationTracker.CurrentElevation, 0.0, 0.0, _currentPower, _currentCadence, _currentHeartRate, _filteredGrade, _elevationTracker.TotalDistanceMeters / 1000.0);
             }
 
-            var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
+            var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain, _config.RiderWeightKg);
             if (!string.IsNullOrEmpty(summary.SavedFilePath))
             {
                 Log($"[SESSION] Finished. Saved to: {summary.SavedFilePath}");
@@ -435,7 +464,7 @@ namespace HorizonCyclingBridge.Core
             SessionSummary? summary = null;
             if (_sessionManager.PointCount > 0 || _elevationTracker.TotalDistanceMeters > 0)
             {
-                summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
+                summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain, _config.RiderWeightKg);
                 if (!string.IsNullOrEmpty(summary.SavedFilePath))
                 {
                     Log($"[SESSION] Saved previous session before clearing: {summary.SavedFilePath}");
@@ -635,6 +664,10 @@ namespace HorizonCyclingBridge.Core
             {
                 await ConnectConfiguredHeartRateAsync();
             });
+            _ = Task.Run(async () =>
+            {
+                await ConnectConfiguredCadenceAsync();
+            });
         }
 
         private void OnIdleTimerTick(object? state)
@@ -648,6 +681,13 @@ namespace HorizonCyclingBridge.Core
                 {
                     _workoutEngine.Update(1.0, _config.Ftp, _currentPower, _currentCadence);
                 }
+
+                // Forza未起動時でもローラーを漕いでいる場合は移動時間とカロリーを積算
+                if (_currentPower > 0)
+                {
+                    _sessionManager.UpdateMovingState(true, 1.0, _currentPower, 0.0, _config.RiderWeightKg);
+                }
+
                 PushCurrentSnapshot();
             }
         }
@@ -691,7 +731,26 @@ namespace HorizonCyclingBridge.Core
                             Name = string.IsNullOrEmpty(bleDevice.Name) ? "Power Meter" : bleDevice.Name,
                             TypeName = "Cycling Power Meter",
                             SensorTypeInt = 2,
-                            Category = "trainer",
+                            Category = "cadence",
+                            IsPaired = true
+                        });
+                    }
+                }
+
+                var cscSelector = Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceService.GetDeviceSelectorFromUuid(Guid.Parse("00001816-0000-1000-8000-00805f9b34fb"));
+                var cscDevices = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(cscSelector);
+                foreach (var d in cscDevices)
+                {
+                    var bleDevice = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromIdAsync(d.Id);
+                    if (bleDevice != null && !foundDevices.Any(x => x.Address == bleDevice.BluetoothAddress))
+                    {
+                        foundDevices.Add(new BleDeviceInfo
+                        {
+                            Address = bleDevice.BluetoothAddress,
+                            Name = string.IsNullOrEmpty(bleDevice.Name) ? "Cadence Sensor" : bleDevice.Name,
+                            TypeName = "Cadence Sensor",
+                            SensorTypeInt = 2,
+                            Category = "cadence",
                             IsPaired = true
                         });
                     }
@@ -737,19 +796,41 @@ namespace HorizonCyclingBridge.Core
                         bool hasHrUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("0000180d-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("0000180d", StringComparison.OrdinalIgnoreCase));
                         bool hasFtmsUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001826-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001826", StringComparison.OrdinalIgnoreCase));
                         bool hasPowerUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001818-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001818", StringComparison.OrdinalIgnoreCase));
+                        bool hasCscUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001816-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001816", StringComparison.OrdinalIgnoreCase));
 
                         string upperName = localName.ToUpperInvariant();
+
+                        bool isPowerOrCadenceByName = upperName.Contains("PES") ||
+                                                      upperName.Contains("P505") ||
+                                                      upperName.Contains("P325") ||
+                                                      upperName.Contains("P500") ||
+                                                      upperName.Contains("P300") ||
+                                                      upperName.Contains("PWR") ||
+                                                      upperName.Contains("POWER") ||
+                                                      upperName.Contains("CADENCE") ||
+                                                      upperName.Contains("RPM") ||
+                                                      upperName.Contains("BK467") ||
+                                                      upperName.Contains("S3+") ||
+                                                      upperName.Contains("SPD/CAD") ||
+                                                      upperName.Contains("ASSIOMA") ||
+                                                      upperName.Contains("STAGES") ||
+                                                      upperName.Contains("4IIII") ||
+                                                      upperName.Contains("ROTOR") ||
+                                                      upperName.Contains("FAVERO");
+
+                        bool isMageneDevice = upperName.Contains("MAGENE");
+
                         bool isHrByName = upperName.Contains("HR") ||
                                           upperName.Contains("HEART") ||
                                           upperName.Contains("PULSE") ||
                                           upperName.Contains("POLAR") ||
                                           upperName.Contains("TICKR") ||
                                           upperName.Contains("COOSPO") ||
-                                          upperName.Contains("MAGENE") ||
                                           upperName.Contains("GARMIN") ||
                                           upperName.Contains("H64") ||
                                           upperName.Contains("H303") ||
                                           upperName.Contains("H808") ||
+                                          upperName.Contains("H603") ||
                                           upperName.Contains("H10") ||
                                           upperName.Contains("H9") ||
                                           upperName.Contains("H7") ||
@@ -759,8 +840,7 @@ namespace HorizonCyclingBridge.Core
                                           upperName.Contains("BAND") ||
                                           upperName.Contains("CHEST") ||
                                           upperName.Contains("COROS") ||
-                                          upperName.Contains("DUAL") ||
-                                          upperName.Contains("CYCPLUS");
+                                          upperName.Contains("DUAL");
 
                         bool isTrainerByName = upperName.Contains("TACX") ||
                                                upperName.Contains("KICKR") ||
@@ -772,59 +852,21 @@ namespace HorizonCyclingBridge.Core
                                                upperName.Contains("SUITO") ||
                                                upperName.Contains("THINKRIDER") ||
                                                upperName.Contains("T2") ||
+                                               upperName.Contains("CYCLOPS") ||
                                                upperName.Contains("TRAINER");
 
-                        bool isPowerByName = upperName.Contains("POWER") ||
-                                             upperName.Contains("ASSIOMA") ||
-                                             upperName.Contains("STAGES") ||
-                                             upperName.Contains("4IIII") ||
-                                             upperName.Contains("ROTOR") ||
-                                             upperName.Contains("FAVERO");
-
-                        // 既存デバイスの更新 (Scan Responseで名前が届いた場合など)
-                        var existing = foundDevices.FirstOrDefault(d => d.Address == e.BluetoothAddress);
-                        if (existing != null)
-                        {
-                            if (!string.IsNullOrEmpty(localName) && (existing.Name == "Unknown Device" || existing.Name == "Heart Rate Monitor" || existing.Name == "FTMS Trainer" || existing.Name == "Power Meter"))
-                            {
-                                existing.Name = localName;
-                            }
-                            if (hasHrUuid || isHrByName)
-                            {
-                                existing.Category = "heartrate";
-                                existing.SensorTypeInt = 3;
-                                existing.TypeName = "Heart Rate Monitor";
-                            }
-                            else if (hasFtmsUuid || isTrainerByName)
-                            {
-                                existing.Category = "trainer";
-                                existing.SensorTypeInt = 1;
-                                existing.TypeName = "FTMS Smart Trainer";
-                            }
-                            else if (hasPowerUuid || isPowerByName)
-                            {
-                                existing.Category = "trainer";
-                                existing.SensorTypeInt = 2;
-                                existing.TypeName = "Cycling Power Meter";
-                            }
-                            return;
-                        }
-
-                        // 名前が完全に空で、かつ該当UUIDもない無名パケットはスキップ
-                        if (string.IsNullOrEmpty(localName) && !hasHrUuid && !hasFtmsUuid && !hasPowerUuid)
-                        {
-                            return;
-                        }
-
+                        // カテゴリ決定（UUIDを最優先、次に明確なキーワードで判定）
                         string category;
                         int typeInt;
                         string typeName;
 
-                        if (hasHrUuid || isHrByName)
+                        if (hasPowerUuid || hasCscUuid || isPowerOrCadenceByName || (isMageneDevice && !isHrByName))
                         {
-                            category = "heartrate";
-                            typeInt = 3;
-                            typeName = "Heart Rate Monitor";
+                            category = "cadence";
+                            typeInt = 2;
+                            typeName = (upperName.Contains("PES") || upperName.Contains("P505") || upperName.Contains("POWER") || upperName.Contains("PWR") || hasPowerUuid)
+                                ? "Cycling Power Meter (P505等)"
+                                : "Cadence Sensor";
                         }
                         else if (hasFtmsUuid || isTrainerByName)
                         {
@@ -832,21 +874,39 @@ namespace HorizonCyclingBridge.Core
                             typeInt = 1;
                             typeName = "FTMS Smart Trainer";
                         }
-                        else if (hasPowerUuid || isPowerByName)
+                        else if (hasHrUuid || isHrByName)
                         {
-                            category = "trainer";
-                            typeInt = 2;
-                            typeName = "Cycling Power Meter";
+                            category = "heartrate";
+                            typeInt = 3;
+                            typeName = "Heart Rate Monitor";
                         }
-                        else
+                        else if (!string.IsNullOrEmpty(localName))
                         {
-                            // 名前はあるが特定UUIDを持たない汎用BLE機器
                             category = "other";
                             typeInt = 0;
                             typeName = "Bluetooth Device";
                         }
+                        else
+                        {
+                            // 名前も該当UUIDもないパケットはスキップ
+                            return;
+                        }
 
                         string finalName = !string.IsNullOrEmpty(localName) ? localName : typeName;
+
+                        // 既存デバイスの更新 (Scan Responseで名前やUUIDが届いた場合など)
+                        var existing = foundDevices.FirstOrDefault(d => d.Address == e.BluetoothAddress);
+                        if (existing != null)
+                        {
+                            if (!string.IsNullOrEmpty(localName) && (existing.Name == "Unknown Device" || existing.Name == "Heart Rate Monitor" || existing.Name == "FTMS Trainer" || existing.Name == "Power Meter" || existing.Name == "Cadence Sensor"))
+                            {
+                                existing.Name = localName;
+                            }
+                            existing.Category = category;
+                            existing.SensorTypeInt = typeInt;
+                            existing.TypeName = typeName;
+                            return;
+                        }
 
                         foundDevices.Add(new BleDeviceInfo
                         {
@@ -889,7 +949,7 @@ namespace HorizonCyclingBridge.Core
             _config.PowerSourceName = name;
             ConfigManager.Save(_config);
 
-            Log($"[BLE] Target device changed to {name} ({macAddress:X}). Connecting...");
+            Log($"[BLE] Target trainer/power device changed to {name} ({macAddress:X}). Connecting...");
             bool res = await ConnectConfiguredSensorAsync();
             PushCurrentSnapshot();
             return res;
@@ -905,10 +965,24 @@ namespace HorizonCyclingBridge.Core
                     _ftmsClient.OnStatusMessage += msg => Log($"[BLE] {msg}");
                     _ftmsClient.OnPowerReceived += power =>
                     {
-                        _currentPower = power;
+                        _ftmsPower = power;
+                        // ケイデンス/パワーメーター（P505）が接続されており、PreferPowerMeterWattsがtrueならパワーメーターの数値を優先
+                        if (_cadenceClient == null || !_isCadenceConnected || !_config.PreferPowerMeterWatts)
+                        {
+                            _currentPower = power;
+                        }
                         if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
                         {
                             PushCurrentSnapshot();
+                        }
+                    };
+                    _ftmsClient.OnCadenceReceived += cadence =>
+                    {
+                        _ftmsCadence = cadence;
+                        // ケイデンス/パワーメーター（P505）が接続されていない場合のみ、トレーナーのケイデンスを採用
+                        if (_cadenceClient == null || !_isCadenceConnected)
+                        {
+                            _currentCadence = cadence;
                         }
                     };
                     _ftmsClient.OnSpeedReceived += speed => _trainerSpeedKmh = speed;
@@ -946,6 +1020,10 @@ namespace HorizonCyclingBridge.Core
                             PushCurrentSnapshot();
                         }
                     };
+                    _powerClient.OnCadenceReceived += cadence =>
+                    {
+                        _currentCadence = cadence;
+                    };
 
                     string displayName = string.IsNullOrEmpty(_config.PowerSourceName) ? $"{_config.PowerSourceMacAddress:X}" : _config.PowerSourceName;
                     _bleStatus = $"Connecting ({displayName})...";
@@ -980,6 +1058,128 @@ namespace HorizonCyclingBridge.Core
                 PushCurrentSnapshot();
                 return false;
             }
+        }
+
+        // =========================================================================
+        // セカンダリ ケイデンス / パワーメーター (Magene PES-P505 等) 接続管理
+        // =========================================================================
+
+        public async Task<bool> ConnectCadenceSensorAsync(ulong macAddress, string name)
+        {
+            _cadenceClient?.Disconnect();
+            _cadenceClient?.Dispose();
+            _cadenceClient = null;
+
+            _isCadenceConnected = false;
+            _config.CadenceSourceMacAddress = macAddress;
+            _config.CadenceSourceName = name;
+            _config.CadenceSourceType = SensorType.CyclingPower;
+            _config.CadenceSourceEnabled = true;
+            ConfigManager.Save(_config);
+
+            Log($"[CADENCE] Target Cadence/Power Meter set to {name} ({macAddress:X}). Connecting...");
+            bool res = await ConnectConfiguredCadenceAsync();
+            PushCurrentSnapshot();
+            return res;
+        }
+
+        public void DisconnectCadenceSensor()
+        {
+            _cadenceClient?.Disconnect();
+            _cadenceClient?.Dispose();
+            _cadenceClient = null;
+
+            _isCadenceConnected = false;
+            _cadenceStatus = "Disconnected";
+            _cadenceSensorCadence = 0.0;
+            _currentCadence = _ftmsCadence;
+            _config.CadenceSourceMacAddress = 0;
+            _config.CadenceSourceName = "";
+            _config.CadenceSourceEnabled = false;
+            ConfigManager.Save(_config);
+            Log("[CADENCE] Cadence/Power Meter disconnected and unconfigured.");
+            PushCurrentSnapshot();
+        }
+
+        public async Task<bool> ConnectConfiguredCadenceAsync()
+        {
+            try
+            {
+                if (!_config.CadenceSourceEnabled || _config.CadenceSourceMacAddress == 0)
+                {
+                    _cadenceStatus = "Not Configured";
+                    PushCurrentSnapshot();
+                    return false;
+                }
+
+                _cadenceClient?.Disconnect();
+                _cadenceClient?.Dispose();
+                _cadenceClient = new CyclingPowerClient();
+
+                _cadenceClient.OnStatusMessage += msg => Log(msg);
+                _cadenceClient.OnCadenceReceived += cadence =>
+                {
+                    _cadenceSensorCadence = cadence;
+                    _currentCadence = cadence; // ケイデンスセンサーからの値を最優先で反映
+                    if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
+                    {
+                        PushCurrentSnapshot();
+                    }
+                };
+                _cadenceClient.OnPowerReceived += power =>
+                {
+                    _cadencePower = power;
+                    // PreferPowerMeterWatts が有効な場合、パワー値もP505を優先採用
+                    if (_config.PreferPowerMeterWatts)
+                    {
+                        _currentPower = power;
+                    }
+                    if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
+                    {
+                        PushCurrentSnapshot();
+                    }
+                };
+                _cadenceClient.OnConnectionStateChanged += connected =>
+                {
+                    _isCadenceConnected = connected;
+                    string devName = string.IsNullOrEmpty(_config.CadenceSourceName) ? $"{_config.CadenceSourceMacAddress:X}" : _config.CadenceSourceName;
+                    _cadenceStatus = connected ? $"Connected ({devName})" : "Disconnected";
+                    PushCurrentSnapshot();
+                };
+
+                string displayName = string.IsNullOrEmpty(_config.CadenceSourceName) ? $"{_config.CadenceSourceMacAddress:X}" : _config.CadenceSourceName;
+                _cadenceStatus = $"Connecting ({displayName})...";
+                PushCurrentSnapshot();
+
+                _isCadenceConnected = await _cadenceClient.ScanAndConnectAsync(20000, _config.CadenceSourceMacAddress);
+                if (_isCadenceConnected)
+                {
+                    _cadenceStatus = $"Connected ({displayName})";
+                    Log($"[CADENCE] Cadence/Power Meter connected: {displayName}.");
+                    PushCurrentSnapshot();
+                    return true;
+                }
+                else
+                {
+                    _cadenceStatus = "Connection Failed";
+                    PushCurrentSnapshot();
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"[CADENCE-ERR] Connection error: {ex.Message}");
+                _cadenceStatus = "Error";
+                PushCurrentSnapshot();
+                return false;
+            }
+        }
+
+        public void SetPreferPowerMeterWatts(bool prefer)
+        {
+            _config.PreferPowerMeterWatts = prefer;
+            ConfigManager.Save(_config);
+            Log($"[CONFIG] Prefer Power Meter Watts set to {prefer}.");
         }
 
         public async Task<bool> ConnectHeartRateSensorAsync(ulong macAddress, string name)
@@ -1195,7 +1395,7 @@ namespace HorizonCyclingBridge.Core
 
                 // オートポーズ判定（車速 >= 1.0 km/h かつ 有効座標 かつ 非ファストトラベル）
                 bool isMoving = packet.SpeedKmh >= 1.0f && !isFastTravel;
-                _sessionManager.UpdateMovingState(isMoving, deltaSec);
+                _sessionManager.UpdateMovingState(isMoving, deltaSec, _currentPower, packet.SpeedKmh, _config.RiderWeightKg);
 
                 // セッショントラックポイント記録 (走行中かつ有効座標のみ)
                 double currentTargetSpeed = (_strategy as SimulationMappingStrategy)?.TargetSpeedKmh ?? 0.0;
@@ -1206,7 +1406,7 @@ namespace HorizonCyclingBridge.Core
             else
             {
                 // メニュー中や停止中は移動フラグをfalseにしてオートポーズ
-                _sessionManager.UpdateMovingState(false, deltaSec);
+                _sessionManager.UpdateMovingState(false, deltaSec, _currentPower, 0.0, _config.RiderWeightKg);
                 // メニュー中や0,0,0受信時は直前の有効座標を維持して原点ジャンプを防ぐ
                 if (_hasValidPosition)
                 {
@@ -1341,13 +1541,20 @@ namespace HorizonCyclingBridge.Core
                 HrStatus = _hrStatus,
                 ConnectedHrDeviceName = string.IsNullOrEmpty(_config.HeartRateSourceName) ? "None" : _config.HeartRateSourceName,
 
+                IsCadenceConnected = _isCadenceConnected,
+                CadenceStatus = _cadenceStatus,
+                ConnectedCadenceDeviceName = string.IsNullOrEmpty(_config.CadenceSourceName) ? "None" : _config.CadenceSourceName,
+
                 IsVJoyActive = _vjoy.IsAcquired,
                 IsTelemetryActive = isTelemetryActive,
                 PedalBrakeEnabled = _strategy.PedalBrakeEnabled,
                 Difficulty = _trainerDifficulty,
                 Ftp = _config.Ftp,
+                RiderWeightKg = _config.RiderWeightKg,
 
                 Power = _currentPower,
+                Wkg = _config.RiderWeightKg > 0 ? Math.Round(_currentPower / _config.RiderWeightKg, 1) : 0.0,
+                CaloriesKcal = _sessionManager.CurrentCaloriesKcal,
                 Cadence = _currentCadence,
                 HeartRate = _currentHeartRate,
                 TargetSpeedKmh = targetSpeedKmh,
@@ -1411,7 +1618,7 @@ namespace HorizonCyclingBridge.Core
             {
                 if (_sessionManager.PointCount > 0 || _elevationTracker.TotalDistanceMeters > 0)
                 {
-                    var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain);
+                    var summary = _sessionManager.StopAndExport(ActivitiesDirectory, _elevationTracker.TotalDistanceMeters / 1000.0, _elevationTracker.ElevationGain, _config.RiderWeightKg);
                     if (!string.IsNullOrEmpty(summary.SavedFilePath))
                     {
                         Log($"[SESSION] Auto-saved on exit: {summary.SavedFilePath}");
@@ -1428,6 +1635,7 @@ namespace HorizonCyclingBridge.Core
             _ftmsClient?.Dispose();
             _powerClient?.Dispose();
             _heartRateClient?.Dispose();
+            _cadenceClient?.Dispose();
         }
     }
 }

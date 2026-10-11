@@ -5,8 +5,21 @@ namespace HorizonCyclingBridge.Core
 {
     public class SimulationMappingStrategy : IPowerMappingStrategy
     {
-        // 自転車の物理モデル定数（一般的なロードバイク＋ライダーを想定）
-        private const double M = 75.0;      // 総重量 (ライダー + 自転車) (kg)
+        // 自転車の物理モデル定数（ロードバイク＋ライダー）
+        private const double BIKE_WEIGHT_KG = 8.5;  // 車体装備重量 (kg)
+        private double _riderWeightKg = 70.0;       // ライダー実体重 (kg)
+
+        /// <summary>
+        /// ライダーの体重 (kg)
+        /// </summary>
+        public double RiderWeightKg
+        {
+            get => _riderWeightKg;
+            set => _riderWeightKg = Math.Clamp(value, 30.0, 200.0);
+        }
+
+        // 総重量 (ライダー + 自転車) (kg)
+        private double M => _riderWeightKg + BIKE_WEIGHT_KG;
         private const double G = 9.81;      // 重力加速度 (m/s^2)
         private const double Crr = 0.004;   // 転がり抵抗係数
         private const double Eta = 0.97;    // ドライブトレイン効率（チェーン摩擦損失）

@@ -173,6 +173,7 @@
               <span id="distVal" class="mid-number">0.0</span>
               <span class="unit">km</span>
             </div>
+            <div class="sub-label" id="calSub" style="color: var(--accent-orange); font-family: var(--font-mono); font-size: 10px;">0 kcal</div>
           </div>
         </div>
 
@@ -258,6 +259,10 @@
               <div class="stat-item">
                 <span class="stat-label">総走行距離</span>
                 <span class="stat-value" id="profDist">0.00 km</span>
+              </div>
+              <div class="stat-item">
+                <span class="stat-label">消費カロリー</span>
+                <span class="stat-value text-orange" id="profCal">0 kcal</span>
               </div>
             </div>
             <div class="profile-view-toggle">
@@ -512,6 +517,10 @@
           <span id="bleDot" class="status-dot disconnected"></span>
           <span id="bleText">BLE: 切断</span>
         </div>
+        <div id="cadStatusContainer" class="status-indicator clickable" title="クリックしてケイデンス/パワーメーター設定を開く">
+          <span id="cadDot" class="status-dot disconnected"></span>
+          <span id="cadText">CAD: 切断</span>
+        </div>
         <div id="hrStatusContainer" class="status-indicator clickable" title="クリックして心拍計設定を開く">
           <span id="hrDot" class="status-dot disconnected"></span>
           <span id="hrText">HR: 切断</span>
@@ -542,10 +551,10 @@
           <button id="btnCloseSettings" class="btn-close">&times;</button>
         </div>
         <div class="modal-body">
-          <!-- 1. スマートローラー / センサー接続 -->
+          <!-- 1. スマートローラー (FTMS) -->
           <div class="settings-section">
             <div class="section-title">
-              <span>🚴 スマートローラー / パワーメーター</span>
+              <span>🚴 スマートローラー (負荷制御 / トレーナー)</span>
               <button id="btnScanBle" class="btn-small btn-primary">🔍 デバイスを検索</button>
             </div>
             
@@ -571,7 +580,45 @@
             </div>
           </div>
 
-          <!-- 1-B. Bluetooth 心拍計 -->
+          <!-- 1-B. ケイデンス / パワーメーター (Magene PES-P505 等) -->
+          <div class="settings-section">
+            <div class="section-title">
+              <span>⚡ ケイデンス / パワーメーター (Magene PES-P505 等)</span>
+              <button id="btnScanCad" class="btn-small btn-primary">🔍 センサーを検索</button>
+            </div>
+            
+            <div class="current-device-row">
+              <span class="device-label">現在設定中:</span>
+              <span id="currentCadDeviceText" class="device-name">None</span>
+              <button id="btnDisconnectCad" class="btn-small btn-secondary hidden" style="margin-left: auto;">切断</button>
+            </div>
+
+            <!-- スキャン中表示 -->
+            <div id="cadScanningIndicator" class="scan-status hidden">
+              <span class="spinner"></span>
+              <span>周囲のケイデンス/パワーメーターを検索中 (約7秒)...</span>
+            </div>
+
+            <!-- 見つかったデバイス一覧 -->
+            <div id="cadDeviceList" class="device-list-container">
+              <div class="device-list-empty">「センサーを検索」ボタンを押して、Magene PES-P505等をスキャンしてください。</div>
+            </div>
+
+            <div class="connect-action-row">
+              <button id="btnConnectCad" class="btn-action btn-connect" disabled>選択したセンサーに接続</button>
+              <span id="cadConnectStatus" class="connect-status-text"></span>
+            </div>
+
+            <div class="form-group" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 8px;">
+              <label title="パワー値もスマートトレーナーではなくパワーメーターの正確な数値を優先して使用します">パワー値もこのパワーメーターを優先</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settingPreferPowerMeter" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <!-- 1-C. Bluetooth 心拍計 -->
           <div class="settings-section">
             <div class="section-title">
               <span>❤️ Bluetooth 心拍計 (Heart Rate Monitor)</span>
@@ -609,6 +656,10 @@
             <div class="form-group">
               <label>ライダー FTP (W)</label>
               <input type="number" id="settingFtp" value="200" min="50" max="600">
+            </div>
+            <div class="form-group">
+              <label>ライダー体重 (kg)</label>
+              <input type="number" id="settingWeight" value="70.0" min="30" max="250" step="0.5">
             </div>
             <div class="form-group">
               <label>ライダー最大心拍数 (bpm)</label>

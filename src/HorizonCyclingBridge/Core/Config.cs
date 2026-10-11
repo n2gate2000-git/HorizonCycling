@@ -25,9 +25,17 @@ namespace HorizonCyclingBridge.Core
         public int MaxHeartRate { get; set; } = 190;
         public int RestingHeartRate { get; set; } = 60; // 安静時心拍数 (デフォルト60bpm)
 
+        // セカンダリ ケイデンス / パワーメーター (Magene PES-P505 等) 設定
+        public ulong CadenceSourceMacAddress { get; set; } = 0;
+        public string CadenceSourceName { get; set; } = string.Empty;
+        public SensorType CadenceSourceType { get; set; } = SensorType.None;
+        public bool CadenceSourceEnabled { get; set; } = true;
+        public bool PreferPowerMeterWatts { get; set; } = true; // パワーメーター接続時、パワー値もパワーメーターを優先するか
+
         public int DefaultMode { get; set; } = 2;
         public double TrainerDifficulty { get; set; } = 0.5;
         public double Ftp { get; set; } = 200.0;
+        public double RiderWeightKg { get; set; } = 70.0; // ライダー体重 (デフォルト 70.0kg)
         public bool PedalBrakeEnabled { get; set; } = false; // ペダルブレーキ有効フラグ（デフォルトOFF）
         public int ProfileRecentDistanceM { get; set; } = 200; // 直近プロファイル表示距離（100m〜1000m、100m刻み、デフォルト200m）
 
