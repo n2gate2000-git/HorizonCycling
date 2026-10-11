@@ -140,6 +140,34 @@ namespace HorizonCyclingApp
                     case "stopWorkout":
                         _bridgeService?.StopWorkout();
                         _overlayWindow?.Hide();
+                        if (_overlayWindow != null) _overlayWindow.IsUserForcedVisible = false;
+                        break;
+                    case "stopFreerideSession":
+                        _bridgeService?.StopSession();
+                        break;
+                    case "hideOverlay":
+                        if (_overlayWindow != null)
+                        {
+                            _overlayWindow.IsUserDismissed = true;
+                            _overlayWindow.IsUserForcedVisible = false;
+                            _overlayWindow.Hide();
+                        }
+                        break;
+                    case "hotkeyStop":
+                        if (_bridgeService != null && _bridgeService.GetCurrentSnapshot().IsWorkoutActive)
+                        {
+                            _bridgeService.StopWorkout();
+                            _overlayWindow?.Hide();
+                        }
+                        else
+                        {
+                            if (_overlayWindow != null)
+                            {
+                                _overlayWindow.IsUserDismissed = true;
+                                _overlayWindow.IsUserForcedVisible = false;
+                                _overlayWindow.Hide();
+                            }
+                        }
                         break;
                 }
             });
@@ -167,7 +195,7 @@ namespace HorizonCyclingApp
                     }
 
                     // 最前面オーバーレイへ状態通知
-                    if (_overlayWindow != null && _overlayWindow.IsVisible)
+                    if (_overlayWindow != null && (_overlayWindow.IsVisible || (!_overlayWindow.IsUserDismissed && snapshot.FreerideOverlayEnabled) || _overlayWindow.IsUserForcedVisible))
                     {
                         _overlayWindow.SendState(snapshot, snapshot.Workout);
                     }
@@ -365,6 +393,15 @@ namespace HorizonCyclingApp
                             if (root.TryGetProperty("pedalBrake", out var brakeProp))
                             {
                                 _bridgeService.SetPedalBrake(brakeProp.GetBoolean());
+                            }
+                            if (root.TryGetProperty("freerideOverlay", out var foProp))
+                            {
+                                bool foEnabled = foProp.GetBoolean();
+                                _bridgeService.SetFreerideOverlay(foEnabled);
+                                if (_overlayWindow != null && foEnabled)
+                                {
+                                    _overlayWindow.IsUserDismissed = false;
+                                }
                             }
                             if (root.TryGetProperty("maxHeartRate", out var maxHrProp))
                             {
@@ -664,8 +701,23 @@ namespace HorizonCyclingApp
                         {
                             if (_overlayWindow != null)
                             {
-                                if (_overlayWindow.IsVisible) _overlayWindow.Hide();
-                                else _overlayWindow.Show();
+                                if (_overlayWindow.IsVisible)
+                                {
+                                    _overlayWindow.IsUserDismissed = true;
+                                    _overlayWindow.IsUserForcedVisible = false;
+                                    _overlayWindow.Hide();
+                                }
+                                else
+                                {
+                                    _overlayWindow.IsUserDismissed = false;
+                                    _overlayWindow.IsUserForcedVisible = true;
+                                    _overlayWindow.Show();
+                                    if (_bridgeService != null)
+                                    {
+                                        var snapshot = _bridgeService.GetCurrentSnapshot();
+                                        _overlayWindow.SendState(snapshot, snapshot.Workout);
+                                    }
+                                }
                             }
                         });
                         break;
@@ -762,6 +814,7 @@ namespace HorizonCyclingApp
                     difficulty = _bridgeService.Config.TrainerDifficulty,
                     ftp = _bridgeService.Config.Ftp,
                     weight = _bridgeService.Config.RiderWeightKg,
+                    freerideOverlay = _bridgeService.Config.FreerideOverlayEnabled,
                     maxHeartRate = _bridgeService.Config.MaxHeartRate,
                     restingHeartRate = _bridgeService.Config.RestingHeartRate,
                     pedalBrake = _bridgeService.Config.PedalBrakeEnabled,

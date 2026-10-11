@@ -37,6 +37,7 @@ namespace HorizonCyclingBridge.Core
         public double Ftp { get; set; } = 200.0;
         public double RiderWeightKg { get; set; } = 70.0; // ライダー体重 (デフォルト 70.0kg)
         public bool PedalBrakeEnabled { get; set; } = false; // ペダルブレーキ有効フラグ（デフォルトOFF）
+        public bool FreerideOverlayEnabled { get; set; } = false; // 通常走行時の最前面HUDオーバーレイ表示（オプション、デフォルトOFF）
         public int ProfileRecentDistanceM { get; set; } = 200; // 直近プロファイル表示距離（100m〜1000m、100m刻み、デフォルト200m）
 
         // マップ座標変換パラメータ

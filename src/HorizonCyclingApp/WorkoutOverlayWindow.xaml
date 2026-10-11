@@ -142,7 +142,8 @@
                         <DropShadowEffect BlurRadius="8" ShadowDepth="0" Color="#10B981"/>
                     </Border.Effect>
                 </Border>
-                <TextBlock Text="HORIZON WORKOUT HUD"
+                <TextBlock x:Name="txtToolbarTitle"
+                           Text="HORIZON WORKOUT HUD"
                            Foreground="#94A3B8"
                            FontFamily="Segoe UI, Outfit, Arial"
                            FontSize="11"
@@ -150,10 +151,19 @@
                            VerticalAlignment="Center"
                            Margin="0,0,16,0"/>
 
-                <Button x:Name="btnPrevStep" Content="⏮" Style="{StaticResource GlassButtonStyle}" Margin="0,0,6,0" Click="BtnPrevStep_Click"/>
-                <Button x:Name="btnPauseWorkout" Content="⏸" Style="{StaticResource GlassButtonStyle}" Margin="0,0,6,0" Click="BtnPauseWorkout_Click"/>
-                <Button x:Name="btnSkipStep" Content="⏭" Style="{StaticResource GlassButtonStyle}" Margin="0,0,6,0" Click="BtnSkipStep_Click"/>
-                <Button x:Name="btnStopWorkout" Content="⏹ 終了" Style="{StaticResource DangerGlassButtonStyle}" Margin="0,0,12,0" Click="BtnStopWorkout_Click"/>
+                <!-- ワークアウト用コントロール -->
+                <StackPanel x:Name="panelWorkoutToolbarControls" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button x:Name="btnPrevStep" Content="⏮" Style="{StaticResource GlassButtonStyle}" Margin="0,0,6,0" Click="BtnPrevStep_Click"/>
+                    <Button x:Name="btnPauseWorkout" Content="⏸" Style="{StaticResource GlassButtonStyle}" Margin="0,0,6,0" Click="BtnPauseWorkout_Click"/>
+                    <Button x:Name="btnSkipStep" Content="⏭" Style="{StaticResource GlassButtonStyle}" Margin="0,0,6,0" Click="BtnSkipStep_Click"/>
+                    <Button x:Name="btnStopWorkout" Content="⏹ 終了" Style="{StaticResource DangerGlassButtonStyle}" Margin="0,0,12,0" Click="BtnStopWorkout_Click"/>
+                </StackPanel>
+
+                <!-- 通常走行用コントロール -->
+                <StackPanel x:Name="panelFreerideToolbarControls" Orientation="Horizontal" VerticalAlignment="Center" Visibility="Collapsed">
+                    <Button x:Name="btnStopFreeride" Content="💾 終了・保存" Style="{StaticResource GlassButtonStyle}" Margin="0,0,6,0" Click="BtnStopFreeride_Click"/>
+                    <Button x:Name="btnHideFreeride" Content="✕ 非表示" Style="{StaticResource DangerGlassButtonStyle}" Margin="0,0,12,0" Click="BtnHideFreeride_Click"/>
+                </StackPanel>
 
                 <Rectangle Width="1" Height="16" Fill="#26FFFFFF" Margin="0,0,12,0"/>
 
@@ -205,7 +215,7 @@
         </Border>
 
         <!-- 3. 中央上部: メイン・インターバルアーチHUD (Zwift完全再現 580px) -->
-        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0">
+        <StackPanel x:Name="workoutArchContainer" HorizontalAlignment="Center" VerticalAlignment="Top" Margin="0,24,0,0">
             <!-- ランプテスト限界警告バナー (ケイデンス低下時) -->
             <Border x:Name="rampCadenceWarningBanner"
                     CornerRadius="20"
@@ -450,8 +460,160 @@
             </Border>
         </StackPanel>
 
+        <!-- 3.5 通常走行時メインHUD (Zwift風 680px大型カード) -->
+        <Border x:Name="freerideHudWidget"
+                Width="680"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Top"
+                Margin="0,24,0,0"
+                Background="#E0121826"
+                BorderThickness="1,3,1,1"
+                CornerRadius="16"
+                Padding="20,14"
+                Visibility="Collapsed">
+            <Border.BorderBrush>
+                <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                    <GradientStop Color="#06B6D4" Offset="0.0"/>
+                    <GradientStop Color="#10B981" Offset="1.0"/>
+                </LinearGradientBrush>
+            </Border.BorderBrush>
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="40" ShadowDepth="12" Direction="270" Color="#000000" Opacity="0.6"/>
+            </Border.Effect>
+            <StackPanel>
+                <!-- 上部メタ情報 (走行時間・セッション状態) -->
+                <DockPanel Margin="0,0,0,8">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                        <Border Width="8" Height="8" CornerRadius="4" Background="#10B981" Margin="0,0,6,0">
+                            <Border.Effect>
+                                <DropShadowEffect BlurRadius="6" ShadowDepth="0" Color="#10B981"/>
+                            </Border.Effect>
+                        </Border>
+                        <TextBlock Text="FREERIDE HUD"
+                                   Foreground="#06B6D4"
+                                   FontFamily="Segoe UI, Outfit, Arial"
+                                   FontSize="13"
+                                   FontWeight="ExtraBold"
+                                   VerticalAlignment="Center"/>
+                        <Border x:Name="borderFreerideStateBadge" Background="#2610B981" CornerRadius="4" Padding="6,1" Margin="8,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="txtFreerideState" Text="REC" Foreground="#10B981" FontFamily="Segoe UI, Outfit, Arial" FontSize="10" FontWeight="Bold"/>
+                        </Border>
+                    </StackPanel>
+                    
+                    <TextBlock x:Name="txtFreerideTime"
+                               Text="⏱ 00:00:00"
+                               Foreground="#EAB308"
+                               FontFamily="Consolas, Segoe UI Mono"
+                               FontSize="14"
+                               FontWeight="Bold"
+                               HorizontalAlignment="Right"
+                               VerticalAlignment="Center"/>
+                </DockPanel>
+
+                <!-- メインメトリクス 3列レイアウト (Power & W/kg | Cadence & Heart Rate | Grade & Elevation) -->
+                <Grid Margin="0,4,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="220"/>
+                        <ColumnDefinition Width="200"/>
+                        <ColumnDefinition Width="220"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 列1: POWER & W/kg -->
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="POWER" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" Margin="0,0,0,2"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <TextBlock x:Name="txtFreeridePower" Text="0" Foreground="#10B981" FontFamily="Segoe UI, Outfit, Arial" FontSize="44" FontWeight="Black" LineHeight="44"/>
+                            <TextBlock Text="W" Foreground="#94A3B8" FontFamily="Segoe UI, Outfit, Arial" FontSize="16" FontWeight="Bold" Margin="4,0,0,6" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        
+                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="txtFreerideWkg" Text="0.0 W/kg" Foreground="#38BDF8" FontFamily="Segoe UI, Outfit, Arial" FontSize="14" FontWeight="ExtraBold" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        
+                        <!-- パワーゾーンバー -->
+                        <Border Height="4" Background="#14FFFFFF" CornerRadius="2" Margin="0,6,0,0" ClipToBounds="True">
+                            <Rectangle x:Name="rectFreeridePowerZoneBar" HorizontalAlignment="Left" Width="0" Height="4" Fill="#10B981"/>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 列2: CADENCE & HEART RATE -->
+                    <StackPanel Grid.Column="1" HorizontalAlignment="Center" Width="180">
+                        <!-- ケイデンス -->
+                        <TextBlock Text="CADENCE" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" Margin="0,0,0,2"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom">
+                            <TextBlock x:Name="txtFreerideCadence" Text="--" Foreground="#F8FAFC" FontFamily="Segoe UI, Outfit, Arial" FontSize="36" FontWeight="Black" LineHeight="36"/>
+                            <TextBlock Text="RPM" Foreground="#94A3B8" FontFamily="Segoe UI, Outfit, Arial" FontSize="14" FontWeight="Bold" Margin="4,0,0,4" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        
+                        <!-- 心拍数 -->
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
+                            <TextBlock Text="❤️ " Foreground="#EF4444" FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtFreerideHeartRate" Text="-- bpm" Foreground="#EF4444" FontSize="15" FontWeight="ExtraBold" VerticalAlignment="Center"/>
+                            <Border x:Name="borderFreerideHrZone" Background="#26EF4444" CornerRadius="3" Padding="4,1" Margin="6,0,0,0" VerticalAlignment="Center">
+                                <TextBlock x:Name="txtFreerideHrZone" Text="Z0" Foreground="#FCA5A5" FontSize="9" FontWeight="Bold"/>
+                            </Border>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <!-- 列3: GRADE & ELEVATION -->
+                    <StackPanel Grid.Column="2" HorizontalAlignment="Right" Width="200">
+                        <TextBlock Text="GRADE &amp; ELEVATION" Foreground="#94A3B8" FontSize="11" FontWeight="Bold" Margin="0,0,0,2" HorizontalAlignment="Right"/>
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Bottom" HorizontalAlignment="Right">
+                            <TextBlock x:Name="txtFreerideGrade" Text="+0.0" Foreground="#F59E0B" FontFamily="Segoe UI, Outfit, Arial" FontSize="36" FontWeight="Black" LineHeight="36"/>
+                            <TextBlock Text="%" Foreground="#94A3B8" FontFamily="Segoe UI, Outfit, Arial" FontSize="16" FontWeight="Bold" Margin="2,0,0,4" VerticalAlignment="Bottom"/>
+                        </StackPanel>
+                        
+                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center" HorizontalAlignment="Right">
+                            <TextBlock Text="標高: " Foreground="#64748B" FontSize="11" FontWeight="Bold"/>
+                            <TextBlock x:Name="txtFreerideElevation" Text="0 m" Foreground="#CBD5E1" FontSize="12" FontWeight="Bold" Margin="0,0,8,0"/>
+                            <TextBlock Text="獲得: " Foreground="#64748B" FontSize="11" FontWeight="Bold"/>
+                            <TextBlock x:Name="txtFreerideGain" Text="+0 m" Foreground="#10B981" FontSize="12" FontWeight="Bold"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+
+                <!-- 下部境界線 -->
+                <Rectangle Height="1" Fill="#1AFFFFFF" Margin="0,4,0,8"/>
+
+                <!-- 下部補助メトリクス: 距離・カロリー & スロットル・ブレーキ -->
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- 距離 & カロリー -->
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="DIST: " Foreground="#64748B" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtFreerideDistance" Text="0.00 km" Foreground="#F8FAFC" FontFamily="Segoe UI, Outfit, Arial" FontSize="13" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,14,0"/>
+                        
+                        <TextBlock Text="CAL: " Foreground="#64748B" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="txtFreerideCalories" Text="0 kcal" Foreground="#F8FAFC" FontFamily="Segoe UI, Outfit, Arial" FontSize="13" FontWeight="Bold" VerticalAlignment="Center"/>
+                    </StackPanel>
+
+                    <!-- スロットル & ブレーキ開度バー -->
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- スロットル -->
+                        <TextBlock Text="THR" Foreground="#64748B" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <Border Width="70" Height="8" Background="#14FFFFFF" CornerRadius="4" ClipToBounds="True" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Rectangle x:Name="rectFreerideThrottleBar" HorizontalAlignment="Left" Width="0" Height="8" Fill="#10B981"/>
+                        </Border>
+                        <TextBlock x:Name="txtFreerideThrottle" Text="0%" Foreground="#94A3B8" FontFamily="Consolas, monospace" FontSize="10" FontWeight="Bold" Width="30" VerticalAlignment="Center" Margin="0,0,10,0"/>
+
+                        <!-- ブレーキ -->
+                        <TextBlock Text="BRK" Foreground="#64748B" FontSize="10" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,4,0"/>
+                        <Border Width="70" Height="8" Background="#14FFFFFF" CornerRadius="4" ClipToBounds="True" VerticalAlignment="Center" Margin="0,0,6,0">
+                            <Rectangle x:Name="rectFreerideBrakeBar" HorizontalAlignment="Left" Width="0" Height="8" Fill="#EF4444"/>
+                        </Border>
+                        <TextBlock x:Name="txtFreerideBrake" Text="0%" Foreground="#94A3B8" FontFamily="Consolas, monospace" FontSize="10" FontWeight="Bold" Width="30" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </Border>
+
         <!-- 4. 画面最下部: 全体プロファイル & ゾーンリボン (全幅 28px) -->
-        <Border VerticalAlignment="Bottom"
+        <Border x:Name="workoutRibbonWidget"
+                VerticalAlignment="Bottom"
                 HorizontalAlignment="Stretch"
                 Height="28"
                 Background="#D90A0E17"

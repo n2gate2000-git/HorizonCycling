@@ -102,6 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const settingFtp = document.getElementById('settingFtp');
   const settingWeight = document.getElementById('settingWeight');
   const settingPedalBrake = document.getElementById('settingPedalBrake');
+  const settingFreerideOverlay = document.getElementById('settingFreerideOverlay');
   const settingMapScale = document.getElementById('settingMapScale');
   const settingMapScaleVal = document.getElementById('settingMapScaleVal');
   const settingInvertZ = document.getElementById('settingInvertZ');
@@ -543,6 +544,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const maxHr = parseInt(settingMaxHr ? settingMaxHr.value : 190) || 190;
     const restingHr = parseInt(settingRestingHr ? settingRestingHr.value : 60) || 60;
     const pedalBrake = settingPedalBrake.checked;
+    const freerideOverlay = settingFreerideOverlay ? settingFreerideOverlay.checked : false;
     const recentDist = parseInt(settingProfileRecentDistance ? settingProfileRecentDistance.value : 200) || 200;
     currentFtp = ftp;
     currentRiderWeight = weight;
@@ -558,6 +560,7 @@ document.addEventListener('DOMContentLoaded', () => {
       ftp,
       weight,
       pedalBrake,
+      freerideOverlay,
       maxHeartRate: maxHr,
       restingHeartRate: restingHr,
       profileRecentDistance: recentDist
@@ -672,6 +675,12 @@ document.addEventListener('DOMContentLoaded', () => {
           if (settingWeight) {
             settingWeight.value = currentRiderWeight;
           }
+        }
+        if (typeof data.payload.pedalBrake !== 'undefined' && settingPedalBrake) {
+          settingPedalBrake.checked = data.payload.pedalBrake;
+        }
+        if (typeof data.payload.freerideOverlay !== 'undefined' && settingFreerideOverlay) {
+          settingFreerideOverlay.checked = data.payload.freerideOverlay;
         }
         if (data.payload.maxHeartRate && settingMaxHr) {
           currentMaxHr = data.payload.maxHeartRate;

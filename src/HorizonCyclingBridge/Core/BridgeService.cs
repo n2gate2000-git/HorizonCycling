@@ -34,6 +34,7 @@ namespace HorizonCyclingBridge.Core
         public double Difficulty { get; set; } = 0.5;
         public double Ftp { get; set; } = 200.0;
         public double RiderWeightKg { get; set; } = 70.0;
+        public bool FreerideOverlayEnabled { get; set; } = false;
 
         // リアルタイムメトリクス
         public double Power { get; set; } = 0.0;
@@ -364,6 +365,14 @@ namespace HorizonCyclingBridge.Core
             _config.ProfileRecentDistanceM = clamped;
             ConfigManager.Save(_config);
             Log($"[CONFIG] Profile recent distance set to {clamped}m.");
+        }
+
+        public void SetFreerideOverlay(bool enabled)
+        {
+            _config.FreerideOverlayEnabled = enabled;
+            ConfigManager.Save(_config);
+            Log($"[CONFIG] Freeride Overlay {(enabled ? "Enabled" : "Disabled")}.");
+            PushCurrentSnapshot();
         }
 
         public int ProfileRecentDistanceM => _config.ProfileRecentDistanceM;
@@ -1551,6 +1560,7 @@ namespace HorizonCyclingBridge.Core
                 Difficulty = _trainerDifficulty,
                 Ftp = _config.Ftp,
                 RiderWeightKg = _config.RiderWeightKg,
+                FreerideOverlayEnabled = _config.FreerideOverlayEnabled,
 
                 Power = _currentPower,
                 Wkg = _config.RiderWeightKg > 0 ? Math.Round(_currentPower / _config.RiderWeightKg, 1) : 0.0,

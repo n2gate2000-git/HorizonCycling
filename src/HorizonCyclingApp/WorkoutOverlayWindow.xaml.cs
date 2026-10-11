@@ -75,6 +75,8 @@ namespace HorizonCyclingApp
 
         public event Action<string>? OnOverlayCommand;
         public bool IsClickThrough => _isClickThrough;
+        public bool IsUserForcedVisible { get; set; } = false;
+        public bool IsUserDismissed { get; set; } = false;
 
         public WorkoutOverlayWindow()
         {
@@ -141,15 +143,26 @@ namespace HorizonCyclingApp
                 int id = wParam.ToInt32();
                 if (id == HOTKEY_TOGGLE_ID)
                 {
-                    // Ctrl + Shift + O: 操作透過 ⇔ 編集モード
-                    SetClickThrough(!_isClickThrough);
+                    if (Visibility != Visibility.Visible)
+                    {
+                        // 非表示中なら再表示して編集モードにする
+                        IsUserDismissed = false;
+                        IsUserForcedVisible = true;
+                        Visibility = Visibility.Visible;
+                        SetClickThrough(false);
+                    }
+                    else
+                    {
+                        // 表示中なら 操作透過 ⇔ 編集モード
+                        SetClickThrough(!_isClickThrough);
+                    }
                     handled = true;
                     return IntPtr.Zero;
                 }
                 else if (id == HOTKEY_STOP_ID)
                 {
-                    // Ctrl + Shift + Q: ワークアウト即時終了
-                    OnOverlayCommand?.Invoke("stopWorkout");
+                    // Ctrl + Shift + Q: ワークアウト終了またはHUD非表示
+                    OnOverlayCommand?.Invoke("hotkeyStop");
                     handled = true;
                     return IntPtr.Zero;
                 }
@@ -226,6 +239,19 @@ namespace HorizonCyclingApp
             SetClickThrough(!_isClickThrough);
         }
 
+        private void BtnStopFreeride_Click(object sender, RoutedEventArgs e)
+        {
+            OnOverlayCommand?.Invoke("stopFreerideSession");
+        }
+
+        private void BtnHideFreeride_Click(object sender, RoutedEventArgs e)
+        {
+            IsUserDismissed = true;
+            IsUserForcedVisible = false;
+            Visibility = Visibility.Collapsed;
+            OnOverlayCommand?.Invoke("hideOverlay");
+        }
+
         #endregion
 
         #region State Update
@@ -234,9 +260,15 @@ namespace HorizonCyclingApp
         {
             Dispatcher.InvokeAsync(() =>
             {
-                if (workoutState == null || !workoutState.IsActive)
+                bool isWorkoutActive = workoutState != null && workoutState.IsActive;
+                bool isFreerideAllowed = !IsUserDismissed && (bridgeState.FreerideOverlayEnabled || IsUserForcedVisible);
+
+                if (!isWorkoutActive && !isFreerideAllowed)
                 {
-                    Visibility = Visibility.Collapsed;
+                    if (Visibility == Visibility.Visible)
+                    {
+                        Visibility = Visibility.Collapsed;
+                    }
                     return;
                 }
 
@@ -245,141 +277,282 @@ namespace HorizonCyclingApp
                     Visibility = Visibility.Visible;
                 }
 
-                // 1. タイトル & 時間
-                txtWorkoutTitle.Text = workoutState.WorkoutTitle ?? "WORKOUT";
-                txtOverallTime.Text = $"{FormatTime(workoutState.ElapsedSec)} / {FormatTime(workoutState.TotalDurationSec)}";
-
-                // ポーズボタン表示切替
-                btnPauseWorkout.Content = workoutState.State == "Paused" ? "▶" : "⏸";
-
-                // 2. ブロック情報
-                txtBlockTitle.Text = $"BLOCK {workoutState.CurrentSegmentIndex + 1}/{workoutState.TotalSegmentsCount}: {workoutState.CurrentSegmentType.ToUpper()}";
-                txtBlockRemaining.Text = $"⏱ {FormatTime(workoutState.SegmentRemainingSec)}";
-
-                // 3. パワー数値 (実測パワーはゾーンカラーで超大型表示、ターゲットも明瞭表示)
-                int actualWatts = (int)Math.Round(bridgeState.Power);
-                int targetWatts = workoutState.TargetWatts;
-                int diff = actualWatts - targetWatts;
-
-                txtActualPower.Text = actualWatts.ToString();
-                txtActualPower.Foreground = GetPowerZoneBrush(actualWatts, bridgeState.Ftp);
-                txtTargetPower.Text = $"{targetWatts}W";
-
-                string diffStr = diff >= 0 ? $"+{diff}W" : $"{diff}W";
-                txtPowerDiff.Text = diffStr;
-
-                // 差分色 & バッジ背景 & ポインター位置計算
-                SolidColorBrush diffBrush;
-                if (Math.Abs(diff) <= 5)
+                if (isWorkoutActive)
                 {
-                    diffBrush = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // 緑 (Match)
-                }
-                else if (diff < -5)
-                {
-                    diffBrush = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // 黄 (Low)
+                    panelWorkoutToolbarControls.Visibility = Visibility.Visible;
+                    panelFreerideToolbarControls.Visibility = Visibility.Collapsed;
+                    txtToolbarTitle.Text = "HORIZON WORKOUT HUD";
+                    segmentListWidget.Visibility = Visibility.Visible;
+                    workoutArchContainer.Visibility = Visibility.Visible;
+                    workoutRibbonWidget.Visibility = Visibility.Visible;
+                    freerideHudWidget.Visibility = Visibility.Collapsed;
+
+                    UpdateWorkoutMetrics(bridgeState, workoutState!);
                 }
                 else
                 {
-                    diffBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // 赤 (High)
+                    panelWorkoutToolbarControls.Visibility = Visibility.Collapsed;
+                    panelFreerideToolbarControls.Visibility = Visibility.Visible;
+                    txtToolbarTitle.Text = "HORIZON CYCLING HUD";
+                    segmentListWidget.Visibility = Visibility.Collapsed;
+                    workoutArchContainer.Visibility = Visibility.Collapsed;
+                    workoutRibbonWidget.Visibility = Visibility.Collapsed;
+                    freerideHudWidget.Visibility = Visibility.Visible;
+
+                    UpdateFreerideMetrics(bridgeState);
                 }
-                txtPowerDiff.Foreground = diffBrush;
-                borderDiffBadge.Background = new SolidColorBrush(Color.FromArgb(38, diffBrush.Color.R, diffBrush.Color.G, diffBrush.Color.B));
-                gaugePointer.Background = diffBrush;
+            });
+        }
 
-                // 差分ゲージポインター移動 (中央は 74px、±30Wで端まで移動)
-                double clampedDiff = Math.Clamp((double)diff, -30.0, 30.0);
-                double offset = (clampedDiff / 30.0) * 65.0;
-                Canvas.SetLeft(gaugePointer, Math.Clamp(74.0 + offset, 4.0, 144.0));
+        private void UpdateFreerideMetrics(BridgeStateSnapshot s)
+        {
+            // 1. セッション状態 & 経過時間
+            txtFreerideTime.Text = $"⏱ {FormatSeconds(s.ElapsedSeconds)}";
+            if (s.SessionState == "Recording")
+            {
+                txtFreerideState.Text = "REC";
+                txtFreerideState.Foreground = new SolidColorBrush(Color.FromRgb(16, 185, 129));
+                borderFreerideStateBadge.Background = new SolidColorBrush(Color.FromArgb(38, 16, 185, 129));
+            }
+            else if (s.SessionState == "AutoPaused")
+            {
+                txtFreerideState.Text = "AUTO-PAUSE";
+                txtFreerideState.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                borderFreerideStateBadge.Background = new SolidColorBrush(Color.FromArgb(38, 245, 158, 11));
+            }
+            else if (s.SessionState == "Paused")
+            {
+                txtFreerideState.Text = "PAUSED";
+                txtFreerideState.Foreground = new SolidColorBrush(Color.FromRgb(245, 158, 11));
+                borderFreerideStateBadge.Background = new SolidColorBrush(Color.FromArgb(38, 245, 158, 11));
+            }
+            else
+            {
+                txtFreerideState.Text = "IDLE";
+                txtFreerideState.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+                borderFreerideStateBadge.Background = new SolidColorBrush(Color.FromArgb(38, 100, 116, 139));
+            }
 
-                // 4. ケイデンス & 心拍数 & 速度
-                int targetCad = workoutState.TargetCadence ?? 90;
-                txtTargetCadence.Text = $"{targetCad} RPM";
-                txtActualCadence.Text = bridgeState.Cadence > 0 ? Math.Round(bridgeState.Cadence).ToString() : "--";
+            // 2. パワー & W/kg
+            int powerWatts = (int)Math.Round(s.Power);
+            txtFreeridePower.Text = powerWatts.ToString();
+            SolidColorBrush powerBrush = GetPowerZoneBrush(powerWatts, s.Ftp);
+            txtFreeridePower.Foreground = powerBrush;
 
-                txtSpeed.Text = $"{bridgeState.CarSpeedKmh:F1} km/h";
-                txtHeartRate.Text = bridgeState.HeartRate > 0 ? $"{bridgeState.HeartRate} bpm" : "-- bpm";
+            double riderWeight = s.RiderWeightKg > 0 ? s.RiderWeightKg : 70.0;
+            double wkg = s.Wkg > 0 ? s.Wkg : (powerWatts / riderWeight);
+            txtFreerideWkg.Text = $"{wkg:F1} W/kg";
 
-                // 5. ブロック進捗バー (幅 580px)
-                if (workoutState.SegmentTotalDurationSec > 0)
+            double zonePercent = Math.Clamp((powerWatts / Math.Max(1.0, s.Ftp * 1.5)) * 200.0, 0.0, 200.0);
+            rectFreeridePowerZoneBar.Width = zonePercent;
+            rectFreeridePowerZoneBar.Fill = powerBrush;
+
+            // 3. ケイデンス & 心拍数
+            txtFreerideCadence.Text = s.Cadence > 0 ? Math.Round(s.Cadence).ToString() : "--";
+            if (s.HeartRate > 0)
+            {
+                int hr = (int)Math.Round(s.HeartRate);
+                txtFreerideHeartRate.Text = $"{hr} bpm";
+
+                // HRゾーンバッジ
+                int hrZone = GetHrZoneNumber(hr);
+                txtFreerideHrZone.Text = $"Z{hrZone}";
+                txtFreerideHrZone.Foreground = GetZoneColorBrush(Math.Clamp(hrZone + 1, 1, 7));
+            }
+            else
+            {
+                txtFreerideHeartRate.Text = "-- bpm";
+                txtFreerideHrZone.Text = "Z0";
+                txtFreerideHrZone.Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184));
+            }
+
+            // 4. 勾配 & 標高・獲得標高
+            string sign = s.RawGrade >= 0 ? "+" : "";
+            txtFreerideGrade.Text = $"{sign}{s.RawGrade:F1}";
+            txtFreerideGrade.Foreground = GetGradeBrush(s.RawGrade);
+
+            txtFreerideElevation.Text = $"{Math.Round(s.ElevationMeters)} m";
+            txtFreerideGain.Text = $"+{Math.Round(s.ElevationGainMeters)} m";
+
+            // 5. 距離 & カロリー
+            txtFreerideDistance.Text = $"{s.TotalDistanceKm:F2} km";
+            txtFreerideCalories.Text = $"{Math.Round(s.CaloriesKcal)} kcal";
+
+            // 6. スロットル & ブレーキ開度
+            int thrPct = (int)Math.Round(s.Throttle * 100.0);
+            int brkPct = (int)Math.Round(s.Brake * 100.0);
+            txtFreerideThrottle.Text = $"{thrPct}%";
+            rectFreerideThrottleBar.Width = Math.Clamp(s.Throttle * 70.0, 0.0, 70.0);
+            txtFreerideBrake.Text = $"{brkPct}%";
+            rectFreerideBrakeBar.Width = Math.Clamp(s.Brake * 70.0, 0.0, 70.0);
+        }
+
+        private static int GetHrZoneNumber(int hr)
+        {
+            if (hr < 115) return 1;
+            if (hr < 135) return 2;
+            if (hr < 155) return 3;
+            if (hr < 172) return 4;
+            return 5;
+        }
+
+        private static SolidColorBrush GetGradeBrush(double grade)
+        {
+            if (grade > 8.0) return new SolidColorBrush(Color.FromRgb(239, 68, 68));   // 激坂 赤
+            if (grade > 4.0) return new SolidColorBrush(Color.FromRgb(249, 115, 22));  // 登坂 橙
+            if (grade > 0.0) return new SolidColorBrush(Color.FromRgb(245, 158, 11));  // 緩斜面 黄
+            return new SolidColorBrush(Color.FromRgb(56, 189, 248));                  // 下り 水色
+        }
+
+        private static string FormatSeconds(double totalSec)
+        {
+            int s = (int)Math.Floor(totalSec);
+            int hrs = s / 3600;
+            int mins = (s % 3600) / 60;
+            int secs = s % 60;
+            if (hrs > 0)
+            {
+                return $"{hrs:D2}:{mins:D2}:{secs:D2}";
+            }
+            return $"{mins:D2}:{secs:D2}";
+        }
+
+        private void UpdateWorkoutMetrics(BridgeStateSnapshot bridgeState, WorkoutStateSnapshot workoutState)
+        {
+            // 1. タイトル & 時間
+            txtWorkoutTitle.Text = workoutState.WorkoutTitle ?? "WORKOUT";
+            txtOverallTime.Text = $"{FormatTime(workoutState.ElapsedSec)} / {FormatTime(workoutState.TotalDurationSec)}";
+
+            // ポーズボタン表示切替
+            btnPauseWorkout.Content = workoutState.State == "Paused" ? "▶" : "⏸";
+
+            // 2. ブロック情報
+            txtBlockTitle.Text = $"BLOCK {workoutState.CurrentSegmentIndex + 1}/{workoutState.TotalSegmentsCount}: {workoutState.CurrentSegmentType.ToUpper()}";
+            txtBlockRemaining.Text = $"⏱ {FormatTime(workoutState.SegmentRemainingSec)}";
+
+            // 3. パワー数値 (実測パワーはゾーンカラーで超大型表示、ターゲットも明瞭表示)
+            int actualWatts = (int)Math.Round(bridgeState.Power);
+            int targetWatts = workoutState.TargetWatts;
+            int diff = actualWatts - targetWatts;
+
+            txtActualPower.Text = actualWatts.ToString();
+            txtActualPower.Foreground = GetPowerZoneBrush(actualWatts, bridgeState.Ftp);
+            txtTargetPower.Text = $"{targetWatts}W";
+
+            string diffStr = diff >= 0 ? $"+{diff}W" : $"{diff}W";
+            txtPowerDiff.Text = diffStr;
+
+            // 差分色 & バッジ背景 & ポインター位置計算
+            SolidColorBrush diffBrush;
+            if (Math.Abs(diff) <= 5)
+            {
+                diffBrush = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // 緑 (Match)
+            }
+            else if (diff < -5)
+            {
+                diffBrush = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // 黄 (Low)
+            }
+            else
+            {
+                diffBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // 赤 (High)
+            }
+            txtPowerDiff.Foreground = diffBrush;
+            borderDiffBadge.Background = new SolidColorBrush(Color.FromArgb(38, diffBrush.Color.R, diffBrush.Color.G, diffBrush.Color.B));
+            gaugePointer.Background = diffBrush;
+
+            // 差分ゲージポインター移動 (中央は 74px、±30Wで端まで移動)
+            double clampedDiff = Math.Clamp((double)diff, -30.0, 30.0);
+            double offset = (clampedDiff / 30.0) * 65.0;
+            Canvas.SetLeft(gaugePointer, Math.Clamp(74.0 + offset, 4.0, 144.0));
+
+            // 4. ケイデンス & 心拍数 & 速度
+            int targetCad = workoutState.TargetCadence ?? 90;
+            txtTargetCadence.Text = $"{targetCad} RPM";
+            txtActualCadence.Text = bridgeState.Cadence > 0 ? Math.Round(bridgeState.Cadence).ToString() : "--";
+
+            txtSpeed.Text = $"{bridgeState.CarSpeedKmh:F1} km/h";
+            txtHeartRate.Text = bridgeState.HeartRate > 0 ? $"{bridgeState.HeartRate} bpm" : "-- bpm";
+
+            // 5. ブロック進捗バー (幅 580px)
+            if (workoutState.SegmentTotalDurationSec > 0)
+            {
+                double ratio = (double)(workoutState.SegmentTotalDurationSec - workoutState.SegmentRemainingSec) / workoutState.SegmentTotalDurationSec;
+                rectProgressBarFill.Width = Math.Clamp(ratio * 580.0, 0.0, 580.0);
+            }
+
+            // 6. カウントダウン
+            if (workoutState.SegmentRemainingSec is >= 1 and <= 5 && workoutState.CurrentSegmentIndex + 1 < workoutState.TotalSegmentsCount)
+            {
+                txtCountdown.Text = workoutState.SegmentRemainingSec.ToString();
+                countdownBanner.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                countdownBanner.Visibility = Visibility.Collapsed;
+            }
+
+            // 6.5 ランプテスト特有のバナー処理 (限界警告・新FTP結果)
+            if (workoutState.IsRampTest)
+            {
+                if (workoutState.RampResult != null)
                 {
-                    double ratio = (double)(workoutState.SegmentTotalDurationSec - workoutState.SegmentRemainingSec) / workoutState.SegmentTotalDurationSec;
-                    rectProgressBarFill.Width = Math.Clamp(ratio * 580.0, 0.0, 580.0);
+                    txtRampNewFtp.Text = $"{workoutState.RampResult.NewFtp:F0} W";
+                    string sgn = workoutState.RampResult.FtpDelta >= 0 ? "+" : "";
+                    txtRampFtpDelta.Text = $"({sgn}{workoutState.RampResult.FtpDelta:F0}W)";
+                    rampResultBanner.Visibility = Visibility.Visible;
+                    rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
                 }
-
-                // 6. カウントダウン
-                if (workoutState.SegmentRemainingSec is >= 1 and <= 5 && workoutState.CurrentSegmentIndex + 1 < workoutState.TotalSegmentsCount)
+                else if (workoutState.LowCadenceSeconds > 0.3)
                 {
-                    txtCountdown.Text = workoutState.SegmentRemainingSec.ToString();
-                    countdownBanner.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    countdownBanner.Visibility = Visibility.Collapsed;
-                }
-
-                // 6.5 ランプテスト特有のバナー処理 (限界警告・新FTP結果)
-                if (workoutState.IsRampTest)
-                {
-                    if (workoutState.RampResult != null)
-                    {
-                        txtRampNewFtp.Text = $"{workoutState.RampResult.NewFtp:F0} W";
-                        string sign = workoutState.RampResult.FtpDelta >= 0 ? "+" : "";
-                        txtRampFtpDelta.Text = $"({sign}{workoutState.RampResult.FtpDelta:F0}W)";
-                        rampResultBanner.Visibility = Visibility.Visible;
-                        rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
-                    }
-                    else if (workoutState.LowCadenceSeconds > 0.3)
-                    {
-                        double remain = Math.Max(0.0, 3.0 - workoutState.LowCadenceSeconds);
-                        txtRampLowCadenceSec.Text = $"[あと {remain:F1}秒で限界判定]";
-                        rampCadenceWarningBanner.Visibility = Visibility.Visible;
-                        rampResultBanner.Visibility = Visibility.Collapsed;
-                    }
-                    else
-                    {
-                        rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
-                        rampResultBanner.Visibility = Visibility.Collapsed;
-                    }
+                    double remain = Math.Max(0.0, 3.0 - workoutState.LowCadenceSeconds);
+                    txtRampLowCadenceSec.Text = $"[あと {remain:F1}秒で限界判定]";
+                    rampCadenceWarningBanner.Visibility = Visibility.Visible;
+                    rampResultBanner.Visibility = Visibility.Collapsed;
                 }
                 else
                 {
                     rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
                     rampResultBanner.Visibility = Visibility.Collapsed;
                 }
+            }
+            else
+            {
+                rampCadenceWarningBanner.Visibility = Visibility.Collapsed;
+                rampResultBanner.Visibility = Visibility.Collapsed;
+            }
 
-                // 7. コーチメッセージ
-                if (!string.IsNullOrEmpty(workoutState.ActiveMessage))
-                {
-                    txtCoachMessage.Text = workoutState.ActiveMessage;
-                    coachMessageBorder.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    coachMessageBorder.Visibility = Visibility.Collapsed;
-                }
+            // 7. コーチメッセージ
+            if (!string.IsNullOrEmpty(workoutState.ActiveMessage))
+            {
+                txtCoachMessage.Text = workoutState.ActiveMessage;
+                coachMessageBorder.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                coachMessageBorder.Visibility = Visibility.Collapsed;
+            }
 
-                // 8. セグメントリスト描画 (タイトルが変わった時のみ再構築)
-                if (_lastRenderedTitle != (workoutState.WorkoutTitle ?? ""))
-                {
-                    _lastRenderedTitle = workoutState.WorkoutTitle ?? "";
-                    RenderSegmentList(workoutState);
-                    RenderRibbon(workoutState);
-                }
-                else
-                {
-                    UpdateSegmentListHighlight(workoutState.CurrentSegmentIndex);
-                }
+            // 8. セグメントリスト描画 (タイトルが変わった時のみ再構築)
+            if (_lastRenderedTitle != (workoutState.WorkoutTitle ?? ""))
+            {
+                _lastRenderedTitle = workoutState.WorkoutTitle ?? "";
+                RenderSegmentList(workoutState);
+                RenderRibbon(workoutState);
+            }
+            else
+            {
+                UpdateSegmentListHighlight(workoutState.CurrentSegmentIndex);
+            }
 
-                // 9. リボン上のピン位置 & 時間更新
-                if (workoutState.TotalDurationSec > 0)
-                {
-                    double totalWidth = canvasRibbon.ActualWidth > 0 ? canvasRibbon.ActualWidth : (ActualWidth > 0 ? ActualWidth : SystemParameters.PrimaryScreenWidth);
-                    double ratio = (double)workoutState.ElapsedSec / workoutState.TotalDurationSec;
-                    double pinX = Math.Clamp(ratio * totalWidth, 0, totalWidth);
-                    Canvas.SetLeft(pinPointer, pinX);
-                    txtPinTime.Text = FormatTime(workoutState.ElapsedSec);
-                }
-            });
+            // 9. リボン上のピン位置 & 時間更新
+            if (workoutState.TotalDurationSec > 0)
+            {
+                double totalWidth = canvasRibbon.ActualWidth > 0 ? canvasRibbon.ActualWidth : (ActualWidth > 0 ? ActualWidth : SystemParameters.PrimaryScreenWidth);
+                double ratio = (double)workoutState.ElapsedSec / workoutState.TotalDurationSec;
+                double pinX = Math.Clamp(ratio * totalWidth, 0, totalWidth);
+                Canvas.SetLeft(pinPointer, pinX);
+                txtPinTime.Text = FormatTime(workoutState.ElapsedSec);
+            }
         }
 
         private void RenderSegmentList(WorkoutStateSnapshot workout)
