@@ -91,7 +91,42 @@
     // サウンド合成メソッド群 (Web Audio API)
     // -------------------------------------------------------------
 
-    // 3, 2, 1 カウントダウン予告音 (短音ピッ 880Hz / A5, 70ms)
+    // トラック競技公式タイマー風 10秒前予告音 (490Hz 矩形波・1.0秒ロングトーン)
+    playWarning10s() {
+      if (!this.enabled || !this.countdownEnabled) return;
+      this.init();
+      if (!this.ctx) return;
+
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      // 490Hz 矩形波 (奇数倍音を含む明瞭な電子音)
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(490.0, now);
+
+      // 角を取り耳当たりを自然にするローパスフィルタ (3000Hz)
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(3000, now);
+
+      // 音量エンベロープ: 0.005sで立ち上がり、約0.95s持続後フェードアウト
+      const dur = 1.0;
+      const vol = this.volume * 0.40;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(vol, now + 0.005);
+      gain.gain.setValueAtTime(vol, now + dur - 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + dur);
+    }
+
+    // 5秒前から1秒ごとのカウントダウン予告音 (490Hz 矩形波・120ms 短音ビープ)
     playCountdownTick(num) {
       if (!this.enabled || !this.countdownEnabled) return;
       this.init();
@@ -100,53 +135,63 @@
       const now = this.ctx.currentTime;
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
 
-      osc.type = 'sine';
-      // 1秒前はやや高めの 988Hz(B5) にして緊迫感を演出、3・2秒前は 880Hz(A5)
-      const freq = (num === 1) ? 987.77 : 880.0;
-      osc.frequency.setValueAtTime(freq, now);
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(490.0, now);
 
-      gain.gain.setValueAtTime(this.volume * 0.45, now);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(3000, now);
 
-      osc.connect(gain);
+      // 約120msの歯切れ良い電子ビープ音
+      const dur = 0.12;
+      const vol = this.volume * 0.45;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(vol, now + 0.005);
+      gain.gain.setValueAtTime(vol, now + 0.10);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
+
+      osc.connect(filter);
+      filter.connect(gain);
       gain.connect(this.ctx.destination);
 
       osc.start(now);
-      osc.stop(now + 0.07);
+      osc.stop(now + dur);
     }
 
-    // Work開始 (高強度インターバル突入: 上昇アルペジオ「ピロリン！」)
-    // C5 (523Hz) ➔ E5 (659Hz) ➔ C6 (1046Hz)
+    // Work開始 (公式スタート音 / 動画0秒時の音: 980Hz 矩形波・0.94秒ロングトーン)
     playWorkStart() {
       if (!this.enabled || !this.transitionEnabled) return;
       this.init();
       if (!this.ctx) return;
 
-      const baseTime = this.ctx.currentTime;
-      const notes = [
-        { freq: 523.25, time: 0.00, dur: 0.12, type: 'triangle' },
-        { freq: 659.25, time: 0.07, dur: 0.14, type: 'triangle' },
-        { freq: 1046.50, time: 0.14, dur: 0.35, type: 'triangle' }
-      ];
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
 
-      notes.forEach((note) => {
-        const startTime = baseTime + note.time;
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
+      // 980Hz (490Hz のオクターブ上、B5 / トラック競技公式スタート発走音)
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(980.0, now);
 
-        osc.type = note.type;
-        osc.frequency.setValueAtTime(note.freq, startTime);
+      // 角を取り耳当たりを自然にするローパスフィルタ (4000Hz)
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(4000, now);
 
-        gain.gain.setValueAtTime(this.volume * 0.65, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + note.dur);
+      // 音量エンベロープ: 0.005s で立ち上がり、約0.88s持続後フェードアウト (計0.94s)
+      const dur = 0.94;
+      const vol = this.volume * 0.45;
+      gain.gain.setValueAtTime(0.001, now);
+      gain.gain.linearRampToValueAtTime(vol, now + 0.005);
+      gain.gain.setValueAtTime(vol, now + dur - 0.06);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + dur);
 
-        osc.connect(gain);
-        gain.connect(this.ctx.destination);
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
 
-        osc.start(startTime);
-        osc.stop(startTime + note.dur);
-      });
+      osc.start(now);
+      osc.stop(now + dur);
     }
 
     // Rest開始 (回復・レスト突入: 下降ソフトトーン「ポロロン…」)
@@ -292,13 +337,17 @@
         return;
       }
 
-      // 1. カウントダウン予告音の判定 (残り 3, 2, 1 秒時)
+      // 1. カウントダウン予告音の判定 (10秒前に1回、5秒前から1秒ごと)
       if (workout.State === 'Running' && workout.CurrentSegmentIndex + 1 < workout.TotalSegmentsCount) {
         const rem = workout.SegmentRemainingSec;
-        if (rem >= 1 && rem <= 3) {
+        if (rem === 10 || (rem >= 1 && rem <= 5)) {
           if (this.lastCountdownSec !== rem) {
             this.lastCountdownSec = rem;
-            this.playCountdownTick(rem);
+            if (rem === 10) {
+              this.playWarning10s();
+            } else {
+              this.playCountdownTick(rem);
+            }
           }
         } else {
           this.lastCountdownSec = -1;
