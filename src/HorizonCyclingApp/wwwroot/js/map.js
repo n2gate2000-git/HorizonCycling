@@ -46,6 +46,10 @@ class LiveMapTracker {
     // 全体が表示されるように初期フィット
     this.map.fitBounds(fullBounds);
 
+    // デフォルト表示: 「＋」を2回押したときの拡大率から開始
+    const defaultZoom = Math.min(this.map.getMaxZoom(), this.map.getZoom() + 2);
+    this.map.setZoom(defaultZoom);
+
     // 最大パン境界の制限（地図外へ迷子にならないようにする）
     this.map.setMaxBounds([[-1000, -1000], [this.mapSize + 1000, this.mapSize + 1000]]);
 
