@@ -61,46 +61,18 @@ namespace HorizonCyclingBridge.Trainer
             }
 
             _targetAddress = targetAddress;
-
-            // 1. targetAddress が指定されている場合、まず直接 Windows BLE デバイスオブジェクトの取得と接続を試行
-            if (_targetAddress != 0)
-            {
-                OnStatusMessage?.Invoke($"[BLE] Attempting direct connection to Cadence/Power Meter ({_targetAddress:X})...");
-                try
-                {
-                    var directDevice = await BluetoothLEDevice.FromBluetoothAddressAsync(_targetAddress);
-                    if (directDevice != null)
-                    {
-                        OnStatusMessage?.Invoke($"[BLE] Found device '{directDevice.Name}' ({_targetAddress:X}). Initializing GATT services...");
-                        bool directSuccess = await SetupServicesAsync(directDevice);
-                        if (directSuccess)
-                        {
-                            return true;
-                        }
-                        OnStatusMessage?.Invoke("[BLE] Direct GATT setup failed or not responding. Falling back to active advertisement watcher...");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    OnStatusMessage?.Invoke($"[BLE] Direct connection notice: {ex.Message}. Falling back to active scan...");
-                }
-            }
-
-            // 2. 直接接続で完了しなかった場合、または targetAddress == 0 の場合、アクティブWatcherで検出
             _connectTcs = new TaskCompletionSource<bool>();
 
             _watcher = new BluetoothLEAdvertisementWatcher
             {
                 ScanningMode = BluetoothLEScanningMode.Active
             };
-            // 重要: Magene PES-P505 等のパワーメーターはアドバタイズ本体に Service UUID を含めない場合があるため、
-            // フィルタは設定せずコード側で判定する
             
             _watcher.Received += Watcher_Received;
             _watcher.Stopped += Watcher_Stopped;
 
             string targetStr = _targetAddress == 0 ? "any" : $"{_targetAddress:X}";
-            OnStatusMessage?.Invoke($"[BLE] Active scanning for Cycling Power / Cadence Meter (Target: {targetStr}). Please spin the cranks to wake up P505...");
+            OnStatusMessage?.Invoke($"[BLE] Active scanning for Cycling Power / Cadence Meter (Target: {targetStr}). Please spin cranks to wake up sensor...");
             _watcher.Start();
 
             var timeoutTask = Task.Delay(timeoutMs);
@@ -108,7 +80,7 @@ namespace HorizonCyclingBridge.Trainer
 
             if (completedTask == timeoutTask)
             {
-                OnStatusMessage?.Invoke("[BLE] Scanning timed out. No Power / Cadence Meter found. Ensure sensor is awake by spinning pedals.");
+                OnStatusMessage?.Invoke("[BLE] Scanning timed out. No Power/Cadence Meter responded. Ensure crank is spun to wake up P505.");
                 StopScanning();
                 return false;
             }
@@ -142,7 +114,7 @@ namespace HorizonCyclingBridge.Trainer
             StopScanning();
 
             string deviceName = string.IsNullOrEmpty(args.Advertisement.LocalName) ? "Power Meter" : args.Advertisement.LocalName;
-            OnStatusMessage?.Invoke($"[BLE] Found Power/Cadence Meter: '{deviceName}' Address: {args.BluetoothAddress:X}. Connecting...");
+            OnStatusMessage?.Invoke($"[BLE] Detected Power/Cadence Meter: '{deviceName}' ({args.BluetoothAddress:X}). Opening GATT connection...");
 
             try
             {
@@ -167,7 +139,7 @@ namespace HorizonCyclingBridge.Trainer
 
         private void Watcher_Stopped(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementWatcherStoppedEventArgs args)
         {
-            OnStatusMessage?.Invoke("[BLE] Cadence scanner stopped.");
+            OnStatusMessage?.Invoke("[BLE] Cadence/Power scanner stopped.");
         }
 
         private void StopScanning()
@@ -191,20 +163,6 @@ namespace HorizonCyclingBridge.Trainer
 
             try
             {
-                // アクセス権の確認
-                var accessStatus = await _device.RequestAccessAsync();
-                if (accessStatus != Windows.Devices.Enumeration.DeviceAccessStatus.Allowed)
-                {
-                    OnStatusMessage?.Invoke($"[BLE-WARN] Device access status: {accessStatus}");
-                }
-            }
-            catch (Exception ex)
-            {
-                OnStatusMessage?.Invoke($"[BLE] Access check notice: {ex.Message}");
-            }
-
-            try
-            {
                 // GATT セッションを保持して Windows の意図しない自動切断を防止
                 _gattSession = await GattSession.FromDeviceIdAsync(_device.BluetoothDeviceId);
                 if (_gattSession != null)
@@ -218,10 +176,10 @@ namespace HorizonCyclingBridge.Trainer
 
             bool subscribedAny = false;
 
-            // 1. Cycling Power サービス (0x1818) の探索 (Uncached)
+            // 1. Cycling Power サービス (0x1818) の探索 (安定したデフォルトキャッシュモードでディスカバリ)
             try
             {
-                var powerServicesResult = await _device.GetGattServicesForUuidAsync(CYCLING_POWER_SERVICE_UUID, BluetoothCacheMode.Uncached);
+                var powerServicesResult = await _device.GetGattServicesForUuidAsync(CYCLING_POWER_SERVICE_UUID);
                 GattDeviceService? powerService = null;
                 if (powerServicesResult.Status == GattCommunicationStatus.Success && powerServicesResult.Services.Count > 0)
                 {
@@ -230,7 +188,7 @@ namespace HorizonCyclingBridge.Trainer
                 else
                 {
                     // フォールバック: 全サービス一覧から 0x1818 を検索
-                    var allServices = await _device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
+                    var allServices = await _device.GetGattServicesAsync();
                     if (allServices.Status == GattCommunicationStatus.Success)
                     {
                         powerService = allServices.Services.FirstOrDefault(s => s.Uuid == CYCLING_POWER_SERVICE_UUID || s.Uuid.ToString().StartsWith("00001818", StringComparison.OrdinalIgnoreCase));
@@ -240,35 +198,38 @@ namespace HorizonCyclingBridge.Trainer
                 if (powerService != null)
                 {
                     OnStatusMessage?.Invoke("[BLE] Found Cycling Power Service (0x1818). Requesting Characteristic (0x2A63)...");
-                    var charResult = await powerService.GetCharacteristicsForUuidAsync(POWER_MEASUREMENT_CHAR_UUID, BluetoothCacheMode.Uncached);
-                    GattCharacteristic? powerChar = null;
-                    if (charResult.Status == GattCommunicationStatus.Success && charResult.Characteristics.Count > 0)
+                    
+                    GattCharacteristicsResult? charResult = null;
+                    int retryCount = 3;
+                    for (int i = 0; i < retryCount; i++)
                     {
-                        powerChar = charResult.Characteristics.FirstOrDefault();
-                    }
-                    else
-                    {
-                        var allChars = await powerService.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
-                        if (allChars.Status == GattCommunicationStatus.Success)
+                        charResult = await powerService.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
+                        if (charResult.Status == GattCommunicationStatus.Success && charResult.Characteristics.Count > 0)
                         {
-                            powerChar = allChars.Characteristics.FirstOrDefault(c => c.Uuid == POWER_MEASUREMENT_CHAR_UUID || c.Uuid.ToString().StartsWith("00002a63", StringComparison.OrdinalIgnoreCase));
+                            break;
                         }
+                        OnStatusMessage?.Invoke($"[BLE] Querying Power characteristics retrying in 300ms... (Attempt {i + 1}/{retryCount})");
+                        await Task.Delay(300);
                     }
 
-                    if (powerChar != null)
+                    if (charResult != null && charResult.Status == GattCommunicationStatus.Success)
                     {
-                        _powerMeasurementChar = powerChar;
-                        var notifyStatus = await _powerMeasurementChar.WriteClientCharacteristicConfigurationDescriptorAsync(
-                            GattClientCharacteristicConfigurationDescriptorValue.Notify);
-                        if (notifyStatus == GattCommunicationStatus.Success)
+                        var powerChar = charResult.Characteristics.FirstOrDefault(c => c.Uuid == POWER_MEASUREMENT_CHAR_UUID || c.Uuid.ToString().StartsWith("00002a63", StringComparison.OrdinalIgnoreCase));
+                        if (powerChar != null)
                         {
-                            _powerMeasurementChar.ValueChanged += PowerMeasurementChar_ValueChanged;
-                            OnStatusMessage?.Invoke("[BLE] ✅ Subscribed to Cycling Power Measurement (Power + Cadence).");
-                            subscribedAny = true;
-                        }
-                        else
-                        {
-                            OnStatusMessage?.Invoke($"[BLE-WARN] Failed to write Notify to Power char: {notifyStatus}");
+                            _powerMeasurementChar = powerChar;
+                            var notifyStatus = await _powerMeasurementChar.WriteClientCharacteristicConfigurationDescriptorAsync(
+                                GattClientCharacteristicConfigurationDescriptorValue.Notify);
+                            if (notifyStatus == GattCommunicationStatus.Success)
+                            {
+                                _powerMeasurementChar.ValueChanged += PowerMeasurementChar_ValueChanged;
+                                OnStatusMessage?.Invoke("[BLE] ✅ Subscribed to Cycling Power Measurement (Power + Cadence).");
+                                subscribedAny = true;
+                            }
+                            else
+                            {
+                                OnStatusMessage?.Invoke($"[BLE-WARN] Failed to write Notify to Power char: {notifyStatus}");
+                            }
                         }
                     }
                 }
@@ -279,13 +240,13 @@ namespace HorizonCyclingBridge.Trainer
             }
 
             // 2. CSC (Cycling Speed and Cadence: 0x1816) サービスの探索
-            // 重要: Cycling Power (0x1818) に購読成功した場合は二重受信・競合を防ぐため CSC 購読をスキップ！
+            // 重要: Cycling Power (0x1818) に購読成功した場合は二重受信・競合を防ぐため CSC 購読をスキップ
             if (!subscribedAny)
             {
                 try
                 {
                     OnStatusMessage?.Invoke("[BLE] Cycling Power (0x1818) not found. Probing CSC (0x1816) fallback...");
-                    var cscServicesResult = await _device.GetGattServicesForUuidAsync(CSC_SERVICE_UUID, BluetoothCacheMode.Uncached);
+                    var cscServicesResult = await _device.GetGattServicesForUuidAsync(CSC_SERVICE_UUID);
                     GattDeviceService? cscService = null;
                     if (cscServicesResult.Status == GattCommunicationStatus.Success && cscServicesResult.Services.Count > 0)
                     {
@@ -293,7 +254,7 @@ namespace HorizonCyclingBridge.Trainer
                     }
                     else
                     {
-                        var allServices = await _device.GetGattServicesAsync(BluetoothCacheMode.Uncached);
+                        var allServices = await _device.GetGattServicesAsync();
                         if (allServices.Status == GattCommunicationStatus.Success)
                         {
                             cscService = allServices.Services.FirstOrDefault(s => s.Uuid == CSC_SERVICE_UUID || s.Uuid.ToString().StartsWith("00001816", StringComparison.OrdinalIgnoreCase));
@@ -303,35 +264,38 @@ namespace HorizonCyclingBridge.Trainer
                     if (cscService != null)
                     {
                         OnStatusMessage?.Invoke("[BLE] Found CSC Service (0x1816). Requesting Characteristic (0x2A5B)...");
-                        var charResult = await cscService.GetCharacteristicsForUuidAsync(CSC_MEASUREMENT_CHAR_UUID, BluetoothCacheMode.Uncached);
-                        GattCharacteristic? cscChar = null;
-                        if (charResult.Status == GattCommunicationStatus.Success && charResult.Characteristics.Count > 0)
+                        
+                        GattCharacteristicsResult? charResult = null;
+                        int retryCount = 3;
+                        for (int i = 0; i < retryCount; i++)
                         {
-                            cscChar = charResult.Characteristics.FirstOrDefault();
-                        }
-                        else
-                        {
-                            var allChars = await cscService.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
-                            if (allChars.Status == GattCommunicationStatus.Success)
+                            charResult = await cscService.GetCharacteristicsAsync(BluetoothCacheMode.Uncached);
+                            if (charResult.Status == GattCommunicationStatus.Success && charResult.Characteristics.Count > 0)
                             {
-                                cscChar = allChars.Characteristics.FirstOrDefault(c => c.Uuid == CSC_MEASUREMENT_CHAR_UUID || c.Uuid.ToString().StartsWith("00002a5b", StringComparison.OrdinalIgnoreCase));
+                                break;
                             }
+                            OnStatusMessage?.Invoke($"[BLE] Querying CSC characteristics retrying in 300ms... (Attempt {i + 1}/{retryCount})");
+                            await Task.Delay(300);
                         }
 
-                        if (cscChar != null)
+                        if (charResult != null && charResult.Status == GattCommunicationStatus.Success)
                         {
-                            _cscMeasurementChar = cscChar;
-                            var notifyStatus = await _cscMeasurementChar.WriteClientCharacteristicConfigurationDescriptorAsync(
-                                GattClientCharacteristicConfigurationDescriptorValue.Notify);
-                            if (notifyStatus == GattCommunicationStatus.Success)
+                            var cscChar = charResult.Characteristics.FirstOrDefault(c => c.Uuid == CSC_MEASUREMENT_CHAR_UUID || c.Uuid.ToString().StartsWith("00002a5b", StringComparison.OrdinalIgnoreCase));
+                            if (cscChar != null)
                             {
-                                _cscMeasurementChar.ValueChanged += CscMeasurementChar_ValueChanged;
-                                OnStatusMessage?.Invoke("[BLE] ✅ Subscribed to CSC Measurement (Cadence).");
-                                subscribedAny = true;
-                            }
-                            else
-                            {
-                                OnStatusMessage?.Invoke($"[BLE-WARN] Failed to write Notify to CSC char: {notifyStatus}");
+                                _cscMeasurementChar = cscChar;
+                                var notifyStatus = await _cscMeasurementChar.WriteClientCharacteristicConfigurationDescriptorAsync(
+                                    GattClientCharacteristicConfigurationDescriptorValue.Notify);
+                                if (notifyStatus == GattCommunicationStatus.Success)
+                                {
+                                    _cscMeasurementChar.ValueChanged += CscMeasurementChar_ValueChanged;
+                                    OnStatusMessage?.Invoke("[BLE] ✅ Subscribed to CSC Measurement (Cadence).");
+                                    subscribedAny = true;
+                                }
+                                else
+                                {
+                                    OnStatusMessage?.Invoke($"[BLE-WARN] Failed to write Notify to CSC char: {notifyStatus}");
+                                }
                             }
                         }
                     }
@@ -344,7 +308,7 @@ namespace HorizonCyclingBridge.Trainer
 
             if (!subscribedAny)
             {
-                OnStatusMessage?.Invoke($"[BLE-ERR] Could not subscribe to Cycling Power (0x1818) or CSC (0x1816) on '{devName}'. Ensure device is awake and not connected to another app.");
+                OnStatusMessage?.Invoke($"[BLE-ERR] Could not subscribe to Cycling Power (0x1818) or CSC (0x1816) on '{devName}'. Ensure sensor is awake and spin pedals.");
                 return false;
             }
 

@@ -1181,7 +1181,8 @@ namespace HorizonCyclingBridge.Core
                 }
                 else
                 {
-                    _cadenceStatus = "Connection Failed";
+                    _cadenceStatus = "Connection Failed (Spin cranks)";
+                    Log($"[CADENCE] Connection to {displayName} timed out or failed. Please rotate pedals/cranks to wake up sensor and retry.");
                     PushCurrentSnapshot();
                     return false;
                 }
