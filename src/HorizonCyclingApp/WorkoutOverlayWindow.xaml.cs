@@ -488,10 +488,10 @@ namespace HorizonCyclingApp
             borderDiffBadge.Background = new SolidColorBrush(Color.FromArgb(38, diffBrush.Color.R, diffBrush.Color.G, diffBrush.Color.B));
             gaugePointer.Background = diffBrush;
 
-            // 差分ゲージポインター移動 (中央は 74px、±30Wで端まで移動)
+            // 差分ゲージポインター移動 (中央は 79px、±30Wで端まで移動)
             double clampedDiff = Math.Clamp((double)diff, -30.0, 30.0);
-            double offset = (clampedDiff / 30.0) * 65.0;
-            Canvas.SetLeft(gaugePointer, Math.Clamp(74.0 + offset, 4.0, 144.0));
+            double offset = (clampedDiff / 30.0) * 70.0;
+            Canvas.SetLeft(gaugePointer, Math.Clamp(79.0 + offset, 4.0, 154.0));
 
             // 4. ケイデンス & 心拍数 & 速度
             int targetCad = workoutState.TargetCadence ?? 90;
@@ -501,11 +501,11 @@ namespace HorizonCyclingApp
             txtSpeed.Text = $"{bridgeState.CarSpeedKmh:F1} km/h";
             txtHeartRate.Text = bridgeState.HeartRate > 0 ? $"{bridgeState.HeartRate} bpm" : "-- bpm";
 
-            // 5. ブロック進捗バー (幅 580px)
+            // 5. ブロック進捗バー (幅 616px)
             if (workoutState.SegmentTotalDurationSec > 0)
             {
                 double ratio = (double)(workoutState.SegmentTotalDurationSec - workoutState.SegmentRemainingSec) / workoutState.SegmentTotalDurationSec;
-                rectProgressBarFill.Width = Math.Clamp(ratio * 580.0, 0.0, 580.0);
+                rectProgressBarFill.Width = Math.Clamp(ratio * 616.0, 0.0, 616.0);
             }
 
             // 6. カウントダウン

@@ -369,7 +369,8 @@ body.edit-mode .overlay-toolbar {
   font-family: 'Outfit', sans-serif;
   font-size: 34px;
   font-weight: 900;
-  color: var(--text-main);
+  color: var(--accent-cyan);
+  text-shadow: 0 0 12px rgba(6, 182, 212, 0.6);
   line-height: 1;
 }
 
