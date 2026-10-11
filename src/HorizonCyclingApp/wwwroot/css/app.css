@@ -2256,16 +2256,21 @@ body.dark-theme {
   color: var(--text-muted);
 }
 
-/* 実行中コントロールバー */
+/* 実行中コントロールバー (ペイン最上部に固定表示) */
 .workout-active-controls {
-  padding: 12px 16px;
-  background: rgba(6, 182, 212, 0.1);
+  position: sticky;
+  top: -20px;
+  z-index: 50;
+  margin-bottom: 16px;
+  padding: 12px 18px;
+  background: rgba(10, 14, 23, 0.95);
+  backdrop-filter: blur(10px);
   border: 1px solid var(--accent-cyan);
   border-radius: 10px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 0 16px rgba(6, 182, 212, 0.2);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6), 0 0 16px rgba(6, 182, 212, 0.3);
 }
 
 .active-badge {

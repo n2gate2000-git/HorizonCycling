@@ -307,6 +307,17 @@
 
             <!-- 右側: 選択中ワークアウトのプレビュー & コントロール -->
             <div class="workout-preview-pane">
+              <!-- 実行中ステータスバー (ペイン最上部に常時配置) -->
+              <div id="workoutActiveControls" class="workout-active-controls hidden">
+                <div class="active-badge">● ワークアウト実行中 (ERGモード)</div>
+                <div class="active-ctrl-buttons">
+                  <button id="btnPrevActive" class="btn-subaction-small">⏮ 前へ</button>
+                  <button id="btnPauseActive" class="btn-subaction-small">⏸ 一時停止</button>
+                  <button id="btnSkipActive" class="btn-subaction-small">⏭ スキップ</button>
+                  <button id="btnStopActive" class="btn-subaction-small btn-danger">⏹ 終了</button>
+                </div>
+              </div>
+
               <div id="workoutPreviewEmpty" class="workout-preview-empty">
                 <div class="empty-icon">🏋️</div>
                 <div class="empty-title">ワークアウトを選択してください</div>
@@ -369,17 +380,6 @@
                 <div class="prev-steps-section">
                   <div class="steps-header">ステップ構成 (<span id="prevStepsCount">0</span> ブロック)</div>
                   <div id="prevStepsList" class="prev-steps-list"></div>
-                </div>
-
-                <!-- 実行中ステータスバー -->
-                <div id="workoutActiveControls" class="workout-active-controls hidden">
-                  <div class="active-badge">● ワークアウト実行中 (ERGモード)</div>
-                  <div class="active-ctrl-buttons">
-                    <button id="btnPrevActive" class="btn-subaction-small">⏮ 前へ</button>
-                    <button id="btnPauseActive" class="btn-subaction-small">⏸ 一時停止</button>
-                    <button id="btnSkipActive" class="btn-subaction-small">⏭ スキップ</button>
-                    <button id="btnStopActive" class="btn-subaction-small btn-danger">⏹ 終了</button>
-                  </div>
                 </div>
               </div>
             </div>
