@@ -376,7 +376,8 @@
         se.ttsEnabled = e.target.checked;
         se.saveSettings();
         if (se.ttsEnabled) {
-          se.speak('音声ガイダンスを有効にしました', true);
+          const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+          se.speak(isEn ? 'Voice guidance enabled' : '音声ガイダンスを有効にしました', true);
         }
       });
     }
@@ -410,7 +411,8 @@
       btnTestTts.addEventListener('click', (e) => {
         e.preventDefault();
         se.init();
-        se.speak('インターバル開始、目標250ワット、5分間', true);
+        const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+        se.speak(isEn ? 'Interval start, target 250 watts, 5 minutes' : 'インターバル開始、目標250ワット、5分間', true);
       });
     }
   }

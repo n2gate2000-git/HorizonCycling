@@ -19,6 +19,15 @@
       this.lastWorkoutState = 'Idle';
       this.lastActiveMessage = null;
 
+      // 音声リストの初期化とリスナー設定
+      this.voices = [];
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        this.voices = window.speechSynthesis.getVoices() || [];
+        window.speechSynthesis.onvoiceschanged = () => {
+          this.voices = window.speechSynthesis.getVoices() || [];
+        };
+      }
+
       this.loadSettings();
       this.setupAutoResume();
     }
@@ -235,21 +244,26 @@
     // 音声ガイダンス読み上げ (Web Speech API)
     speak(text, force = false) {
       if ((!this.enabled || !this.ttsEnabled) && !force) return;
-      if (!window.speechSynthesis) return;
+      if (!window.speechSynthesis || !text) return;
       try {
         window.speechSynthesis.cancel(); // 連続発話時のキューをクリア
         const isEn = window.i18n && window.i18n.getLanguage() === 'en';
         const uttr = new SpeechSynthesisUtterance(text);
         uttr.lang = isEn ? 'en-US' : 'ja-JP';
         uttr.volume = this.volume;
-        uttr.rate = 1.1; // やや早口でテンポ良く
-        uttr.pitch = 1.05;
+        uttr.rate = 1.05; // テンポ良く
+        uttr.pitch = 1.0;
 
         // 言語に応じた音声を優先探索
-        const voices = window.speechSynthesis.getVoices();
-        const targetVoice = isEn
-          ? voices.find(v => v.lang && v.lang.startsWith('en'))
-          : voices.find(v => v.lang && (v.lang.startsWith('ja') || v.lang === 'ja_JP'));
+        const voices = (this.voices && this.voices.length > 0) ? this.voices : (window.speechSynthesis.getVoices() || []);
+        let targetVoice = null;
+        if (isEn) {
+          targetVoice = voices.find(v => v.lang && (v.lang === 'en-US' || v.lang === 'en_US'))
+                     || voices.find(v => v.lang && v.lang.toLowerCase().startsWith('en'));
+        } else {
+          targetVoice = voices.find(v => v.lang && (v.lang === 'ja-JP' || v.lang === 'ja_JP'))
+                     || voices.find(v => v.lang && v.lang.toLowerCase().startsWith('ja'));
+        }
         if (targetVoice) uttr.voice = targetVoice;
 
         window.speechSynthesis.speak(uttr);
@@ -307,6 +321,7 @@
 
           const curType = (workout.CurrentSegmentType || '').toLowerCase();
           const targetWatts = workout.TargetWatts || 0;
+          const isEn = window.i18n && window.i18n.getLanguage() === 'en';
 
           // Work (高強度) か Rest (回復) かの判定
           let isWork = false;
@@ -330,17 +345,26 @@
           if (isWork) {
             this.playWorkStart();
             if (this.ttsEnabled) {
-              this.speak(`インターバル開始、目標${targetWatts}ワット`);
+              const msg = isEn
+                ? `Interval start, target ${targetWatts} watts`
+                : `インターバル開始、目標${targetWatts}ワット`;
+              this.speak(msg);
             }
           } else if (isRest) {
             this.playRestStart();
             if (this.ttsEnabled) {
-              this.speak(`レスト、目標${targetWatts}ワット`);
+              const msg = isEn
+                ? `Rest, target ${targetWatts} watts`
+                : `レスト、目標${targetWatts}ワット`;
+              this.speak(msg);
             }
           } else {
             this.playTransition();
             if (this.ttsEnabled) {
-              this.speak(`目標${targetWatts}ワット`);
+              const msg = isEn
+                ? `Target ${targetWatts} watts`
+                : `目標${targetWatts}ワット`;
+              this.speak(msg);
             }
           }
         }
@@ -349,7 +373,16 @@
       // 3. コーチングテキストメッセージのTTS読み上げ
       if (this.ttsEnabled && workout.ActiveMessage && workout.ActiveMessage !== this.lastActiveMessage) {
         this.lastActiveMessage = workout.ActiveMessage;
-        this.speak(workout.ActiveMessage);
+        let speakText = workout.ActiveMessage;
+        const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+        if (isEn) {
+          if (speakText.includes('ワークアウト完了') || speakText.includes('素晴らしい走りでした')) {
+            speakText = 'Workout completed! Great effort!';
+          } else if (speakText.includes('ランプテスト完了')) {
+            speakText = 'Ramp test completed! Excellent work!';
+          }
+        }
+        this.speak(speakText);
       } else if (!workout.ActiveMessage) {
         this.lastActiveMessage = null;
       }
