@@ -642,6 +642,54 @@
             </div>
           </div>
 
+          <!-- 2-B. ワークアウト音響・サウンド設定 -->
+          <div class="settings-section">
+            <div class="section-title">
+              <span>🔊 ワークアウト音響・通知設定</span>
+            </div>
+            <div class="form-group">
+              <label>効果音を有効化</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settingSoundEnabled" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>効果音音量 (0〜100%)</label>
+              <div class="range-row">
+                <input type="range" id="settingSoundVolume" min="0" max="100" value="80">
+                <span id="settingSoundVolumeVal" class="range-val-badge">80%</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label>セグメント切り替え音 (Work/Rest)</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settingTransitionSound" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>3秒前カウントダウン予告音 (3, 2, 1)</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settingCountdownSound" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="form-group">
+              <label>音声ガイダンス(TTS)によるテキスト読み上げ</label>
+              <label class="toggle-switch">
+                <input type="checkbox" id="settingTtsEnabled">
+                <span class="slider"></span>
+              </label>
+            </div>
+            <div class="sound-test-row">
+              <button type="button" id="btnTestWorkSound" class="btn-subaction">🔊 Work開始音</button>
+              <button type="button" id="btnTestRestSound" class="btn-subaction">🔊 Rest回復音</button>
+              <button type="button" id="btnTestCountdownSound" class="btn-subaction">🔊 カウントダウン</button>
+              <button type="button" id="btnTestTts" class="btn-subaction">🗣️ 音声テスト</button>
+            </div>
+          </div>
+
           <!-- 3. マップ座標・縮尺設定 -->
           <div class="settings-section">
             <div class="section-title">
@@ -723,6 +771,7 @@
   </div>
 
   <!-- Application Scripts -->
+  <script src="js/soundEngine.js"></script>
   <script src="js/map.js"></script>
   <script src="js/chart.js"></script>
   <script src="js/history.js"></script>

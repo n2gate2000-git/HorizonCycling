@@ -79,6 +79,7 @@
 
   function init() {
     setupEventListeners();
+    setupSoundSettings();
     setupIpcListener();
 
     // 初期ライブラリ取得
@@ -117,6 +118,7 @@
     // ランプテスト開始
     if (btnStartRampTest) {
       btnStartRampTest.addEventListener('click', () => {
+        window.workoutSoundEngine?.init();
         if (confirm('⚡ FTP自動計測ランプテストを開始しますか？\n\n【テスト仕様】\n・ウォームアップ(100W)から開始し、1分ごとに20Wずつ自動上昇\n・ケイデンスが50rpmを下回ると限界判定で自動終了\n・直前1分間の最大平均パワーの75%から新FTPを算出します')) {
           postAction('startRampTest');
         }
@@ -146,6 +148,7 @@
 
     // ワークアウト開始
     btnStartWorkout.addEventListener('click', () => {
+      window.workoutSoundEngine?.init();
       if (selectedFilePath) {
         postAction('startWorkout', { filePath: selectedFilePath });
       }
@@ -267,6 +270,11 @@
     const workout = state.Workout;
     activeWorkoutSnapshot = workout;
 
+    // 音響エンジンへワークアウト状態をリアルタイム連携
+    if (window.workoutSoundEngine) {
+      window.workoutSoundEngine.update(workout);
+    }
+
     if (state.IsWorkoutActive && workout) {
       workoutActiveControls.classList.remove('hidden');
       btnPauseActive.textContent = workout.State === 'Paused' ? '▶ 再開' : '⏸ 一時停止';
@@ -278,6 +286,109 @@
       btnStartWorkout.textContent = '▶ このワークアウトを開始';
       btnStartWorkout.disabled = false;
       btnStartWorkout.style.opacity = '1.0';
+    }
+  }
+
+  // ワークアウト音響設定の初期化 & リスナー登録
+  function setupSoundSettings() {
+    const se = window.workoutSoundEngine;
+    if (!se) return;
+
+    const settingSoundEnabled = document.getElementById('settingSoundEnabled');
+    const settingSoundVolume = document.getElementById('settingSoundVolume');
+    const settingSoundVolumeVal = document.getElementById('settingSoundVolumeVal');
+    const settingTransitionSound = document.getElementById('settingTransitionSound');
+    const settingCountdownSound = document.getElementById('settingCountdownSound');
+    const settingTtsEnabled = document.getElementById('settingTtsEnabled');
+
+    const btnTestWorkSound = document.getElementById('btnTestWorkSound');
+    const btnTestRestSound = document.getElementById('btnTestRestSound');
+    const btnTestCountdownSound = document.getElementById('btnTestCountdownSound');
+    const btnTestTts = document.getElementById('btnTestTts');
+
+    // 初期値の同期
+    if (settingSoundEnabled) settingSoundEnabled.checked = se.enabled;
+    if (settingSoundVolume) {
+      const volPct = Math.round(se.volume * 100);
+      settingSoundVolume.value = volPct;
+      if (settingSoundVolumeVal) settingSoundVolumeVal.textContent = `${volPct}%`;
+    }
+    if (settingTransitionSound) settingTransitionSound.checked = se.transitionEnabled;
+    if (settingCountdownSound) settingCountdownSound.checked = se.countdownEnabled;
+    if (settingTtsEnabled) settingTtsEnabled.checked = se.ttsEnabled;
+
+    // トグル・スライダー変更監視
+    if (settingSoundEnabled) {
+      settingSoundEnabled.addEventListener('change', (e) => {
+        se.enabled = e.target.checked;
+        se.saveSettings();
+      });
+    }
+
+    if (settingSoundVolume) {
+      settingSoundVolume.addEventListener('input', (e) => {
+        const val = parseInt(e.target.value, 10);
+        se.volume = val / 100;
+        if (settingSoundVolumeVal) settingSoundVolumeVal.textContent = `${val}%`;
+        se.saveSettings();
+      });
+    }
+
+    if (settingTransitionSound) {
+      settingTransitionSound.addEventListener('change', (e) => {
+        se.transitionEnabled = e.target.checked;
+        se.saveSettings();
+      });
+    }
+
+    if (settingCountdownSound) {
+      settingCountdownSound.addEventListener('change', (e) => {
+        se.countdownEnabled = e.target.checked;
+        se.saveSettings();
+      });
+    }
+
+    if (settingTtsEnabled) {
+      settingTtsEnabled.addEventListener('change', (e) => {
+        se.ttsEnabled = e.target.checked;
+        se.saveSettings();
+        if (se.ttsEnabled) {
+          se.speak('音声ガイダンスを有効にしました', true);
+        }
+      });
+    }
+
+    // テスト試聴ボタン
+    if (btnTestWorkSound) {
+      btnTestWorkSound.addEventListener('click', (e) => {
+        e.preventDefault();
+        se.init();
+        se.playWorkStart();
+      });
+    }
+
+    if (btnTestRestSound) {
+      btnTestRestSound.addEventListener('click', (e) => {
+        e.preventDefault();
+        se.init();
+        se.playRestStart();
+      });
+    }
+
+    if (btnTestCountdownSound) {
+      btnTestCountdownSound.addEventListener('click', (e) => {
+        e.preventDefault();
+        se.init();
+        se.playCountdownTick(1);
+      });
+    }
+
+    if (btnTestTts) {
+      btnTestTts.addEventListener('click', (e) => {
+        e.preventDefault();
+        se.init();
+        se.speak('インターバル開始、目標250ワット、5分間', true);
+      });
     }
   }
 

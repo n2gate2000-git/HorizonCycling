@@ -262,5 +262,65 @@ MINUTES PERCENT
             Assert.True(cooldownSnap.TargetWatts <= 100);
             Assert.NotNull(cooldownSnap.RampResult);
         }
+
+        [Fact]
+        public void WorkoutEngine_CountdownAndSegmentTransitions_ProvideAccurateTimingForSoundCues()
+        {
+            var def = new WorkoutDefinition
+            {
+                Title = "Interval & Rest Transition Test",
+                Segments = new System.Collections.Generic.List<WorkoutSegment>
+                {
+                    new WorkoutSegment { SegmentType = "Warmup", DurationSec = 10, TargetPowerLowPct = 0.5, TargetPowerHighPct = 0.5 },
+                    new WorkoutSegment { SegmentType = "IntervalOn", DurationSec = 10, TargetPowerLowPct = 1.0, TargetPowerHighPct = 1.0 },
+                    new WorkoutSegment { SegmentType = "IntervalOff", DurationSec = 10, TargetPowerLowPct = 0.5, TargetPowerHighPct = 0.5 }
+                }
+            };
+            def.TotalDurationSec = 30;
+
+            var engine = new WorkoutEngine();
+            engine.Start(def, 200.0);
+
+            // 7秒経過時 (残り3秒) -> カウントダウン 3
+            for (int i = 0; i < 7; i++) engine.Update(1.0, 200.0);
+            var snap7 = engine.CreateSnapshot();
+            Assert.Equal(0, snap7.CurrentSegmentIndex);
+            Assert.Equal(3, snap7.SegmentRemainingSec);
+
+            // 8秒経過時 (残り2秒) -> カウントダウン 2
+            engine.Update(1.0, 200.0);
+            var snap8 = engine.CreateSnapshot();
+            Assert.Equal(2, snap8.SegmentRemainingSec);
+
+            // 9秒経過時 (残り1秒) -> カウントダウン 1
+            engine.Update(1.0, 200.0);
+            var snap9 = engine.CreateSnapshot();
+            Assert.Equal(1, snap9.SegmentRemainingSec);
+
+            // 10秒経過時 (セグメント0完了 ➔ セグメント1 IntervalOn 突入)
+            engine.Update(1.0, 200.0);
+            var snap10 = engine.CreateSnapshot();
+            Assert.Equal(1, snap10.CurrentSegmentIndex);
+            Assert.Equal("IntervalOn", snap10.CurrentSegmentType);
+            Assert.Equal(200, snap10.TargetWatts); // 1.0 * 200W
+
+            // IntervalOn の残り3秒カウントダウン (7秒後)
+            for (int i = 0; i < 7; i++) engine.Update(1.0, 200.0);
+            var snap17 = engine.CreateSnapshot();
+            Assert.Equal(1, snap17.CurrentSegmentIndex);
+            Assert.Equal(3, snap17.SegmentRemainingSec);
+
+            // セグメント1完了 ➔ セグメント2 IntervalOff (Rest) 突入 (3秒後)
+            for (int i = 0; i < 3; i++) engine.Update(1.0, 200.0);
+            var snap20 = engine.CreateSnapshot();
+            Assert.Equal(2, snap20.CurrentSegmentIndex);
+            Assert.Equal("IntervalOff", snap20.CurrentSegmentType);
+            Assert.Equal(100, snap20.TargetWatts); // 0.5 * 200W
+
+            // 全セグメント完了 (Finished)
+            for (int i = 0; i < 10; i++) engine.Update(1.0, 200.0);
+            var snapFinal = engine.CreateSnapshot();
+            Assert.Equal("Finished", snapFinal.State);
+        }
     }
 }
