@@ -28,7 +28,7 @@ powershell -ExecutionPolicy Bypass -File .agents/skills/build-and-package/script
   ```
 - **Custom Output Directory / ZIP**:
   ```powershell
-  powershell -ExecutionPolicy Bypass -File .agents/skills/build-and-package/scripts/package.ps1 -OutputDir "release/HorizonCycling_V1.1.0" -ZipPath "release/HorizonCycling_V1.1.0.zip"
+  powershell -ExecutionPolicy Bypass -File .agents/skills/build-and-package/scripts/package.ps1 -OutputDir "release/HorizonCycling_V1.3.0" -ZipPath "release/HorizonCycling_V1.3.0.zip"
   ```
 
 ---
@@ -50,21 +50,21 @@ dotnet build src/HorizonCyclingApp/HorizonCyclingApp.csproj -c Release
 ```
 
 ### Step 3: Publish Self-Contained Release
-Publish the application as a self-contained Windows x64 distribution package into `release/HorizonCycling_V1.1.0`:
+Publish the application as a self-contained Windows x64 distribution package into `release/HorizonCycling_V1.3.0`:
 ```powershell
-dotnet publish src/HorizonCyclingApp/HorizonCyclingApp.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o release/HorizonCycling_V1.1.0
+dotnet publish src/HorizonCyclingApp/HorizonCyclingApp.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o release/HorizonCycling_V1.3.0
 ```
 
 ### Step 4: Synchronize Required Assets
 Ensure critical runtime assets are present in the output folder:
-- **`vJoyInterface.dll`**: Copy `src/HorizonCyclingBridge/vJoyInterface.dll` to `release/HorizonCycling_V1.1.0/`
-- **`map/`**: Copy files from `map/` into `release/HorizonCycling_V1.1.0/map/` (e.g. `fh6_japan_map_full_8192x8192.jpg`, `fh6_japan_pins.json`)
+- **`vJoyInterface.dll`**: Copy `src/HorizonCyclingBridge/vJoyInterface.dll` to `release/HorizonCycling_V1.3.0/`
+- **`map/`**: Copy files from `map/` into `release/HorizonCycling_V1.3.0/map/` (e.g. `fh6_japan_map_full_8192x8192.jpg`, `fh6_japan_pins.json`)
 - **`wwwroot/`**: Verified to contain latest frontend assets (`index.html`, `js/`, `css/`) automatically deployed by publish.
 
 ### Step 5: Generate Distribution ZIP
 Compress the release folder into the release ZIP archive:
 ```powershell
-Compress-Archive -Path "release/HorizonCycling_V1.1.0/*" -DestinationPath "release/HorizonCycling_V1.1.0.zip" -Force
+Compress-Archive -Path "release/HorizonCycling_V1.3.0/*" -DestinationPath "release/HorizonCycling_V1.3.0.zip" -Force
 ```
 
 ---
@@ -72,7 +72,7 @@ Compress-Archive -Path "release/HorizonCycling_V1.1.0/*" -DestinationPath "relea
 ## 3. Verification Checklist
 
 After running the build and packaging process, verify the following:
-1. `HorizonCyclingApp.exe` exists in `release/HorizonCycling_V1.1.0/` with current timestamp.
-2. `vJoyInterface.dll` exists in `release/HorizonCycling_V1.1.0/`.
-3. `release/HorizonCycling_V1.1.0/wwwroot/` contains updated web files.
-4. `release/HorizonCycling_V1.1.0.zip` exists, is non-empty (>100MB), and matches the latest build timestamp.
+1. `HorizonCyclingApp.exe` exists in `release/HorizonCycling_V1.3.0/` with current timestamp.
+2. `vJoyInterface.dll` exists in `release/HorizonCycling_V1.3.0/`.
+3. `release/HorizonCycling_V1.3.0/wwwroot/` contains updated web files.
+4. `release/HorizonCycling_V1.3.0.zip` exists, is non-empty (>100MB), and matches the latest build timestamp.
