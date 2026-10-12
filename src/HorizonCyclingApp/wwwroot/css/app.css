@@ -1862,10 +1862,13 @@ body.dark-theme {
   background: var(--bg-card);
   border: 1px solid var(--bg-card-border);
   border-radius: 10px;
-  padding: 12px 16px;
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  width: 100%;
+  box-sizing: border-box;
+  min-width: 0;
 }
 
 .hist-hr-zone-summary {
@@ -1882,6 +1885,8 @@ body.dark-theme {
   overflow: hidden;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .hr-zone-dist-bar-seg {
@@ -1913,8 +1918,16 @@ body.dark-theme {
 
 .hr-zone-dist-legend {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+@media (max-width: 1024px) {
+  .hr-zone-dist-legend {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .hr-zone-legend-item {
@@ -1922,23 +1935,29 @@ body.dark-theme {
   flex-direction: column;
   gap: 2px;
   background: rgba(255, 255, 255, 0.03);
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-radius: 6px;
   border: 1px solid rgba(255, 255, 255, 0.06);
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .hr-zone-legend-header {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 11px;
+  gap: 5px;
+  font-size: 10.5px;
   font-weight: 700;
   color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .hr-zone-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   flex-shrink: 0;
 }
@@ -1965,29 +1984,38 @@ body.dark-theme {
 
 .hr-zone-range {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .hr-zone-legend-val {
   display: flex;
   justify-content: space-between;
   align-items: baseline;
+  gap: 4px;
   margin-top: 2px;
+  min-width: 0;
 }
 
 .hr-zone-time {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text-main);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .hr-zone-pct {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 600;
   color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ==========================================================================
