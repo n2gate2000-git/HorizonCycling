@@ -647,7 +647,8 @@ namespace HorizonCyclingApp
                 var txtTime = new TextBlock
                 {
                     Text = FormatTime(seg.DurationSec),
-                    FontSize = 10,
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
                     FontFamily = new FontFamily("Consolas, Segoe UI Mono"),
                     Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
                     VerticalAlignment = VerticalAlignment.Center
