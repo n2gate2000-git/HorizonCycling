@@ -72,11 +72,34 @@ namespace HorizonCyclingBridge.Trainer
 
             _targetAddress = targetAddress;
             _connectTcs = new TaskCompletionSource<bool>();
+
+            // targetAddress が既に指定されている場合、まずは既存ペアリング/キャッシュからの即時オープンを試みる
+            if (_targetAddress != 0)
+            {
+                try
+                {
+                    OnStatusMessage?.Invoke($"[BLE] Probing direct connection to target FTMS address: {_targetAddress:X}...");
+                    var directDevice = await BluetoothLEDevice.FromBluetoothAddressAsync(_targetAddress);
+                    if (directDevice != null)
+                    {
+                        bool directSuccess = await SetupServicesAsync(directDevice);
+                        if (directSuccess)
+                        {
+                            return true;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    OnStatusMessage?.Invoke($"[BLE] Direct probe notice: {ex.Message}");
+                }
+            }
             
-            // BLEアドバタイズメント監視のセットアップ
-            _watcher = new BluetoothLEAdvertisementWatcher();
-            // FTMSサービスUUIDを持つアドバタイズのみにフィルタリング
-            _watcher.AdvertisementFilter.Advertisement.ServiceUuids.Add(FTMS_SERVICE_UUID);
+            // BLEアドバタイズメント監視のセットアップ (ActiveスキャンでSCAN_RSPも取得)
+            _watcher = new BluetoothLEAdvertisementWatcher
+            {
+                ScanningMode = BluetoothLEScanningMode.Active
+            };
             
             _watcher.Received += Watcher_Received;
             _watcher.Stopped += Watcher_Stopped;
@@ -101,9 +124,28 @@ namespace HorizonCyclingBridge.Trainer
 
         private async void Watcher_Received(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args)
         {
-            if (_targetAddress != 0 && args.BluetoothAddress != _targetAddress)
+            if (_targetAddress != 0)
             {
-                return; // Target specified but doesn't match
+                if (args.BluetoothAddress != _targetAddress)
+                {
+                    return; // Target specified but doesn't match
+                }
+            }
+            else
+            {
+                // targetAddress == 0 の場合、アドバタイズ情報からFTMSトレーナーか判定
+                bool hasFtms = args.Advertisement.ServiceUuids.Any(u => u == FTMS_SERVICE_UUID || u.ToString().StartsWith("00001826", StringComparison.OrdinalIgnoreCase));
+                string name = (args.Advertisement.LocalName ?? string.Empty).ToUpperInvariant();
+                bool isTrainer = name.Contains("TACX") || name.Contains("KICKR") || name.Contains("WAHOO") ||
+                                 name.Contains("FLUX") || name.Contains("NEO") || name.Contains("SARIS") ||
+                                 name.Contains("DIRETO") || name.Contains("SUITO") || name.Contains("THINKRIDER") ||
+                                 name.Contains("T2") || name.Contains("CYCLOPS") || name.Contains("TRAINER") ||
+                                 name.Contains("WATTBIKE");
+
+                if (!hasFtms && !isTrainer)
+                {
+                    return;
+                }
             }
 
             // デバイスが見つかったら即座にスキャンを停止

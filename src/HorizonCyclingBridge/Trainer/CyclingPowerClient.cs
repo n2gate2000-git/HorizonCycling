@@ -240,11 +240,15 @@ namespace HorizonCyclingBridge.Trainer
             }
 
             // 2. CSC (Cycling Speed and Cadence: 0x1816) サービスの探索
-            // Cycling Power (0x1818) にクランク情報が含まれない場合やCSC独立送信の機材（Wattbike等）に対応するため、CSCも併せて探索・購読
-            try
+            // 重要: Cycling Power (0x1818) に購読成功した場合は二重受信・競合・GATT切断を防ぐため通常機材(CYCPLUS T2等)ではCSC探索をスキップ
+            // (ただし Wattbike など0x1818と0x1816が分離している特定機材のみ併せて探索)
+            bool isWattbikeDevice = devName.ToUpperInvariant().Contains("WATTBIKE") || devName.ToUpperInvariant().Contains("WPM");
+            if (!subscribedAny || isWattbikeDevice)
             {
-                var cscServicesResult = await _device.GetGattServicesForUuidAsync(CSC_SERVICE_UUID);
-                GattDeviceService? cscService = null;
+                try
+                {
+                    var cscServicesResult = await _device.GetGattServicesForUuidAsync(CSC_SERVICE_UUID);
+                    GattDeviceService? cscService = null;
                     if (cscServicesResult.Status == GattCommunicationStatus.Success && cscServicesResult.Services.Count > 0)
                     {
                         cscService = cscServicesResult.Services.FirstOrDefault();
@@ -301,6 +305,7 @@ namespace HorizonCyclingBridge.Trainer
                 {
                     OnStatusMessage?.Invoke($"[BLE] CSC query notice: {ex.Message}");
                 }
+            }
 
             if (!subscribedAny)
             {

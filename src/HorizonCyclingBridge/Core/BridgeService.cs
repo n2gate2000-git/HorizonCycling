@@ -907,6 +907,7 @@ namespace HorizonCyclingBridge.Core
                                                upperName.Contains("TRAINER");
 
                         bool isWattbike = upperName.Contains("WATTBIKE") || upperName.Contains("WPM");
+                        bool isT2 = upperName.Contains("T2");
 
                         // カテゴリ決定（WattbikeおよびUUIDを最優先、次に明確なキーワードで判定）
                         string category;
@@ -919,11 +920,18 @@ namespace HorizonCyclingBridge.Core
                             typeInt = hasFtmsUuid ? 1 : 2;
                             typeName = hasFtmsUuid ? "Wattbike Smart Bike (FTMS)" : "Wattbike (WPM Model B)";
                         }
-                        else if (hasFtmsUuid || isTrainerByName)
+                        else if (hasFtmsUuid)
                         {
                             category = "trainer";
                             typeInt = 1;
                             typeName = "FTMS Smart Trainer";
+                        }
+                        else if (isTrainerByName)
+                        {
+                            category = "trainer";
+                            // T2等のスマートローラーで Cycling Power (0x1818) をアドバタイズしている場合は 2 (CyclingPower) を優先割り当て
+                            typeInt = (hasPowerUuid && !hasFtmsUuid) ? 2 : 1;
+                            typeName = isT2 ? "CYCPLUS T2 Smart Trainer" : (typeInt == 1 ? "FTMS Smart Trainer" : "Smart Trainer (Power)");
                         }
                         else if (hasPowerUuid || hasCscUuid || isPowerOrCadenceByName || (isMageneDevice && !isHrByName))
                         {
@@ -1062,7 +1070,38 @@ namespace HorizonCyclingBridge.Core
                     }
                     else
                     {
-                        _bleStatus = "Connection Failed (FTMS)";
+                        Log($"[BLE] FTMS 接続がタイムアウト/失敗しました ({displayName})。Cycling Power (0x1818) での接続を自動フォールバック試行します...");
+                        _ftmsClient?.Disconnect();
+                        _ftmsClient?.Dispose();
+                        _ftmsClient = null;
+
+                        _powerClient = new CyclingPowerClient();
+                        _powerClient.OnStatusMessage += msg => Log($"[BLE] {msg}");
+                        _powerClient.OnPowerReceived += power =>
+                        {
+                            _currentPower = power;
+                            if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
+                            {
+                                PushCurrentSnapshot();
+                            }
+                        };
+                        _powerClient.OnCadenceReceived += cadence =>
+                        {
+                            _currentCadence = cadence;
+                        };
+
+                        _isBleConnected = await _powerClient.ScanAndConnectAsync(10000, _config.PowerSourceMacAddress);
+                        if (_isBleConnected)
+                        {
+                            _config.PowerSourceType = SensorType.CyclingPower;
+                            ConfigManager.Save(_config);
+                            _bleStatus = $"Connected ({displayName})";
+                            Log($"[BLE] Cycling Power フォールバックで正常に接続しました: {displayName}.");
+                            PushCurrentSnapshot();
+                            return true;
+                        }
+
+                        _bleStatus = "Connection Failed";
                         PushCurrentSnapshot();
                         return false;
                     }
@@ -1098,7 +1137,49 @@ namespace HorizonCyclingBridge.Core
                     }
                     else
                     {
-                        _bleStatus = "Connection Failed (PowerMeter)";
+                        Log($"[BLE] Cycling Power 接続がタイムアウト/失敗しました ({displayName})。FTMS (0x1826) での接続を自動フォールバック試行します...");
+                        _powerClient?.Disconnect();
+                        _powerClient?.Dispose();
+                        _powerClient = null;
+
+                        _ftmsClient = new FtmsClient();
+                        _ftmsClient.OnStatusMessage += msg => Log($"[BLE] {msg}");
+                        _ftmsClient.OnPowerReceived += power =>
+                        {
+                            _ftmsPower = power;
+                            if (_cadenceClient == null || !_isCadenceConnected || !_config.PreferPowerMeterWatts)
+                            {
+                                _currentPower = power;
+                            }
+                            if ((DateTime.UtcNow - _lastPacketTime).TotalMilliseconds >= 500)
+                            {
+                                PushCurrentSnapshot();
+                            }
+                        };
+                        _ftmsClient.OnCadenceReceived += cadence =>
+                        {
+                            _ftmsCadence = cadence;
+                            if (_cadenceClient == null || !_isCadenceConnected)
+                            {
+                                _currentCadence = cadence;
+                            }
+                        };
+                        _ftmsClient.OnSpeedReceived += speed => _trainerSpeedKmh = speed;
+
+                        _isBleConnected = await _ftmsClient.ScanAndConnectAsync(10000, _config.PowerSourceMacAddress);
+                        if (_isBleConnected)
+                        {
+                            _config.PowerSourceType = SensorType.Ftms;
+                            ConfigManager.Save(_config);
+                            await _ftmsClient.SetTargetResistanceLevelAsync(0);
+                            _lastSentGrade = 0.0;
+                            _bleStatus = $"Connected ({displayName})";
+                            Log($"[BLE] FTMS フォールバックで正常に接続しました: {displayName}.");
+                            PushCurrentSnapshot();
+                            return true;
+                        }
+
+                        _bleStatus = "Connection Failed";
                         PushCurrentSnapshot();
                         return false;
                     }
