@@ -545,6 +545,27 @@ namespace HorizonCyclingApp
             borderDiffBadge.Background = diffBg;
             gaugePointer.Background = diffBrush;
 
+            // バーチャルERG (マニュアル負荷 / Wattbike) ガイダンス表示
+            if (workoutState.IsVirtualErgMode)
+            {
+                borderVirtualErgBadge.Visibility = Visibility.Visible;
+                if (!string.IsNullOrEmpty(workoutState.PacingMessage))
+                {
+                    borderPacingGuideBadge.Visibility = Visibility.Visible;
+                    txtPacingGuide.Text = workoutState.PacingMessage;
+                    txtPacingGuide.Foreground = diffBrush;
+                }
+                else
+                {
+                    borderPacingGuideBadge.Visibility = Visibility.Collapsed;
+                }
+            }
+            else
+            {
+                borderVirtualErgBadge.Visibility = Visibility.Collapsed;
+                borderPacingGuideBadge.Visibility = Visibility.Collapsed;
+            }
+
             // 差分ゲージポインター移動 (中央は 79px、±30Wで端まで移動)
             double clampedDiff = Math.Clamp((double)diff, -30.0, 30.0);
             double offset = (clampedDiff / 30.0) * 70.0;

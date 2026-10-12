@@ -1,0 +1,30 @@
+<workout_file>
+  <author>HorizonCycling Studio</author>
+  <name>FTP Ramp Test</name>
+  <description>1分ごとに20Wずつ負荷が上昇するFTP自動計測テスト。限界まで踏み切ってください。</description>
+  <sportType>bike</sportType>
+  <tags><tag name="FTP"/><tag name="Test"/></tags>
+  <workout>
+    <Warmup Duration="300" PowerLow="0.45" PowerHigh="0.60" Cadence="90">
+      <textevent timeoffset="0" message="ウォームアップ開始。軽く脚を回して心拍を上げましょう。"/>
+      <textevent timeoffset="150" message="リラックスして深い呼吸を心がけてください。"/>
+    </Warmup>
+    <SteadyState Duration="60" Power="0.65" Cadence="90"/>
+    <SteadyState Duration="60" Power="0.75" Cadence="90"/>
+    <SteadyState Duration="60" Power="0.85" Cadence="90"/>
+    <SteadyState Duration="60" Power="0.95" Cadence="90"/>
+    <SteadyState Duration="60" Power="1.05" Cadence="90">
+      <textevent timeoffset="0" message="FTP領域突入！ここからが本番です。"/>
+    </SteadyState>
+    <SteadyState Duration="60" Power="1.15" Cadence="90"/>
+    <SteadyState Duration="60" Power="1.25" Cadence="90"/>
+    <SteadyState Duration="60" Power="1.35" Cadence="90">
+      <textevent timeoffset="0" message="粘れ！ペダリングを止めないで！"/>
+    </SteadyState>
+    <SteadyState Duration="60" Power="1.45" Cadence="90"/>
+    <SteadyState Duration="60" Power="1.55" Cadence="90"/>
+    <Cooldown Duration="300" PowerLow="0.50" PowerHigh="0.35" Cadence="85">
+      <textevent timeoffset="0" message="テスト終了！お疲れ様でした。呼吸を整えましょう。"/>
+    </Cooldown>
+  </workout>
+</workout_file>

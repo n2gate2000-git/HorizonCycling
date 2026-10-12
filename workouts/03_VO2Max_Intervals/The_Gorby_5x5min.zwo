@@ -1,0 +1,18 @@
+<workout_file>
+  <author>HorizonCycling Studio</author>
+  <name>The Gorby (5x5min VO2Max)</name>
+  <description>最大酸素摂取量(VO2Max)を限界まで鍛え上げる5分×5本の高強度インターバル。</description>
+  <sportType>bike</sportType>
+  <tags><tag name="VO2Max"/><tag name="Intervals"/></tags>
+  <workout>
+    <Warmup Duration="600" PowerLow="0.40" PowerHigh="0.80" Cadence="90">
+      <textevent timeoffset="0" message="ウォームアップ。脚を温めて高強度に備えましょう。"/>
+    </Warmup>
+    <IntervalsT Repeat="5" OnDuration="300" OffDuration="300" OnPower="1.10" OffPower="0.55" Cadence="95" CadenceResting="85">
+      <textevent timeoffset="0" message="VO2Maxアタック！110% FTP！ハイケイデンスで乗り切ろう！"/>
+    </IntervalsT>
+    <Cooldown Duration="300" PowerLow="0.50" PowerHigh="0.35" Cadence="85">
+      <textevent timeoffset="0" message="全セット完了！素晴らしい追い込みでした！"/>
+    </Cooldown>
+  </workout>
+</workout_file>

@@ -383,9 +383,6 @@ namespace HorizonCyclingBridge.Workout
                     File.WriteAllText(recPath, SampleWorkouts.RecoveryZwo);
                 }
 
-                // Customフォルダ
-                string customDir = Path.Combine(_workoutsRootDir, "Custom");
-                Directory.CreateDirectory(customDir);
             }
             catch
             {

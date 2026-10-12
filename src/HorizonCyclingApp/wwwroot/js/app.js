@@ -834,8 +834,9 @@ document.addEventListener('DOMContentLoaded', () => {
         item.className = 'device-item';
         const isPower = dev.SensorTypeInt === 2;
         const isOther = dev.Category === 'other';
-        const badgeText = isOther ? 'Bluetooth' : dev.TypeName;
-        const badgeClass = isPower ? 'power' : '';
+        const isWattbike = (dev.Name && (dev.Name.toUpperCase().includes('WATTBIKE') || dev.Name.toUpperCase().includes('WPM'))) || (dev.TypeName && dev.TypeName.includes('Wattbike'));
+        const badgeText = isWattbike ? 'Wattbike' : (isOther ? 'Bluetooth' : dev.TypeName);
+        const badgeClass = isWattbike ? 'wattbike' : (isPower ? 'power' : '');
         item.innerHTML = `
           <div class="device-item-left">
             <span class="device-item-name">🚴 ${dev.Name}</span>

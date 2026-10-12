@@ -120,6 +120,11 @@ namespace HorizonCyclingBridge.Workout
         public RampTestResult? RampResult { get; set; }
         public double LowCadenceSeconds { get; set; }
 
+        // バーチャルERG（マニュアル負荷機材・Wattbike等）関連
+        public bool IsVirtualErgMode { get; set; } = false;
+        public string PacingHint { get; set; } = ""; // "UP", "DOWN", "MATCH", ""
+        public string PacingMessage { get; set; } = "";
+
         // 各ブロックのリスト（プロファイル用）
         public List<WorkoutSegmentSnapshotItem> Segments { get; set; } = new();
     }

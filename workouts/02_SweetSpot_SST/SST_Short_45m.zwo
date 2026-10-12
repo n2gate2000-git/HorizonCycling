@@ -1,0 +1,19 @@
+<workout_file>
+  <author>HorizonCycling Studio</author>
+  <name>SST (Sweet Spot Training) 45m</name>
+  <description>有酸素能力と閾値パワーを効率的に高める王道スイートスポットインターバル (88% FTP)。</description>
+  <sportType>bike</sportType>
+  <tags><tag name="SST"/><tag name="Threshold"/></tags>
+  <workout>
+    <Warmup Duration="600" PowerLow="0.45" PowerHigh="0.75" Cadence="90">
+      <textevent timeoffset="0" message="ウォームアップ開始。ケイデンス90を目安に徐々に負荷を上げます。"/>
+      <textevent timeoffset="300" message="中盤突入。背筋を伸ばし、体幹を安定させましょう。"/>
+    </Warmup>
+    <IntervalsT Repeat="3" OnDuration="300" OffDuration="120" OnPower="0.88" OffPower="0.55" Cadence="90" CadenceResting="85">
+      <textevent timeoffset="0" message="SSTインターバル開始！88% FTPをキープ！"/>
+    </IntervalsT>
+    <Cooldown Duration="300" PowerLow="0.60" PowerHigh="0.40" Cadence="85">
+      <textevent timeoffset="0" message="クールダウンです。脚の力を抜き、しっかり呼吸を整えてください。"/>
+    </Cooldown>
+  </workout>
+</workout_file>

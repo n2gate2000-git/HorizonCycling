@@ -59,6 +59,9 @@ dotnet publish src/HorizonCyclingApp/HorizonCyclingApp.csproj -c Release -r win-
 Ensure critical runtime assets are present in the output folder:
 - **`vJoyInterface.dll`**: Copy `src/HorizonCyclingBridge/vJoyInterface.dll` to `release/HorizonCycling_V1.3.0/`
 - **`map/`**: Copy files from `map/` into `release/HorizonCycling_V1.3.0/map/` (e.g. `fh6_japan_map_full_8192x8192.jpg`, `fh6_japan_pins.json`)
+- **`workouts/`**: Ensure only the 4 default categories (`01_FTP_Test`, `02_SweetSpot_SST`, `03_VO2Max_Intervals`, `04_Endurance_Recovery`) are included.
+- **`config.json`**: Reset to default/initial state (unpaired sensors, default FTP/weight/difficulty).
+- **`logs/`**: Exclude completely from the release package.
 - **`wwwroot/`**: Verified to contain latest frontend assets (`index.html`, `js/`, `css/`) automatically deployed by publish.
 
 ### Step 5: Generate Distribution ZIP
@@ -75,4 +78,7 @@ After running the build and packaging process, verify the following:
 1. `HorizonCyclingApp.exe` exists in `release/HorizonCycling_V1.3.0/` with current timestamp.
 2. `vJoyInterface.dll` exists in `release/HorizonCycling_V1.3.0/`.
 3. `release/HorizonCycling_V1.3.0/wwwroot/` contains updated web files.
-4. `release/HorizonCycling_V1.3.0.zip` exists, is non-empty (>100MB), and matches the latest build timestamp.
+4. `release/HorizonCycling_V1.3.0/logs/` is NOT present.
+5. `release/HorizonCycling_V1.3.0/workouts/` contains ONLY `01_FTP_Test`, `02_SweetSpot_SST`, `03_VO2Max_Intervals`, and `04_Endurance_Recovery`.
+6. `release/HorizonCycling_V1.3.0/config.json` is in its default/initial state (MAC addresses empty/zero).
+7. `release/HorizonCycling_V1.3.0.zip` exists, is non-empty (>90MB), and matches the latest build timestamp.

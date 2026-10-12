@@ -87,6 +87,92 @@ if (-not (Test-Path $readmeTarget)) {
     }
 }
 
+# Synchronize allowed workouts: 01_FTP_Test, 02_SweetSpot_SST, 03_VO2Max_Intervals, 04_Endurance_Recovery
+$workoutTargetDir = Join-Path $absOutputDir "workouts"
+$workoutSourceDir = Join-Path $repoRoot "workouts"
+$allowedWorkouts = @("01_FTP_Test", "02_SweetSpot_SST", "03_VO2Max_Intervals", "04_Endurance_Recovery")
+
+if (-not (Test-Path $workoutTargetDir)) {
+    New-Item -ItemType Directory -Path $workoutTargetDir -Force | Out-Null
+}
+
+# Copy allowed workouts from source if present
+if (Test-Path $workoutSourceDir) {
+    foreach ($category in $allowedWorkouts) {
+        $catSrc = Join-Path $workoutSourceDir $category
+        $catDst = Join-Path $workoutTargetDir $category
+        if (Test-Path $catSrc) {
+            if (-not (Test-Path $catDst)) {
+                New-Item -ItemType Directory -Path $catDst -Force | Out-Null
+            }
+            Get-ChildItem -Path $catSrc -File | ForEach-Object {
+                Copy-Item -Path $_.FullName -Destination $catDst -Force
+            }
+        }
+    }
+}
+
+# Remove any non-allowed workouts directories or loose files in workouts
+Get-ChildItem -Path $workoutTargetDir -Directory | ForEach-Object {
+    if ($allowedWorkouts -notcontains $_.Name) {
+        Remove-Item -Path $_.FullName -Recurse -Force
+        Write-Host "  -> Removed non-whitelisted workout directory: $($_.Name)" -ForegroundColor Yellow
+    }
+}
+Get-ChildItem -Path $workoutTargetDir -File | ForEach-Object {
+    Remove-Item -Path $_.FullName -Force
+    Write-Host "  -> Removed loose file in workouts: $($_.Name)" -ForegroundColor Yellow
+}
+Write-Host "  -> Workouts filtered to allowed set: $($allowedWorkouts -join ', ')." -ForegroundColor Green
+
+# Ensure logs/ folder is NOT included in the distribution package
+$logsTargetDir = Join-Path $absOutputDir "logs"
+if (Test-Path $logsTargetDir) {
+    Remove-Item -Path $logsTargetDir -Recurse -Force
+    Write-Host "  -> Excluded/removed 'logs/' directory from release package." -ForegroundColor Green
+}
+
+# Clean WebView2 runtime cache if present
+$wv2CacheDir = Join-Path $absOutputDir "HorizonCyclingApp.exe.WebView2"
+if (Test-Path $wv2CacheDir) {
+    Remove-Item -Path $wv2CacheDir -Recurse -Force
+    Write-Host "  -> Removed WebView2 runtime cache from release package." -ForegroundColor Green
+}
+
+# Reset config.json in release directory to default initial state
+$configTarget = Join-Path $absOutputDir "config.json"
+$defaultConfigJson = @'
+{
+  "PowerSourceType": 0,
+  "PowerSourceMacAddress": 0,
+  "PowerSourceName": "",
+  "HeartRateSourceMacAddress": 0,
+  "HeartRateSourceName": "",
+  "HeartRateEnabled": true,
+  "MaxHeartRate": 190,
+  "RestingHeartRate": 60,
+  "CadenceSourceMacAddress": 0,
+  "CadenceSourceName": "",
+  "CadenceSourceType": 0,
+  "CadenceSourceEnabled": true,
+  "PreferPowerMeterWatts": true,
+  "DefaultMode": 2,
+  "TrainerDifficulty": 0.5,
+  "Ftp": 200,
+  "RiderWeightKg": 70,
+  "PedalBrakeEnabled": false,
+  "FreerideOverlayEnabled": false,
+  "ProfileRecentDistanceM": 200,
+  "Language": "ja",
+  "MapOriginX": 0,
+  "MapOriginZ": 0,
+  "MapScale": 0.263,
+  "InvertZ": true
+}
+'@
+[System.IO.File]::WriteAllText($configTarget, $defaultConfigJson, [System.Text.UTF8Encoding]::new($false))
+Write-Host "  -> Reset config.json to initial default state in release package." -ForegroundColor Green
+
 # 5. Compress into ZIP Archive
 Write-Host "`n[Step 5/5] Creating ZIP Archive..." -ForegroundColor Yellow
 $absZipPath = Join-Path $repoRoot $ZipPath

@@ -103,7 +103,7 @@ namespace HorizonCyclingBridge.Trainer
                 bool hasPowerUuid = args.Advertisement.ServiceUuids.Any(u => u == CYCLING_POWER_SERVICE_UUID || u.ToString().StartsWith("00001818", StringComparison.OrdinalIgnoreCase));
                 bool hasCscUuid = args.Advertisement.ServiceUuids.Any(u => u == CSC_SERVICE_UUID || u.ToString().StartsWith("00001816", StringComparison.OrdinalIgnoreCase));
                 string localName = (args.Advertisement.LocalName ?? string.Empty).ToUpperInvariant();
-                bool isPowerByName = localName.Contains("PES") || localName.Contains("P505") || localName.Contains("P325") || localName.Contains("POWER") || localName.Contains("CADENCE") || localName.Contains("MAGENE");
+                bool isPowerByName = localName.Contains("PES") || localName.Contains("P505") || localName.Contains("P325") || localName.Contains("POWER") || localName.Contains("CADENCE") || localName.Contains("MAGENE") || localName.Contains("WATTBIKE") || localName.Contains("WPM");
 
                 if (!hasPowerUuid && !hasCscUuid && !isPowerByName)
                 {
@@ -240,14 +240,11 @@ namespace HorizonCyclingBridge.Trainer
             }
 
             // 2. CSC (Cycling Speed and Cadence: 0x1816) サービスの探索
-            // 重要: Cycling Power (0x1818) に購読成功した場合は二重受信・競合を防ぐため CSC 購読をスキップ
-            if (!subscribedAny)
+            // Cycling Power (0x1818) にクランク情報が含まれない場合やCSC独立送信の機材（Wattbike等）に対応するため、CSCも併せて探索・購読
+            try
             {
-                try
-                {
-                    OnStatusMessage?.Invoke("[BLE] Cycling Power (0x1818) not found. Probing CSC (0x1816) fallback...");
-                    var cscServicesResult = await _device.GetGattServicesForUuidAsync(CSC_SERVICE_UUID);
-                    GattDeviceService? cscService = null;
+                var cscServicesResult = await _device.GetGattServicesForUuidAsync(CSC_SERVICE_UUID);
+                GattDeviceService? cscService = null;
                     if (cscServicesResult.Status == GattCommunicationStatus.Success && cscServicesResult.Services.Count > 0)
                     {
                         cscService = cscServicesResult.Services.FirstOrDefault();
@@ -304,7 +301,6 @@ namespace HorizonCyclingBridge.Trainer
                 {
                     OnStatusMessage?.Invoke($"[BLE] CSC query notice: {ex.Message}");
                 }
-            }
 
             if (!subscribedAny)
             {

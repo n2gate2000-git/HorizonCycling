@@ -1,0 +1,15 @@
+<workout_file>
+  <author>HorizonCycling Studio</author>
+  <name>Recovery Spin 30m</name>
+  <description>疲労抜き・アクティブリカバリーのための軽やかな30分スピンライド。</description>
+  <sportType>bike</sportType>
+  <tags><tag name="Recovery"/></tags>
+  <workout>
+    <Warmup Duration="300" PowerLow="0.40" PowerHigh="0.50" Cadence="90"/>
+    <SteadyState Duration="1200" Power="0.52" Cadence="90">
+      <textevent timeoffset="0" message="心拍を上げず、ペダルの重さを感じない軽快な回転を意識しましょう。"/>
+      <textevent timeoffset="600" message="リラックス。風景を楽しみながらペダリングしましょう。"/>
+    </SteadyState>
+    <Cooldown Duration="300" PowerLow="0.50" PowerHigh="0.35" Cadence="85"/>
+  </workout>
+</workout_file>

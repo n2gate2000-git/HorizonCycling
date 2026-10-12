@@ -367,5 +367,64 @@ MINUTES PERCENT
             Assert.Equal(95, snap30.NextTargetCadence);
             Assert.Equal(5, snap30.NextPowerZone); // 1.05 = Z5 (VO2Max)
         }
+
+        [Fact]
+        public void VirtualErg_SnapshotProperties_AreHandledCorrectly()
+        {
+            var snap = new WorkoutStateSnapshot
+            {
+                State = "Running",
+                TargetWatts = 200,
+                IsVirtualErgMode = true,
+                PacingHint = "UP",
+                PacingMessage = "▲ レバー/ケイデンスUP"
+            };
+
+            Assert.True(snap.IsVirtualErgMode);
+            Assert.Equal("UP", snap.PacingHint);
+            Assert.Equal("▲ レバー/ケイデンスUP", snap.PacingMessage);
+        }
+
+        [Fact]
+        public void AppConfig_DefaultValues_AreInitialState()
+        {
+            var config = new HorizonCyclingBridge.Core.AppConfig();
+            Assert.Equal(HorizonCyclingBridge.Core.SensorType.None, config.PowerSourceType);
+            Assert.Equal(0ul, config.PowerSourceMacAddress);
+            Assert.Equal(string.Empty, config.PowerSourceName);
+            Assert.Equal(0ul, config.HeartRateSourceMacAddress);
+            Assert.Equal(string.Empty, config.HeartRateSourceName);
+            Assert.True(config.HeartRateEnabled);
+            Assert.Equal(190, config.MaxHeartRate);
+            Assert.Equal(60, config.RestingHeartRate);
+            Assert.Equal(0ul, config.CadenceSourceMacAddress);
+            Assert.Equal(string.Empty, config.CadenceSourceName);
+            Assert.Equal(HorizonCyclingBridge.Core.SensorType.None, config.CadenceSourceType);
+            Assert.True(config.CadenceSourceEnabled);
+            Assert.True(config.PreferPowerMeterWatts);
+            Assert.Equal(2, config.DefaultMode);
+            Assert.Equal(0.5, config.TrainerDifficulty);
+            Assert.Equal(200.0, config.Ftp);
+            Assert.Equal(70.0, config.RiderWeightKg);
+            Assert.False(config.PedalBrakeEnabled);
+            Assert.False(config.FreerideOverlayEnabled);
+            Assert.Equal(200, config.ProfileRecentDistanceM);
+            Assert.Equal("ja", config.Language);
+            Assert.Equal(0.0, config.MapOriginX);
+            Assert.Equal(0.0, config.MapOriginZ);
+            Assert.Equal(0.263, config.MapScale);
+            Assert.True(config.InvertZ);
+        }
+
+        [Fact]
+        public void ConfigManager_GetDefaultJson_CanBeDeserializedBackToDefault()
+        {
+            string json = HorizonCyclingBridge.Core.ConfigManager.GetDefaultJson();
+            var parsed = System.Text.Json.JsonSerializer.Deserialize<HorizonCyclingBridge.Core.AppConfig>(json);
+            Assert.NotNull(parsed);
+            Assert.Equal(0ul, parsed.PowerSourceMacAddress);
+            Assert.Equal(200.0, parsed.Ftp);
+            Assert.Equal("ja", parsed.Language);
+        }
     }
 }

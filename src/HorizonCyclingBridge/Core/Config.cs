@@ -98,5 +98,30 @@ namespace HorizonCyclingBridge.Core
                 Console.WriteLine($"[WARNING] Failed to save config.json: {ex.Message}");
             }
         }
+
+        /// <summary>
+        /// 初期状態の config.json 文字列を生成
+        /// </summary>
+        public static string GetDefaultJson()
+        {
+            var options = new JsonSerializerOptions { WriteIndented = true };
+            return JsonSerializer.Serialize(new AppConfig(), options);
+        }
+
+        /// <summary>
+        /// 指定パスまたは既定パスの config.json を初期状態にリセット
+        /// </summary>
+        public static void ResetToDefault(string? filePath = null)
+        {
+            try
+            {
+                string path = filePath ?? GetConfigFilePath();
+                File.WriteAllText(path, GetDefaultJson());
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WARNING] Failed to reset config.json to default: {ex.Message}");
+            }
+        }
     }
 }
