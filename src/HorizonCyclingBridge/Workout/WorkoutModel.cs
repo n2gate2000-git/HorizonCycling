@@ -111,6 +111,9 @@ namespace HorizonCyclingBridge.Workout
         // 次ブロックの予告
         public int? NextTargetWatts { get; set; }
         public int? NextDurationSec { get; set; }
+        public string? NextSegmentType { get; set; }
+        public int? NextTargetCadence { get; set; }
+        public int? NextPowerZone { get; set; }
 
         // ランプテスト関連
         public bool IsRampTest { get; set; }

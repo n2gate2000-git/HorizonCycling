@@ -322,5 +322,50 @@ MINUTES PERCENT
             var snapFinal = engine.CreateSnapshot();
             Assert.Equal("Finished", snapFinal.State);
         }
+
+        [Fact]
+        public void WorkoutEngine_NextSegmentPreview_AccuratelyPopulatesNextSegmentInfoAt30Seconds()
+        {
+            var def = new WorkoutDefinition
+            {
+                Title = "Next Segment 30s Preview Test",
+                Segments = new System.Collections.Generic.List<WorkoutSegment>
+                {
+                    new WorkoutSegment 
+                    { 
+                        SegmentType = "Warmup", 
+                        DurationSec = 60, 
+                        TargetPowerLowPct = 0.5, 
+                        TargetPowerHighPct = 0.5 
+                    },
+                    new WorkoutSegment 
+                    { 
+                        SegmentType = "IntervalOn", 
+                        DurationSec = 180, 
+                        TargetPowerLowPct = 1.05, 
+                        TargetPowerHighPct = 1.05,
+                        TargetCadence = 95
+                    }
+                }
+            };
+            def.TotalDurationSec = 240;
+
+            var engine = new WorkoutEngine();
+            engine.Start(def, 200.0); // FTP = 200W
+
+            // 30秒経過 (残り30秒地点)
+            for (int i = 0; i < 30; i++) engine.Update(1.0, 200.0);
+
+            var snap30 = engine.CreateSnapshot();
+            Assert.Equal(0, snap30.CurrentSegmentIndex);
+            Assert.Equal(30, snap30.SegmentRemainingSec);
+
+            // 次のセグメントの予告情報が正しくセットされていること
+            Assert.Equal("IntervalOn", snap30.NextSegmentType);
+            Assert.Equal(180, snap30.NextDurationSec);
+            Assert.Equal(210, snap30.NextTargetWatts); // 1.05 * 200W = 210W
+            Assert.Equal(95, snap30.NextTargetCadence);
+            Assert.Equal(5, snap30.NextPowerZone); // 1.05 = Z5 (VO2Max)
+        }
     }
 }

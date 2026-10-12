@@ -337,10 +337,27 @@
         return;
       }
 
-      // 1. カウントダウン予告音の判定 (10秒前に1回、5秒前から1秒ごと)
+      // 1. カウントダウン予告音の判定 (30秒前にTTSアナウンス、10秒前に1回ビープ、5秒前から1秒ごとビープ)
       if (workout.State === 'Running' && workout.CurrentSegmentIndex + 1 < workout.TotalSegmentsCount) {
         const rem = workout.SegmentRemainingSec;
-        if (rem === 10 || (rem >= 1 && rem <= 5)) {
+        if (rem === 30 && this.lastCountdownSec !== 30) {
+          this.lastCountdownSec = 30;
+          if (this.ttsEnabled) {
+            const nextSeg = workout.Segments ? workout.Segments[workout.CurrentSegmentIndex + 1] : null;
+            const nextWatts = workout.NextTargetWatts || (nextSeg ? nextSeg.TargetWattsLow : 0);
+            const nextDur = workout.NextDurationSec || (nextSeg ? nextSeg.DurationSec : 0);
+            const m = Math.floor(nextDur / 60);
+            const s = nextDur % 60;
+            const durText = m > 0 ? (s > 0 ? `${m}分${s}秒` : `${m}分間`) : `${s}秒間`;
+            const durTextEn = m > 0 ? (s > 0 ? `${m}m ${s}s` : `${m} minutes`) : `${s} seconds`;
+            const nextType = workout.NextSegmentType || (nextSeg ? nextSeg.Type : '');
+            const isEn = window.i18n && window.i18n.getLanguage() === 'en';
+            const msg = isEn
+              ? `Next block in 30 seconds: ${nextType}, target ${nextWatts} watts for ${durTextEn}`
+              : `30秒後に次のセグメントです。${nextType}、目標${nextWatts}ワット、持続${durText}`;
+            this.speak(msg);
+          }
+        } else if (rem === 10 || (rem >= 1 && rem <= 5)) {
           if (this.lastCountdownSec !== rem) {
             this.lastCountdownSec = rem;
             if (rem === 10) {
@@ -349,7 +366,7 @@
               this.playCountdownTick(rem);
             }
           }
-        } else {
+        } else if (rem > 30 || (rem > 10 && rem < 30) || (rem > 5 && rem < 10) || rem <= 0) {
           this.lastCountdownSec = -1;
         }
       }

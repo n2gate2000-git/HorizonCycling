@@ -248,8 +248,6 @@ namespace HorizonCyclingBridge.Workout
                 _lastReportedTargetWatts = targetWatts;
                 OnTargetPowerChanged?.Invoke(targetWatts);
             }
-
-            NotifyState();
         }
 
         private int CalculateCurrentTargetWatts()
@@ -373,8 +371,8 @@ namespace HorizonCyclingBridge.Workout
 
             snap.WorkoutTitle = _currentWorkout.Title;
             snap.TotalDurationSec = _currentWorkout.TotalDurationSec;
-            snap.ElapsedSec = (int)Math.Round(_elapsedSecondsTotal);
-            snap.RemainingSec = Math.Max(0, _currentWorkout.TotalDurationSec - snap.ElapsedSec);
+            snap.ElapsedSec = (int)Math.Floor(_elapsedSecondsTotal);
+            snap.RemainingSec = (int)Math.Ceiling(Math.Max(0.0, _currentWorkout.TotalDurationSec - _elapsedSecondsTotal));
             snap.TotalSegmentsCount = _currentWorkout.Segments.Count;
             snap.CurrentSegmentIndex = _currentSegmentIndex;
             snap.ActiveMessage = _activeMessage;
@@ -384,8 +382,8 @@ namespace HorizonCyclingBridge.Workout
                 var seg = _currentWorkout.Segments[_currentSegmentIndex];
                 snap.CurrentSegmentType = seg.SegmentType;
                 snap.SegmentTotalDurationSec = seg.DurationSec;
-                snap.SegmentElapsedSec = (int)Math.Round(_elapsedSecondsSegment);
-                snap.SegmentRemainingSec = Math.Max(0, seg.DurationSec - snap.SegmentElapsedSec);
+                snap.SegmentElapsedSec = (int)Math.Floor(_elapsedSecondsSegment);
+                snap.SegmentRemainingSec = (int)Math.Ceiling(Math.Max(0.0, seg.DurationSec - _elapsedSecondsSegment));
                 snap.TargetCadence = seg.TargetCadence;
 
                 double ratio = seg.DurationSec > 1 ? Math.Clamp(_elapsedSecondsSegment / seg.DurationSec, 0.0, 1.0) : 0.0;
@@ -401,6 +399,9 @@ namespace HorizonCyclingBridge.Workout
                 var nextSeg = _currentWorkout.Segments[_currentSegmentIndex + 1];
                 snap.NextDurationSec = nextSeg.DurationSec;
                 snap.NextTargetWatts = (int)Math.Round(_ftp * nextSeg.TargetPowerLowPct * _intensityBias);
+                snap.NextSegmentType = nextSeg.SegmentType;
+                snap.NextTargetCadence = nextSeg.TargetCadence;
+                snap.NextPowerZone = WorkoutLibraryManager.GetPowerZone(nextSeg.TargetPowerLowPct);
             }
 
             // セグメント一覧

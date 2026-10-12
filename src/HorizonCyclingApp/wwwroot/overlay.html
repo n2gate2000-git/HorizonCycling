@@ -46,6 +46,35 @@
 
     <!-- 中央上部: メイン・インターバルアーチHUD -->
     <div id="archHudWidget" class="arch-hud-widget">
+      <!-- 次セグメント予告バナー (30秒前〜切り替えまで) -->
+      <div id="nextSegmentBanner" class="next-segment-banner hide">
+        <div class="next-banner-top">
+          <div class="next-banner-left">
+            <span class="next-icon">⏭</span>
+            <span id="nextBannerHeader" class="next-banner-header">次のセグメント予告 (あと 30秒)</span>
+          </div>
+          <div class="next-banner-right">
+            <span class="next-dur-label">持続:</span>
+            <span id="nextDuration" class="next-duration">05:00</span>
+          </div>
+        </div>
+        <div class="next-banner-bottom">
+          <div class="next-info-left">
+            <span id="nextZoneBadge" class="next-zone-badge">Z4</span>
+            <span id="nextSegmentType" class="next-type">SWEETSPOT</span>
+          </div>
+          <div class="next-info-right">
+            <span class="next-target-label">目標:</span>
+            <span id="nextTargetWatts" class="next-watts">210 W</span>
+            <span id="nextPowerDelta" class="next-delta">+90W 🔺</span>
+            <span id="nextCadenceContainer" class="next-cadence-container">
+              <span>🔄</span>
+              <span id="nextCadence" class="next-cad">90 RPM</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
       <!-- カウントダウンバナー -->
       <div id="countdownBanner" class="countdown-banner hide">
         <span class="countdown-label">NEXT INTERVAL IN</span>

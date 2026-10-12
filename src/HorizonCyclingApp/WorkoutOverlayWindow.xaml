@@ -262,6 +262,133 @@
                 </StackPanel>
             </Border>
 
+            <!-- 次セグメント予告バナー (30秒前〜切り替えまで表示) -->
+            <Border x:Name="nextSegmentPreviewBanner"
+                    Width="660"
+                    CornerRadius="14"
+                    Padding="18,10"
+                    HorizontalAlignment="Center"
+                    Margin="0,0,0,10"
+                    Visibility="Collapsed">
+                <Border.Background>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                        <GradientStop Color="#F00F172A" Offset="0.0"/>
+                        <GradientStop Color="#F01E293B" Offset="1.0"/>
+                    </LinearGradientBrush>
+                </Border.Background>
+                <Border.BorderBrush>
+                    <SolidColorBrush x:Name="brushNextPreviewBorder" Color="#06B6D4"/>
+                </Border.BorderBrush>
+                <Border.BorderThickness>
+                    <Thickness Left="1" Top="2" Right="1" Bottom="1"/>
+                </Border.BorderThickness>
+                <Border.Effect>
+                    <DropShadowEffect x:Name="shadowNextPreview" BlurRadius="24" ShadowDepth="0" Color="#06B6D4" Opacity="0.5"/>
+                </Border.Effect>
+                <StackPanel>
+                    <!-- 上段: 予告ヘッダー & 持続時間 -->
+                    <DockPanel Margin="0,0,0,6">
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                            <TextBlock Text="⏭ " FontSize="13" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtNextPreviewHeader"
+                                       Text="次のセグメント予告 (あと 30秒)"
+                                       Foreground="#38BDF8"
+                                       FontFamily="Segoe UI, Outfit, Arial"
+                                       FontSize="12"
+                                       FontWeight="ExtraBold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock x:Name="lblNextDuration" Text="持続: " Foreground="#94A3B8" FontSize="11" FontWeight="Bold" VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtNextDuration"
+                                       Text="05:00"
+                                       Foreground="#F8FAFC"
+                                       FontFamily="Consolas, Segoe UI Mono"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <!-- 下段: ゾーン・セグメント名・目標ワット・差分・目標ケイデンス -->
+                    <DockPanel VerticalAlignment="Center">
+                        <!-- 左側: ゾーンバッジ & セグメント種別 -->
+                        <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                            <Border x:Name="borderNextZoneBadge"
+                                    Background="#EAB308"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    Margin="0,0,8,0"
+                                    VerticalAlignment="Center">
+                                <TextBlock x:Name="txtNextZone"
+                                           Text="Z4"
+                                           Foreground="#FFFFFF"
+                                           FontFamily="Segoe UI, Outfit, Arial"
+                                           FontSize="11"
+                                           FontWeight="Black"/>
+                            </Border>
+                            <TextBlock x:Name="txtNextType"
+                                       Text="SWEETSPOT"
+                                       Foreground="#F8FAFC"
+                                       FontFamily="Segoe UI, Outfit, Arial"
+                                       FontSize="15"
+                                       FontWeight="Black"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,16,0"/>
+                        </StackPanel>
+
+                        <!-- 右側: 目標ワット & 差分 & ケイデンス -->
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                            <TextBlock x:Name="lblNextTarget"
+                                       Text="目標: "
+                                       Foreground="#94A3B8"
+                                       FontSize="12"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"/>
+                            <TextBlock x:Name="txtNextTargetWatts"
+                                       Text="210 W"
+                                       Foreground="#06B6D4"
+                                       FontFamily="Segoe UI, Outfit, Arial"
+                                       FontSize="18"
+                                       FontWeight="Black"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,6,0">
+                                <TextBlock.Effect>
+                                    <DropShadowEffect BlurRadius="8" ShadowDepth="0" Color="#06B6D4" Opacity="0.6"/>
+                                </TextBlock.Effect>
+                            </TextBlock>
+
+                            <!-- パワー差分バッジ (+90W / -50W) -->
+                            <Border x:Name="borderNextDeltaBadge"
+                                    Background="#2610B981"
+                                    CornerRadius="4"
+                                    Padding="6,2"
+                                    Margin="0,0,12,0"
+                                    VerticalAlignment="Center">
+                                <TextBlock x:Name="txtNextPowerDelta"
+                                           Text="+90W 🔺"
+                                           Foreground="#10B981"
+                                           FontFamily="Consolas, Segoe UI Mono"
+                                           FontSize="12"
+                                           FontWeight="Bold"/>
+                            </Border>
+
+                            <!-- 目標ケイデンス -->
+                            <StackPanel x:Name="panelNextCadence" Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="🔄 " FontSize="12" VerticalAlignment="Center"/>
+                                <TextBlock x:Name="txtNextCadence"
+                                           Text="90 RPM"
+                                           Foreground="#CBD5E1"
+                                           FontFamily="Segoe UI, Outfit, Arial"
+                                           FontSize="13"
+                                           FontWeight="Bold"
+                                           VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
             <!-- カウントダウンバナー -->
             <Border x:Name="countdownBanner"
                     CornerRadius="20"

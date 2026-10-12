@@ -273,6 +273,131 @@ body.edit-mode .overlay-toolbar {
   z-index: 50;
 }
 
+/* 次セグメント予告バナー (30秒前〜切り替えまで) */
+.next-segment-banner {
+  width: 580px;
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(30, 41, 59, 0.94));
+  border: 1px solid rgba(6, 182, 212, 0.6);
+  border-top: 2px solid var(--accent-cyan);
+  border-radius: 14px;
+  padding: 8px 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5), 0 0 16px rgba(6, 182, 212, 0.3);
+  backdrop-filter: blur(14px);
+  animation: slide-down 0.3s ease;
+}
+
+.next-banner-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.next-banner-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.next-banner-header {
+  font-family: 'Outfit', sans-serif;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #38bdf8;
+}
+
+.next-banner-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--text-sub);
+}
+
+.next-duration {
+  font-family: 'Roboto Mono', monospace;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.next-banner-bottom {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.next-info-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.next-zone-badge {
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: #fff;
+  background: var(--accent-yellow);
+}
+
+.next-type {
+  font-family: 'Outfit', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  color: #f8fafc;
+}
+
+.next-info-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.next-target-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.next-watts {
+  font-family: 'Outfit', sans-serif;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--accent-cyan);
+  text-shadow: 0 0 8px rgba(6, 182, 212, 0.6);
+}
+
+.next-delta {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(16, 185, 129, 0.15);
+  color: var(--accent-green);
+}
+
+.next-delta.high {
+  background: rgba(249, 115, 22, 0.15);
+  color: var(--accent-orange);
+}
+
+.next-delta.low {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+}
+
+.next-cadence-container {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sub);
+}
+
 /* カウントダウン演出 */
 .countdown-banner {
   background: linear-gradient(135deg, rgba(239, 68, 68, 0.95), rgba(249, 115, 22, 0.95));

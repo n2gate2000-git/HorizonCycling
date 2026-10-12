@@ -73,6 +73,48 @@ namespace HorizonCyclingApp
         private bool _isClickThrough = true;
         private string _lastRenderedTitle = "";
         private string _currentLanguage = "ja";
+        private int _lastHighlightedSegmentIndex = -1;
+        private int _lastCountdownVal = -1;
+        private int _lastPreviewRemainingSec = -1;
+
+        private static readonly SolidColorBrush Zone1Brush = CreateFrozenBrush(Color.FromRgb(100, 116, 139));
+        private static readonly SolidColorBrush Zone2Brush = CreateFrozenBrush(Color.FromRgb(59, 130, 246));
+        private static readonly SolidColorBrush Zone3Brush = CreateFrozenBrush(Color.FromRgb(16, 185, 129));
+        private static readonly SolidColorBrush Zone4Brush = CreateFrozenBrush(Color.FromRgb(234, 179, 8));
+        private static readonly SolidColorBrush Zone5Brush = CreateFrozenBrush(Color.FromRgb(249, 115, 22));
+        private static readonly SolidColorBrush Zone6Brush = CreateFrozenBrush(Color.FromRgb(239, 68, 68));
+        private static readonly SolidColorBrush Zone7Brush = CreateFrozenBrush(Color.FromRgb(168, 85, 247));
+        private static readonly SolidColorBrush DefaultZoneBrush = CreateFrozenBrush(Color.FromRgb(6, 182, 212));
+
+        private static readonly SolidColorBrush GradeSteepRed = CreateFrozenBrush(Color.FromRgb(239, 68, 68));
+        private static readonly SolidColorBrush GradeClimbOrange = CreateFrozenBrush(Color.FromRgb(249, 115, 22));
+        private static readonly SolidColorBrush GradeGentleYellow = CreateFrozenBrush(Color.FromRgb(245, 158, 11));
+        private static readonly SolidColorBrush GradeDownBlue = CreateFrozenBrush(Color.FromRgb(56, 189, 248));
+
+        private static readonly SolidColorBrush PowerDiffMatchBrush = CreateFrozenBrush(Color.FromRgb(16, 185, 129));
+        private static readonly SolidColorBrush PowerDiffLowBrush = CreateFrozenBrush(Color.FromRgb(234, 179, 8));
+        private static readonly SolidColorBrush PowerDiffHighBrush = CreateFrozenBrush(Color.FromRgb(239, 68, 68));
+        private static readonly SolidColorBrush PowerDiffMatchBg = CreateFrozenBrush(Color.FromArgb(38, 16, 185, 129));
+        private static readonly SolidColorBrush PowerDiffLowBg = CreateFrozenBrush(Color.FromArgb(38, 234, 179, 8));
+        private static readonly SolidColorBrush PowerDiffHighBg = CreateFrozenBrush(Color.FromArgb(38, 239, 68, 68));
+
+        private static readonly SolidColorBrush NextDeltaUpBrush = CreateFrozenBrush(Color.FromRgb(249, 115, 22));
+        private static readonly SolidColorBrush NextDeltaUpBg = CreateFrozenBrush(Color.FromArgb(38, 249, 115, 22));
+        private static readonly SolidColorBrush NextDeltaDownBrush = CreateFrozenBrush(Color.FromRgb(56, 189, 248));
+        private static readonly SolidColorBrush NextDeltaDownBg = CreateFrozenBrush(Color.FromArgb(38, 56, 189, 248));
+        private static readonly SolidColorBrush NextDeltaFlatBrush = CreateFrozenBrush(Color.FromRgb(148, 163, 184));
+        private static readonly SolidColorBrush NextDeltaFlatBg = CreateFrozenBrush(Color.FromArgb(38, 148, 163, 184));
+
+        private static readonly SolidColorBrush ItemActiveBg = CreateFrozenBrush(Color.FromArgb(38, 6, 182, 212));
+        private static readonly SolidColorBrush ItemInactiveBg = CreateFrozenBrush(Color.FromArgb(8, 255, 255, 255));
+        private static readonly SolidColorBrush ItemActiveBorder = CreateFrozenBrush(Color.FromRgb(6, 182, 212));
+
+        private static SolidColorBrush CreateFrozenBrush(Color color)
+        {
+            var brush = new SolidColorBrush(color);
+            brush.Freeze();
+            return brush;
+        }
 
         public event Action<string>? OnOverlayCommand;
         public bool IsClickThrough => _isClickThrough;
@@ -104,6 +146,8 @@ namespace HorizonCyclingApp
                 : "⚠️ 編集モード中（マウス操作可能）。「⏹ 終了」ボタン、または Ctrl + Shift + Q で終了できます";
             lblFreerideElevation.Text = isEn ? "Elev: " : "標高: ";
             lblFreerideGain.Text = isEn ? "Gain: " : "獲得: ";
+            lblNextDuration.Text = isEn ? "Duration: " : "持続: ";
+            lblNextTarget.Text = isEn ? "Target: " : "目標: ";
         }
 
         public WorkoutOverlayWindow()
@@ -286,7 +330,7 @@ namespace HorizonCyclingApp
 
         public void SendState(BridgeStateSnapshot bridgeState, WorkoutStateSnapshot? workoutState)
         {
-            Dispatcher.InvokeAsync(() =>
+            void Apply()
             {
                 bool isWorkoutActive = workoutState != null && workoutState.IsActive;
                 bool isFreerideAllowed = !IsUserDismissed && (bridgeState.FreerideOverlayEnabled || IsUserForcedVisible);
@@ -329,7 +373,16 @@ namespace HorizonCyclingApp
 
                     UpdateFreerideMetrics(bridgeState);
                 }
-            });
+            }
+
+            if (Dispatcher.CheckAccess())
+            {
+                Apply();
+            }
+            else
+            {
+                Dispatcher.InvokeAsync(Apply);
+            }
         }
 
         private void UpdateFreerideMetrics(BridgeStateSnapshot s)
@@ -426,10 +479,10 @@ namespace HorizonCyclingApp
 
         private static SolidColorBrush GetGradeBrush(double grade)
         {
-            if (grade > 8.0) return new SolidColorBrush(Color.FromRgb(239, 68, 68));   // 激坂 赤
-            if (grade > 4.0) return new SolidColorBrush(Color.FromRgb(249, 115, 22));  // 登坂 橙
-            if (grade > 0.0) return new SolidColorBrush(Color.FromRgb(245, 158, 11));  // 緩斜面 黄
-            return new SolidColorBrush(Color.FromRgb(56, 189, 248));                  // 下り 水色
+            if (grade > 8.0) return GradeSteepRed;
+            if (grade > 4.0) return GradeClimbOrange;
+            if (grade > 0.0) return GradeGentleYellow;
+            return GradeDownBlue;
         }
 
         private static string FormatSeconds(double totalSec)
@@ -472,20 +525,24 @@ namespace HorizonCyclingApp
 
             // 差分色 & バッジ背景 & ポインター位置計算
             SolidColorBrush diffBrush;
+            SolidColorBrush diffBg;
             if (Math.Abs(diff) <= 5)
             {
-                diffBrush = new SolidColorBrush(Color.FromRgb(16, 185, 129)); // 緑 (Match)
+                diffBrush = PowerDiffMatchBrush;
+                diffBg = PowerDiffMatchBg;
             }
             else if (diff < -5)
             {
-                diffBrush = new SolidColorBrush(Color.FromRgb(234, 179, 8)); // 黄 (Low)
+                diffBrush = PowerDiffLowBrush;
+                diffBg = PowerDiffLowBg;
             }
             else
             {
-                diffBrush = new SolidColorBrush(Color.FromRgb(239, 68, 68)); // 赤 (High)
+                diffBrush = PowerDiffHighBrush;
+                diffBg = PowerDiffHighBg;
             }
             txtPowerDiff.Foreground = diffBrush;
-            borderDiffBadge.Background = new SolidColorBrush(Color.FromArgb(38, diffBrush.Color.R, diffBrush.Color.G, diffBrush.Color.B));
+            borderDiffBadge.Background = diffBg;
             gaugePointer.Background = diffBrush;
 
             // 差分ゲージポインター移動 (中央は 79px、±30Wで端まで移動)
@@ -508,15 +565,46 @@ namespace HorizonCyclingApp
                 rectProgressBarFill.Width = Math.Clamp(ratio * 616.0, 0.0, 616.0);
             }
 
-            // 6. カウントダウン
-            if (workoutState.SegmentRemainingSec is >= 1 and <= 5 && workoutState.CurrentSegmentIndex + 1 < workoutState.TotalSegmentsCount)
+            // 5.5 次セグメント予告 (30秒前〜切り替えまで)
+            bool hasNextSegment = workoutState.CurrentSegmentIndex + 1 < workoutState.TotalSegmentsCount;
+            if (hasNextSegment && workoutState.SegmentRemainingSec is >= 1 and <= 30)
             {
-                txtCountdown.Text = workoutState.SegmentRemainingSec.ToString();
-                countdownBanner.Visibility = Visibility.Visible;
+                UpdateNextSegmentPreview(workoutState);
+                if (nextSegmentPreviewBanner.Visibility != Visibility.Visible)
+                {
+                    nextSegmentPreviewBanner.Visibility = Visibility.Visible;
+                }
             }
             else
             {
-                countdownBanner.Visibility = Visibility.Collapsed;
+                _lastPreviewRemainingSec = -1;
+                if (nextSegmentPreviewBanner.Visibility != Visibility.Collapsed)
+                {
+                    nextSegmentPreviewBanner.Visibility = Visibility.Collapsed;
+                }
+            }
+
+            // 6. カウントダウン
+            if (workoutState.SegmentRemainingSec is >= 1 and <= 5 && hasNextSegment)
+            {
+                int cd = workoutState.SegmentRemainingSec;
+                if (_lastCountdownVal != cd)
+                {
+                    _lastCountdownVal = cd;
+                    txtCountdown.Text = cd.ToString();
+                }
+                if (countdownBanner.Visibility != Visibility.Visible)
+                {
+                    countdownBanner.Visibility = Visibility.Visible;
+                }
+            }
+            else
+            {
+                _lastCountdownVal = -1;
+                if (countdownBanner.Visibility != Visibility.Collapsed)
+                {
+                    countdownBanner.Visibility = Visibility.Collapsed;
+                }
             }
 
             // 6.5 ランプテスト特有のバナー処理 (限界警告・新FTP結果)
@@ -583,9 +671,79 @@ namespace HorizonCyclingApp
             }
         }
 
+        private void UpdateNextSegmentPreview(WorkoutStateSnapshot workoutState)
+        {
+            int remSec = workoutState.SegmentRemainingSec;
+            if (_lastPreviewRemainingSec == remSec) return;
+            _lastPreviewRemainingSec = remSec;
+
+            bool isEn = _currentLanguage == "en";
+            txtNextPreviewHeader.Text = isEn 
+                ? $"UP NEXT (in {remSec}s)" 
+                : $"次のセグメント予告 (あと {remSec}秒)";
+
+            // 次のセグメントの情報を取得
+            WorkoutSegmentSnapshotItem? nextSeg = null;
+            if (workoutState.Segments != null && workoutState.CurrentSegmentIndex + 1 < workoutState.Segments.Count)
+            {
+                nextSeg = workoutState.Segments[workoutState.CurrentSegmentIndex + 1];
+            }
+
+            int nextDur = workoutState.NextDurationSec ?? (nextSeg != null ? nextSeg.DurationSec : 0);
+            txtNextDuration.Text = FormatTime(nextDur);
+
+            string nextType = workoutState.NextSegmentType ?? (nextSeg != null ? nextSeg.Type : "Next Block");
+            txtNextType.Text = nextType.ToUpperInvariant();
+
+            int nextWatts = workoutState.NextTargetWatts ?? (nextSeg != null ? nextSeg.TargetWattsLow : 0);
+            txtNextTargetWatts.Text = $"{nextWatts} W";
+
+            int nextZone = workoutState.NextPowerZone ?? (nextSeg != null ? nextSeg.Zone : 1);
+            SolidColorBrush zoneBrush = GetZoneColorBrush(nextZone);
+            borderNextZoneBadge.Background = zoneBrush;
+            txtNextZone.Text = $"Z{nextZone}";
+            brushNextPreviewBorder.Color = zoneBrush.Color;
+            shadowNextPreview.Color = zoneBrush.Color;
+
+            // パワー差分 (+90W / -50W)
+            int currentWatts = workoutState.TargetWatts;
+            int delta = nextWatts - currentWatts;
+            if (delta > 0)
+            {
+                txtNextPowerDelta.Text = $"+{delta}W 🔺";
+                txtNextPowerDelta.Foreground = NextDeltaUpBrush;
+                borderNextDeltaBadge.Background = NextDeltaUpBg;
+            }
+            else if (delta < 0)
+            {
+                txtNextPowerDelta.Text = $"{delta}W 🔻";
+                txtNextPowerDelta.Foreground = NextDeltaDownBrush;
+                borderNextDeltaBadge.Background = NextDeltaDownBg;
+            }
+            else
+            {
+                txtNextPowerDelta.Text = "±0W";
+                txtNextPowerDelta.Foreground = NextDeltaFlatBrush;
+                borderNextDeltaBadge.Background = NextDeltaFlatBg;
+            }
+
+            // ケイデンス
+            int? nextCad = workoutState.NextTargetCadence;
+            if (nextCad.HasValue && nextCad.Value > 0)
+            {
+                panelNextCadence.Visibility = Visibility.Visible;
+                txtNextCadence.Text = $"{nextCad.Value} RPM";
+            }
+            else
+            {
+                panelNextCadence.Visibility = Visibility.Collapsed;
+            }
+        }
+
         private void RenderSegmentList(WorkoutStateSnapshot workout)
         {
             segmentItemsStackPanel.Children.Clear();
+            _lastHighlightedSegmentIndex = -1;
             int currentIdx = workout.CurrentSegmentIndex;
 
             for (int i = 0; i < workout.Segments.Count; i++)
@@ -599,8 +757,8 @@ namespace HorizonCyclingApp
                     Margin = new Thickness(0, 2, 0, 2),
                     Padding = new Thickness(8, 5, 8, 5),
                     CornerRadius = new CornerRadius(6),
-                    Background = isCur ? new SolidColorBrush(Color.FromArgb(38, 6, 182, 212)) : new SolidColorBrush(Color.FromArgb(8, 255, 255, 255)),
-                    BorderBrush = isCur ? new SolidColorBrush(Color.FromRgb(6, 182, 212)) : Brushes.Transparent,
+                    Background = isCur ? ItemActiveBg : ItemInactiveBg,
+                    BorderBrush = isCur ? ItemActiveBorder : Brushes.Transparent,
                     BorderThickness = new Thickness(1),
                     Opacity = isDone ? 0.35 : 1.0,
                     Tag = i
@@ -636,7 +794,7 @@ namespace HorizonCyclingApp
                     Text = $"{seg.Type}",
                     FontSize = 11,
                     FontWeight = isCur ? FontWeights.Bold : FontWeights.SemiBold,
-                    Foreground = isCur ? new SolidColorBrush(Color.FromRgb(6, 182, 212)) : new SolidColorBrush(Color.FromRgb(248, 250, 252)),
+                    Foreground = isCur ? ItemActiveBorder : Brushes.White,
                     VerticalAlignment = VerticalAlignment.Center,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 };
@@ -650,7 +808,7 @@ namespace HorizonCyclingApp
                     FontSize = 11,
                     FontWeight = FontWeights.SemiBold,
                     FontFamily = new FontFamily("Consolas, Segoe UI Mono"),
-                    Foreground = new SolidColorBrush(Color.FromRgb(148, 163, 184)),
+                    Foreground = NextDeltaFlatBrush,
                     VerticalAlignment = VerticalAlignment.Center
                 };
                 Grid.SetColumn(txtTime, 2);
@@ -663,14 +821,17 @@ namespace HorizonCyclingApp
 
         private void UpdateSegmentListHighlight(int currentIdx)
         {
+            if (_lastHighlightedSegmentIndex == currentIdx) return;
+            _lastHighlightedSegmentIndex = currentIdx;
+
             for (int i = 0; i < segmentItemsStackPanel.Children.Count; i++)
             {
                 if (segmentItemsStackPanel.Children[i] is Border border)
                 {
                     bool isCur = (i == currentIdx);
                     bool isDone = (i < currentIdx);
-                    border.Background = isCur ? new SolidColorBrush(Color.FromArgb(38, 6, 182, 212)) : new SolidColorBrush(Color.FromArgb(8, 255, 255, 255));
-                    border.BorderBrush = isCur ? new SolidColorBrush(Color.FromRgb(6, 182, 212)) : Brushes.Transparent;
+                    border.Background = isCur ? ItemActiveBg : ItemInactiveBg;
+                    border.BorderBrush = isCur ? ItemActiveBorder : Brushes.Transparent;
                     border.Opacity = isDone ? 0.35 : 1.0;
                 }
             }
@@ -727,27 +888,27 @@ namespace HorizonCyclingApp
             if (ftp <= 0) ftp = 200;
             double pct = (double)watts / ftp;
 
-            if (pct < 0.55) return new SolidColorBrush(Color.FromRgb(100, 116, 139)); // Z1
-            if (pct < 0.75) return new SolidColorBrush(Color.FromRgb(59, 130, 246));  // Z2
-            if (pct < 0.90) return new SolidColorBrush(Color.FromRgb(16, 185, 129));  // Z3
-            if (pct < 1.05) return new SolidColorBrush(Color.FromRgb(234, 179, 8));   // Z4
-            if (pct < 1.20) return new SolidColorBrush(Color.FromRgb(249, 115, 22));  // Z5
-            if (pct < 1.50) return new SolidColorBrush(Color.FromRgb(239, 68, 68));   // Z6
-            return new SolidColorBrush(Color.FromRgb(168, 85, 247));                 // Z7
+            if (pct < 0.55) return Zone1Brush;
+            if (pct < 0.75) return Zone2Brush;
+            if (pct < 0.90) return Zone3Brush;
+            if (pct < 1.05) return Zone4Brush;
+            if (pct < 1.20) return Zone5Brush;
+            if (pct < 1.50) return Zone6Brush;
+            return Zone7Brush;
         }
 
         private static SolidColorBrush GetZoneColorBrush(int zone)
         {
             return zone switch
             {
-                1 => new SolidColorBrush(Color.FromRgb(100, 116, 139)), // Z1: グレー
-                2 => new SolidColorBrush(Color.FromRgb(59, 130, 246)),  // Z2: ブルー
-                3 => new SolidColorBrush(Color.FromRgb(16, 185, 129)),  // Z3: グリーン
-                4 => new SolidColorBrush(Color.FromRgb(234, 179, 8)),   // Z4: イエロー
-                5 => new SolidColorBrush(Color.FromRgb(249, 115, 22)),  // Z5: オレンジ
-                6 => new SolidColorBrush(Color.FromRgb(239, 68, 68)),   // Z6: レッド
-                7 => new SolidColorBrush(Color.FromRgb(168, 85, 247)),  // Z7: パープル
-                _ => new SolidColorBrush(Color.FromRgb(6, 182, 212))
+                1 => Zone1Brush,
+                2 => Zone2Brush,
+                3 => Zone3Brush,
+                4 => Zone4Brush,
+                5 => Zone5Brush,
+                6 => Zone6Brush,
+                7 => Zone7Brush,
+                _ => DefaultZoneBrush
             };
         }
 

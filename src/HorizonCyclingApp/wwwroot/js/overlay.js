@@ -31,6 +31,17 @@
   const archActualCadence = document.getElementById('archActualCadence');
   const archProgressBar = document.getElementById('archProgressBar');
 
+  // 次セグメント予告バナー (30秒前)
+  const nextSegmentBanner = document.getElementById('nextSegmentBanner');
+  const nextBannerHeader = document.getElementById('nextBannerHeader');
+  const nextDuration = document.getElementById('nextDuration');
+  const nextZoneBadge = document.getElementById('nextZoneBadge');
+  const nextSegmentType = document.getElementById('nextSegmentType');
+  const nextTargetWatts = document.getElementById('nextTargetWatts');
+  const nextPowerDelta = document.getElementById('nextPowerDelta');
+  const nextCadenceContainer = document.getElementById('nextCadenceContainer');
+  const nextCadence = document.getElementById('nextCadence');
+
   // カウントダウン & メッセージ
   const countdownBanner = document.getElementById('countdownBanner');
   const countdownNumber = document.getElementById('countdownNumber');
@@ -213,9 +224,59 @@
     const segPct = Math.min(100, (workout.SegmentElapsedSec / segTotal) * 100);
     archProgressBar.style.width = `${segPct}%`;
 
+    // 2.5 次セグメント予告バナー (残り30秒以下)
+    const hasNext = workout.CurrentSegmentIndex + 1 < workout.TotalSegmentsCount;
+    if (workout.SegmentRemainingSec > 0 && workout.SegmentRemainingSec <= 30 && hasNext) {
+      const nextSeg = workout.Segments ? workout.Segments[workout.CurrentSegmentIndex + 1] : null;
+      const nextWatts = workout.NextTargetWatts || (nextSeg ? nextSeg.TargetWattsLow : 0);
+      const nextDur = workout.NextDurationSec || (nextSeg ? nextSeg.DurationSec : 0);
+      const nextZone = workout.NextPowerZone || (nextSeg ? nextSeg.Zone : 1);
+      const nextType = workout.NextSegmentType || (nextSeg ? nextSeg.Type : 'NEXT');
+
+      const headerStr = `次のセグメント予告 (あと ${workout.SegmentRemainingSec}秒)`;
+      if (nextBannerHeader.textContent !== headerStr) {
+        nextBannerHeader.textContent = headerStr;
+      }
+      nextDuration.textContent = formatTime(nextDur);
+      nextSegmentType.textContent = nextType.toUpperCase();
+      nextZoneBadge.textContent = `Z${nextZone}`;
+      nextZoneBadge.style.background = ZONE_COLORS[nextZone] || '#eab308';
+      nextTargetWatts.textContent = `${nextWatts} W`;
+
+      // パワー差分
+      const curWatts = targetWatts;
+      const pDiff = nextWatts - curWatts;
+      if (pDiff > 0) {
+        nextPowerDelta.textContent = `+${pDiff}W 🔺`;
+        nextPowerDelta.className = 'next-delta high';
+      } else if (pDiff < 0) {
+        nextPowerDelta.textContent = `${pDiff}W 🔻`;
+        nextPowerDelta.className = 'next-delta low';
+      } else {
+        nextPowerDelta.textContent = '±0W';
+        nextPowerDelta.className = 'next-delta';
+      }
+
+      // ケイデンス
+      const nextCad = workout.NextTargetCadence;
+      if (nextCad && nextCad > 0) {
+        nextCadenceContainer.style.display = 'flex';
+        nextCadence.textContent = `${nextCad} RPM`;
+      } else {
+        nextCadenceContainer.style.display = 'none';
+      }
+
+      nextSegmentBanner.classList.remove('hide');
+    } else {
+      nextSegmentBanner.classList.add('hide');
+    }
+
     // 3. 次ブロックカウントダウン (残り5秒以下)
-    if (workout.SegmentRemainingSec > 0 && workout.SegmentRemainingSec <= 5 && workout.CurrentSegmentIndex + 1 < workout.TotalSegmentsCount) {
-      countdownNumber.textContent = workout.SegmentRemainingSec;
+    if (workout.SegmentRemainingSec > 0 && workout.SegmentRemainingSec <= 5 && hasNext) {
+      const cdStr = String(workout.SegmentRemainingSec);
+      if (countdownNumber.textContent !== cdStr) {
+        countdownNumber.textContent = cdStr;
+      }
       countdownBanner.classList.remove('hide');
     } else {
       countdownBanner.classList.add('hide');
