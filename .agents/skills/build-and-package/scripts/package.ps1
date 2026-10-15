@@ -1,7 +1,7 @@
 # HorizonCycling Release Build & Packaging Automation Script
 param(
-    [string]$OutputDir = "release/HorizonCycling_V1.3.0",
-    [string]$ZipPath = "release/HorizonCycling_V1.3.0.zip",
+    [string]$OutputDir = "release/HorizonCycling_V1.4.0",
+    [string]$ZipPath = "release/HorizonCycling_V1.4.0.zip",
     [switch]$SkipTests
 )
 
