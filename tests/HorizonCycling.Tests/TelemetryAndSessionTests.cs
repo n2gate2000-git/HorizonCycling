@@ -640,6 +640,19 @@ namespace HorizonCycling.Tests
         }
 
         [Fact]
+        public void AppConfig_ProfileRecentDistance_RoundTripSerialization()
+        {
+            var config = new HorizonCyclingBridge.Core.AppConfig
+            {
+                ProfileRecentDistanceM = 700
+            };
+            string json = System.Text.Json.JsonSerializer.Serialize(config);
+            var deserialized = System.Text.Json.JsonSerializer.Deserialize<HorizonCyclingBridge.Core.AppConfig>(json);
+            Assert.NotNull(deserialized);
+            Assert.Equal(700, deserialized.ProfileRecentDistanceM);
+        }
+
+        [Fact]
         public void AppConfig_Language_DefaultsToJa()
         {
             var config = new HorizonCyclingBridge.Core.AppConfig();

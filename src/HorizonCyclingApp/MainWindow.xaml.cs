@@ -845,6 +845,7 @@ namespace HorizonCyclingApp
                     maxHeartRate = _bridgeService.Config.MaxHeartRate,
                     restingHeartRate = _bridgeService.Config.RestingHeartRate,
                     pedalBrake = _bridgeService.Config.PedalBrakeEnabled,
+                    profileRecentDistance = _bridgeService.Config.ProfileRecentDistanceM,
                     powerSourceName = _bridgeService.Config.PowerSourceName,
                     cadenceSourceMacAddress = _bridgeService.Config.CadenceSourceMacAddress,
                     cadenceSourceName = _bridgeService.Config.CadenceSourceName,

@@ -421,6 +421,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 設定モーダル
   btnSettings.addEventListener('click', () => {
+    if (settingProfileRecentDistance && selectProfileRecentDistance) {
+      settingProfileRecentDistance.value = selectProfileRecentDistance.value;
+    }
     settingsModal.classList.remove('hidden');
   });
 
@@ -786,8 +789,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (typeof data.payload.pedalBrake !== 'undefined') {
           settingPedalBrake.checked = data.payload.pedalBrake;
         }
-        if (data.payload.profileRecentDistance) {
-          const dist = data.payload.profileRecentDistance;
+        if (typeof data.payload.profileRecentDistance !== 'undefined') {
+          const dist = parseInt(data.payload.profileRecentDistance) || 200;
           elevationChart.setRecentDistance(dist);
           if (selectProfileRecentDistance) selectProfileRecentDistance.value = dist.toString();
           if (settingProfileRecentDistance) settingProfileRecentDistance.value = dist.toString();
