@@ -81,6 +81,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const hrDot = document.getElementById('hrDot');
   const hrText = document.getElementById('hrText');
   const hrStatusContainer = document.getElementById('hrStatusContainer');
+  const ctrlDot = document.getElementById('ctrlDot');
+  const ctrlText = document.getElementById('ctrlText');
+  const ctrlStatusContainer = document.getElementById('ctrlStatusContainer');
   const udpDot = document.getElementById('udpDot');
   const udpText = document.getElementById('udpText');
   const vjoyDot = document.getElementById('vjoyDot');
@@ -139,6 +142,15 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnConnectHr = document.getElementById('btnConnectHr');
   const hrConnectStatus = document.getElementById('hrConnectStatus');
   const settingMaxHr = document.getElementById('settingMaxHr');
+
+  // OpenBikeControl コントローラー設定要素
+  const btnScanCtrl = document.getElementById('btnScanCtrl');
+  const currentCtrlDeviceText = document.getElementById('currentCtrlDeviceText');
+  const btnDisconnectCtrl = document.getElementById('btnDisconnectCtrl');
+  const ctrlScanningIndicator = document.getElementById('ctrlScanningIndicator');
+  const ctrlDeviceList = document.getElementById('ctrlDeviceList');
+  const btnConnectCtrl = document.getElementById('btnConnectCtrl');
+  const ctrlConnectStatus = document.getElementById('ctrlConnectStatus');
   const settingRestingHr = document.getElementById('settingRestingHr');
 
   let currentFtp = 200;
@@ -149,6 +161,7 @@ document.addEventListener('DOMContentLoaded', () => {
   let selectedBleDevice = null;
   let selectedCadDevice = null;
   let selectedHrDevice = null;
+  let selectedCtrlDevice = null;
 
   // 心拍ゾーン判定共通ヘルパー (カルボーネン法 / HRR 予備心拍数基準)
   window.getHrZone = function(hr, maxHr = currentMaxHr, restingHr = currentRestingHr) {
@@ -604,6 +617,53 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // フッターのコントローラーインジケータークリックで設定を開く
+  if (ctrlStatusContainer) {
+    ctrlStatusContainer.addEventListener('click', () => {
+      settingsModal.classList.remove('hidden');
+    });
+  }
+
+  // OpenBikeControl コントローラースキャン開始
+  if (btnScanCtrl) {
+    btnScanCtrl.addEventListener('click', () => {
+      ctrlScanningIndicator.classList.remove('hidden');
+      btnScanCtrl.disabled = true;
+      btnConnectCtrl.disabled = true;
+      ctrlConnectStatus.textContent = '';
+      ctrlDeviceList.innerHTML = '<div class="device-list-empty">周囲のOpenBikeControlコントローラーを検索中...</div>';
+      selectedCtrlDevice = null;
+      postMessageToHost('scanBle');
+    });
+  }
+
+  // 選択したコントローラーへの接続
+  if (btnConnectCtrl) {
+    btnConnectCtrl.addEventListener('click', () => {
+      if (!selectedCtrlDevice) return;
+      btnConnectCtrl.disabled = true;
+      ctrlConnectStatus.textContent = `接続中: ${selectedCtrlDevice.Name}...`;
+      postMessageToHost('connectController', {
+        mac: selectedCtrlDevice.Address,
+        name: selectedCtrlDevice.Name
+      });
+    });
+  }
+
+  // コントローラー切断
+  if (btnDisconnectCtrl) {
+    btnDisconnectCtrl.addEventListener('click', () => {
+      postMessageToHost('disconnectController');
+      currentCtrlDeviceText.textContent = 'None';
+      btnDisconnectCtrl.classList.add('hidden');
+      ctrlConnectStatus.textContent = 'コントローラーを切断しました。';
+      btnConnectCtrl.disabled = true;
+
+      if (ctrlDot) ctrlDot.className = 'status-dot disconnected';
+      if (ctrlText) ctrlText.textContent = 'CTRL: 切断';
+    });
+  }
+
   btnSaveSettings.addEventListener('click', () => {
     const ftp = parseInt(settingFtp.value) || 200;
     const weight = parseFloat(settingWeight ? settingWeight.value : 70.0) || 70.0;
@@ -727,6 +787,19 @@ document.addEventListener('DOMContentLoaded', () => {
           if (hrText) hrText.textContent = 'HR: 切断';
           if (hrSub) hrSub.textContent = '未接続';
         }
+      } else if (data.type === 'controllerConnectResult') {
+        if (data.payload.success) {
+          ctrlConnectStatus.textContent = `✅ 接続完了: ${data.payload.name}`;
+          currentCtrlDeviceText.textContent = data.payload.name;
+          if (btnDisconnectCtrl) btnDisconnectCtrl.classList.remove('hidden');
+          if (ctrlDot) ctrlDot.className = 'status-dot connected';
+          if (ctrlText) ctrlText.textContent = `CTRL: Connected (${data.payload.name})`;
+        } else {
+          ctrlConnectStatus.textContent = `❌ 接続失敗: ${data.payload.name}`;
+          btnConnectCtrl.disabled = false;
+          if (ctrlDot) ctrlDot.className = 'status-dot disconnected';
+          if (ctrlText) ctrlText.textContent = 'CTRL: 切断';
+        }
       } else if (data.type === 'config') {
         historyController.setMapConfig(data.payload);
         if (data.payload.defaultMode) {
@@ -786,6 +859,10 @@ document.addEventListener('DOMContentLoaded', () => {
           currentHrDeviceText.textContent = data.payload.heartRateSourceName;
           if (btnDisconnectHr) btnDisconnectHr.classList.remove('hidden');
         }
+        if (data.payload.controllerSourceName && currentCtrlDeviceText) {
+          currentCtrlDeviceText.textContent = data.payload.controllerSourceName;
+          if (btnDisconnectCtrl) btnDisconnectCtrl.classList.remove('hidden');
+        }
         if (typeof data.payload.pedalBrake !== 'undefined') {
           settingPedalBrake.checked = data.payload.pedalBrake;
         }
@@ -815,17 +892,22 @@ document.addEventListener('DOMContentLoaded', () => {
     btnScanBle.disabled = false;
     if (btnScanCad) btnScanCad.disabled = false;
     if (btnScanHr) btnScanHr.disabled = false;
+    if (ctrlScanningIndicator) ctrlScanningIndicator.classList.add('hidden');
+    if (btnScanCtrl) btnScanCtrl.disabled = false;
 
     if (!devices || devices.length === 0) {
       bleDeviceList.innerHTML = '<div class="device-list-empty">デバイスが見つかりませんでした。電源やBluetoothがONになっているか確認してください。</div>';
       if (cadDeviceList) cadDeviceList.innerHTML = '<div class="device-list-empty">ケイデンス/パワーメーターが見つかりませんでした。</div>';
       if (hrDeviceList) hrDeviceList.innerHTML = '<div class="device-list-empty">心拍計が見つかりませんでした。</div>';
+      if (ctrlDeviceList) ctrlDeviceList.innerHTML = '<div class="device-list-empty">OpenBikeControlコントローラーが見つかりませんでした。</div>';
       return;
     }
 
     const trainerDevices = devices.filter(d => d.Category === 'trainer' || d.SensorTypeInt === 1 || d.SensorTypeInt === 2 || d.Category === 'other');
     const cadenceDevices = devices.filter(d => d.Category === 'cadence' || d.SensorTypeInt === 2 || d.SensorTypeInt === 1 || d.Category === 'other');
     const hrDevices = devices.filter(d => d.Category === 'heartrate' || d.SensorTypeInt === 3 || d.Category === 'other');
+    // コントローラーは OpenBikeControl サービスUUIDを持つデバイスのみ (名前による推測は行わない)
+    const ctrlDevices = devices.filter(d => d.HasOpenBikeControl);
 
     // 1. トレーナー一覧描画
     if (trainerDevices.length === 0) {
@@ -918,6 +1000,37 @@ document.addEventListener('DOMContentLoaded', () => {
             hrConnectStatus.textContent = `選択中: ${dev.Name}`;
           });
           hrDeviceList.appendChild(item);
+        });
+      }
+    }
+
+    // 4. OpenBikeControl コントローラー一覧描画
+    if (ctrlDeviceList) {
+      if (ctrlDevices.length === 0) {
+        ctrlDeviceList.innerHTML = '<div class="device-list-empty">周囲にOpenBikeControlコントローラーが見つかりませんでした。</div>';
+      } else {
+        ctrlDeviceList.innerHTML = '';
+        ctrlDevices.forEach(dev => {
+          const item = document.createElement('div');
+          item.className = 'device-item';
+          // Device names come from Bluetooth advertisements, so they are set as text, not HTML.
+          item.innerHTML = `
+            <div class="device-item-left">
+              <span class="device-item-name"></span>
+              <span class="device-item-sub"></span>
+            </div>
+            <span class="device-item-badge">OpenBikeControl</span>
+          `;
+          item.querySelector('.device-item-name').textContent = `🎮 ${dev.Name}`;
+          item.querySelector('.device-item-sub').textContent = `MAC: ${dev.FormattedMac} ${dev.IsPaired ? '[ペアリング済]' : ''}`;
+          item.addEventListener('click', () => {
+            ctrlDeviceList.querySelectorAll('.device-item').forEach(el => el.classList.remove('selected'));
+            item.classList.add('selected');
+            selectedCtrlDevice = dev;
+            btnConnectCtrl.disabled = false;
+            ctrlConnectStatus.textContent = `選択中: ${dev.Name}`;
+          });
+          ctrlDeviceList.appendChild(item);
         });
       }
     }
@@ -1078,6 +1191,25 @@ document.addEventListener('DOMContentLoaded', () => {
     if (s.ConnectedCadenceDeviceName && s.ConnectedCadenceDeviceName !== 'None' && currentCadDeviceText) {
       currentCadDeviceText.textContent = s.ConnectedCadenceDeviceName;
       if (btnDisconnectCad) btnDisconnectCad.classList.remove('hidden');
+    }
+
+    if (ctrlDot) {
+      ctrlDot.className = `status-dot ${s.IsControllerConnected ? 'connected' : 'disconnected'}`;
+    }
+    if (ctrlText) {
+      ctrlText.textContent = `CTRL: ${s.ControllerStatus || (s.IsControllerConnected ? '接続' : '切断')}`;
+    }
+    if (s.ConnectedControllerDeviceName && s.ConnectedControllerDeviceName !== 'None' && currentCtrlDeviceText) {
+      currentCtrlDeviceText.textContent = s.ConnectedControllerDeviceName;
+      if (btnDisconnectCtrl) btnDisconnectCtrl.classList.remove('hidden');
+    }
+
+    // コントローラーの難易度ボタンによる変更をスライダーに反映
+    if (typeof s.Difficulty === 'number' && settingDifficulty) {
+      const diffPct = Math.round(s.Difficulty * 100);
+      if (parseInt(settingDifficulty.value) !== diffPct) {
+        updateDifficultyUI(diffPct, false);
+      }
     }
 
     udpDot.className = `status-dot ${s.IsTelemetryActive ? 'connected' : 'disconnected'}`;

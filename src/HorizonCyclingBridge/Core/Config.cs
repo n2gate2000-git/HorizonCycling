@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using HorizonCyclingBridge.Controller;
 
 namespace HorizonCyclingBridge.Core
 {
@@ -24,6 +26,13 @@ namespace HorizonCyclingBridge.Core
         public bool HeartRateEnabled { get; set; } = true;
         public int MaxHeartRate { get; set; } = 190;
         public int RestingHeartRate { get; set; } = 60; // 安静時心拍数 (デフォルト60bpm)
+
+        // OpenBikeControl コントローラー (ハンドルリモコン等) 設定
+        public ulong ControllerSourceMacAddress { get; set; } = 0;
+        public string ControllerSourceName { get; set; } = string.Empty;
+        public bool ControllerEnabled { get; set; } = true;
+        // ボタン割り当て (キー: OpenBikeControl ボタン名, 値: "Button1"〜"Button32" / "Brake" / "DifficultyUp" / "DifficultyDown" / "WorkoutSkip" / "WorkoutPrevious" / "WorkoutPause" / "WorkoutResume" / "None")
+        public Dictionary<string, string> ControllerButtonMap { get; set; } = OpenBikeControlMapper.CreateDefaultMap();
 
         // セカンダリ ケイデンス / パワーメーター (Magene PES-P505 等) 設定
         public ulong CadenceSourceMacAddress { get; set; } = 0;

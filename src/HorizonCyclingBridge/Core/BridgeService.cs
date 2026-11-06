@@ -28,6 +28,11 @@ namespace HorizonCyclingBridge.Core
         public string CadenceStatus { get; set; } = "Disconnected";
         public string ConnectedCadenceDeviceName { get; set; } = "None";
 
+        // OpenBikeControl コントローラーステータス
+        public bool IsControllerConnected { get; set; } = false;
+        public string ControllerStatus { get; set; } = "Disconnected";
+        public string ConnectedControllerDeviceName { get; set; } = "None";
+
         public bool IsVJoyActive { get; set; } = false;
         public bool IsTelemetryActive { get; set; } = false;
         public bool PedalBrakeEnabled { get; set; } = true;
@@ -82,8 +87,9 @@ namespace HorizonCyclingBridge.Core
         public string Name { get; set; } = "Unknown";
         public string TypeName { get; set; } = "Ftms"; // Ftms, CyclingPower, or Heart Rate Monitor
         public int SensorTypeInt { get; set; } = 1; // 1: Ftms, 2: CyclingPower, 3: HeartRate
-        public string Category { get; set; } = "trainer"; // "trainer" or "heartrate"
+        public string Category { get; set; } = "trainer"; // "trainer", "cadence", "heartrate", "controller" or "other"
         public bool IsPaired { get; set; } = false;
+        public bool HasOpenBikeControl { get; set; } = false; // OpenBikeControl サービスUUIDをアドバタイズしているか
     }
 
     /// <summary>
@@ -104,6 +110,8 @@ namespace HorizonCyclingBridge.Core
         private CyclingPowerClient? _powerClient;
         private HeartRateClient? _heartRateClient;
         private CyclingPowerClient? _cadenceClient; // セカンダリ ケイデンス / パワーメーター (Magene PES-P505 等)
+        private OpenBikeControlClient? _controllerClient; // OpenBikeControl コントローラー
+        private readonly OpenBikeControlMapper _controllerMapper;
         private IPowerMappingStrategy _strategy;
 
         private double _currentPower = 0.0;
@@ -132,6 +140,10 @@ namespace HorizonCyclingBridge.Core
 
         private bool _isCadenceConnected = false;
         private string _cadenceStatus = "Disconnected";
+
+        private bool _isControllerConnected = false;
+        private string _controllerStatus = "Disconnected";
+        private const double CONTROLLER_DIFFICULTY_STEP = 0.05; // コントローラーによる難易度 / ワークアウト強度の変更幅 (5%)
         private double _cadencePower = 0.0;
         private double _ftmsPower = 0.0;
         private double _cadenceSensorCadence = 0.0;
@@ -171,6 +183,7 @@ namespace HorizonCyclingBridge.Core
             _config = config ?? ConfigManager.Load();
             _vjoy = new VJoyVehicleController(1);
             _vjoy.OnStatusMessage += msg => Log(msg);
+            _controllerMapper = new OpenBikeControlMapper(_config.ControllerButtonMap);
 
             int port = 5000;
             _udpReceiver = new ForzaUdpReceiver(port);
@@ -719,6 +732,10 @@ namespace HorizonCyclingBridge.Core
             {
                 await ConnectConfiguredCadenceAsync();
             });
+            _ = Task.Run(async () =>
+            {
+                await ConnectConfiguredControllerAsync();
+            });
         }
 
         private void OnIdleTimerTick(object? state)
@@ -825,6 +842,32 @@ namespace HorizonCyclingBridge.Core
                         });
                     }
                 }
+
+                var obcSelector = Windows.Devices.Bluetooth.GenericAttributeProfile.GattDeviceService.GetDeviceSelectorFromUuid(OpenBikeControlClient.OBC_SERVICE_UUID);
+                var obcDevices = await Windows.Devices.Enumeration.DeviceInformation.FindAllAsync(obcSelector);
+                foreach (var d in obcDevices)
+                {
+                    var bleDevice = await Windows.Devices.Bluetooth.BluetoothLEDevice.FromIdAsync(d.Id);
+                    if (bleDevice == null) continue;
+
+                    var existing = foundDevices.FirstOrDefault(x => x.Address == bleDevice.BluetoothAddress);
+                    if (existing != null)
+                    {
+                        existing.HasOpenBikeControl = true;
+                        continue;
+                    }
+
+                    foundDevices.Add(new BleDeviceInfo
+                    {
+                        Address = bleDevice.BluetoothAddress,
+                        Name = string.IsNullOrEmpty(bleDevice.Name) ? "OpenBikeControl" : bleDevice.Name,
+                        TypeName = "OpenBikeControl Controller",
+                        SensorTypeInt = 0,
+                        Category = "controller",
+                        IsPaired = true,
+                        HasOpenBikeControl = true
+                    });
+                }
             }
             catch (Exception ex)
             {
@@ -848,6 +891,7 @@ namespace HorizonCyclingBridge.Core
                         bool hasFtmsUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001826-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001826", StringComparison.OrdinalIgnoreCase));
                         bool hasPowerUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001818-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001818", StringComparison.OrdinalIgnoreCase));
                         bool hasCscUuid = e.Advertisement.ServiceUuids.Any(u => u == Guid.Parse("00001816-0000-1000-8000-00805f9b34fb") || u.ToString().StartsWith("00001816", StringComparison.OrdinalIgnoreCase));
+                        bool hasObcUuid = e.Advertisement.ServiceUuids.Contains(OpenBikeControlClient.OBC_SERVICE_UUID);
 
                         string upperName = localName.ToUpperInvariant();
 
@@ -926,6 +970,13 @@ namespace HorizonCyclingBridge.Core
                             typeInt = 1;
                             typeName = "FTMS Smart Trainer";
                         }
+                        else if (hasObcUuid && !hasPowerUuid)
+                        {
+                            // OpenBikeControl コントローラーはサービスUUIDのみで判定 (デバイス名による推測より優先)
+                            category = "controller";
+                            typeInt = 0;
+                            typeName = "OpenBikeControl Controller";
+                        }
                         else if (isTrainerByName)
                         {
                             category = "trainer";
@@ -972,6 +1023,7 @@ namespace HorizonCyclingBridge.Core
                             existing.Category = category;
                             existing.SensorTypeInt = typeInt;
                             existing.TypeName = typeName;
+                            existing.HasOpenBikeControl = existing.HasOpenBikeControl || hasObcUuid;
                             return;
                         }
 
@@ -982,7 +1034,8 @@ namespace HorizonCyclingBridge.Core
                             TypeName = typeName,
                             SensorTypeInt = typeInt,
                             Category = category,
-                            IsPaired = false
+                            IsPaired = false,
+                            HasOpenBikeControl = hasObcUuid
                         });
                     }
                 };
@@ -1443,6 +1496,177 @@ namespace HorizonCyclingBridge.Core
             }
         }
 
+        public async Task<bool> ConnectControllerAsync(ulong macAddress, string name)
+        {
+            DisposeControllerClient();
+
+            _config.ControllerSourceMacAddress = macAddress;
+            _config.ControllerSourceName = name;
+            _config.ControllerEnabled = true;
+            ConfigManager.Save(_config);
+
+            Log($"[OBC] Target OpenBikeControl controller set to {name} ({macAddress:X}). Connecting...");
+            bool res = await ConnectConfiguredControllerAsync();
+            PushCurrentSnapshot();
+            return res;
+        }
+
+        public void DisconnectController()
+        {
+            DisposeControllerClient();
+
+            _controllerStatus = "Disconnected";
+            _config.ControllerSourceMacAddress = 0;
+            _config.ControllerSourceName = "";
+            ConfigManager.Save(_config);
+            Log("[OBC] OpenBikeControl controller disconnected and unconfigured.");
+            PushCurrentSnapshot();
+        }
+
+        public async Task<bool> ConnectConfiguredControllerAsync()
+        {
+            try
+            {
+                if (!_config.ControllerEnabled || _config.ControllerSourceMacAddress == 0)
+                {
+                    _controllerStatus = "Not Configured";
+                    PushCurrentSnapshot();
+                    return false;
+                }
+
+                DisposeControllerClient();
+                _controllerClient = new OpenBikeControlClient(_controllerMapper.SupportedButtonIds);
+
+                _controllerClient.OnStatusMessage += msg => Log(msg);
+                _controllerClient.OnButtonStateReceived += data =>
+                {
+                    List<ControllerAction> actions;
+                    lock (_controllerMapper)
+                    {
+                        actions = _controllerMapper.ProcessMessage(data);
+                    }
+                    ApplyControllerActions(actions);
+                };
+                _controllerClient.OnConnectionStateChanged += connected =>
+                {
+                    _isControllerConnected = connected;
+                    if (!connected)
+                    {
+                        ReleaseControllerActions();
+                    }
+                    string devName = string.IsNullOrEmpty(_config.ControllerSourceName) ? $"{_config.ControllerSourceMacAddress:X}" : _config.ControllerSourceName;
+                    _controllerStatus = connected ? $"Connected ({devName})" : "Disconnected";
+                    PushCurrentSnapshot();
+                };
+
+                string displayName = string.IsNullOrEmpty(_config.ControllerSourceName) ? $"{_config.ControllerSourceMacAddress:X}" : _config.ControllerSourceName;
+                _controllerStatus = $"Connecting ({displayName})...";
+                PushCurrentSnapshot();
+
+                _isControllerConnected = await _controllerClient.ScanAndConnectAsync(20000, _config.ControllerSourceMacAddress);
+                if (_isControllerConnected)
+                {
+                    _controllerStatus = $"Connected ({displayName})";
+                    Log($"[OBC] OpenBikeControl controller connected: {displayName}.");
+                    PushCurrentSnapshot();
+                    return true;
+                }
+                else
+                {
+                    _controllerStatus = "Connection Failed";
+                    PushCurrentSnapshot();
+                    return false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Log($"[OBC-ERR] Connection error: {ex.Message}");
+                _controllerStatus = "Error";
+                PushCurrentSnapshot();
+                return false;
+            }
+        }
+
+        private void DisposeControllerClient()
+        {
+            _controllerClient?.Disconnect();
+            _controllerClient?.Dispose();
+            _controllerClient = null;
+            _isControllerConnected = false;
+            ReleaseControllerActions();
+        }
+
+        /// <summary>
+        /// 切断時に押下中のボタン・ブレーキを解放 (押しっぱなし防止)
+        /// </summary>
+        private void ReleaseControllerActions()
+        {
+            List<ControllerAction> actions;
+            lock (_controllerMapper)
+            {
+                actions = _controllerMapper.Reset();
+            }
+            ApplyControllerActions(actions);
+        }
+
+        /// <summary>
+        /// コントローラー操作を vJoy ボタン / ブレーキ軸 / アプリ内操作へ反映
+        /// </summary>
+        private void ApplyControllerActions(List<ControllerAction> actions)
+        {
+            foreach (var action in actions)
+            {
+                string target = action.Target;
+                if (target.StartsWith("Button", StringComparison.OrdinalIgnoreCase) && int.TryParse(target.Substring(6), out int buttonNumber))
+                {
+                    _vjoy.SetButton(buttonNumber, action.Pressed);
+                    continue;
+                }
+
+                if (string.Equals(target, OpenBikeControlMapper.TARGET_BRAKE, StringComparison.OrdinalIgnoreCase))
+                {
+                    _vjoy.SetBrakeOverride(action.Pressed ? action.Value : 0.0f);
+                    continue;
+                }
+
+                // 以下のアプリ内操作は押下時のみ実行
+                if (!action.Pressed) continue;
+
+                switch (target)
+                {
+                    case "DifficultyUp":
+                    case "DifficultyDown":
+                        double delta = target == "DifficultyUp" ? CONTROLLER_DIFFICULTY_STEP : -CONTROLLER_DIFFICULTY_STEP;
+                        if (_workoutEngine.IsActive)
+                        {
+                            // ワークアウト中は目標パワーの強度 (Intensity Bias) を調整
+                            SetWorkoutIntensityBias(_workoutEngine.IntensityBias + delta);
+                        }
+                        else
+                        {
+                            SetDifficulty(_trainerDifficulty + delta);
+                            PushCurrentSnapshot();
+                        }
+                        break;
+                    case "WorkoutSkip":
+                        if (_workoutEngine.IsActive) SkipWorkoutStep();
+                        break;
+                    case "WorkoutPrevious":
+                        if (_workoutEngine.IsActive) PreviousWorkoutStep();
+                        break;
+                    case "WorkoutPause":
+                        if (_workoutEngine.IsActive) PauseWorkout();
+                        break;
+                    case "WorkoutResume":
+                        if (_workoutEngine.IsActive) ResumeWorkout();
+                        break;
+                    default:
+                        Log($"[OBC] Unknown button target '{target}' in ControllerButtonMap.");
+                        break;
+                }
+            }
+        }
+
         internal void HandlePacketReceived(ForzaDataPacket packet)
         {
             DateTime now = DateTime.UtcNow;
@@ -1714,6 +1938,10 @@ namespace HorizonCyclingBridge.Core
                     ? _config.CadenceSourceName
                     : (_isBleConnected ? $"{_config.PowerSourceName} (内蔵)" : "None"),
 
+                IsControllerConnected = _isControllerConnected,
+                ControllerStatus = _controllerStatus,
+                ConnectedControllerDeviceName = string.IsNullOrEmpty(_config.ControllerSourceName) ? "None" : _config.ControllerSourceName,
+
                 IsVJoyActive = _vjoy.IsAcquired,
                 IsTelemetryActive = isTelemetryActive,
                 PedalBrakeEnabled = _strategy.PedalBrakeEnabled,
@@ -1806,6 +2034,7 @@ namespace HorizonCyclingBridge.Core
             _powerClient?.Dispose();
             _heartRateClient?.Dispose();
             _cadenceClient?.Dispose();
+            _controllerClient?.Dispose();
         }
     }
 }

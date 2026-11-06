@@ -57,6 +57,10 @@ namespace HorizonCyclingBridge.Controller
         private readonly uint _deviceId;
         private bool _acquired;
         private JoystickState _state;
+        private readonly object _stateLock = new object();
+        private float _lastThrottle = 0.0f;
+        private float _lastBrake = 0.0f;
+        private float _brakeOverride = 0.0f; // OpenBikeControl コントローラーのブレーキ入力 (0.0 to 1.0)
 
         /// <summary>
         /// ステータスメッセージ通知イベント
@@ -116,16 +120,63 @@ namespace HorizonCyclingBridge.Controller
         {
             if (!_acquired) return;
 
-            // 0.0〜1.0 の値を vJoy の標準範囲である 1〜32768 にマッピング
-            int throttleVal = 1 + (int)(Math.Clamp(throttle, 0f, 1f) * 32767);
-            int brakeVal = 1 + (int)(Math.Clamp(brake, 0f, 1f) * 32767);
+            lock (_stateLock)
+            {
+                _lastThrottle = throttle;
+                _lastBrake = brake;
 
-            _state.AxisX = throttleVal;     // アクセル
-            _state.AxisXRot = throttleVal;  // トリガー代用
-            _state.AxisY = brakeVal;        // ブレーキ
-            _state.AxisYRot = brakeVal;     // ブレーキトリガー代用
+                // コントローラーのブレーキ入力中はアクセルを戻し、強い方のブレーキ値を採用
+                if (_brakeOverride > 0f)
+                {
+                    throttle = 0f;
+                    brake = Math.Max(brake, _brakeOverride);
+                }
 
-            UpdateVJD(_deviceId, ref _state);
+                // 0.0〜1.0 の値を vJoy の標準範囲である 1〜32768 にマッピング
+                int throttleVal = 1 + (int)(Math.Clamp(throttle, 0f, 1f) * 32767);
+                int brakeVal = 1 + (int)(Math.Clamp(brake, 0f, 1f) * 32767);
+
+                _state.AxisX = throttleVal;     // アクセル
+                _state.AxisXRot = throttleVal;  // トリガー代用
+                _state.AxisY = brakeVal;        // ブレーキ
+                _state.AxisYRot = brakeVal;     // ブレーキトリガー代用
+
+                UpdateVJD(_deviceId, ref _state);
+            }
+        }
+
+        /// <summary>
+        /// vJoy ボタン (1〜32) の押下状態を送信します。x360ce で Xbox コントローラーのボタンに割り当てて使用します。
+        /// </summary>
+        /// <param name="buttonNumber">vJoy ボタン番号 (1 to 32)</param>
+        /// <param name="pressed">押下状態</param>
+        public void SetButton(int buttonNumber, bool pressed)
+        {
+            if (!_acquired || buttonNumber < 1 || buttonNumber > 32) return;
+
+            lock (_stateLock)
+            {
+                uint mask = 1u << (buttonNumber - 1);
+                _state.Buttons = pressed ? (_state.Buttons | mask) : (_state.Buttons & ~mask);
+                UpdateVJD(_deviceId, ref _state);
+            }
+        }
+
+        /// <summary>
+        /// コントローラーからのブレーキ入力 (0.0 〜 1.0) を設定し、直近のアクセル・ブレーキ出力に重ねて即時送信します。
+        /// </summary>
+        /// <param name="brake">ブレーキ開度 (0.0 to 1.0、0.0で解除)</param>
+        public void SetBrakeOverride(float brake)
+        {
+            float throttle;
+            float lastBrake;
+            lock (_stateLock)
+            {
+                _brakeOverride = Math.Clamp(brake, 0f, 1f);
+                throttle = _lastThrottle;
+                lastBrake = _lastBrake;
+            }
+            SendInputs(throttle, lastBrake);
         }
 
         /// <summary>

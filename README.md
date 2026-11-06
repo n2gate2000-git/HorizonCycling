@@ -139,6 +139,7 @@ WPF + Microsoft WebView2 ハイブリッドアーキテクチャを採用した�
     * 手動負荷（エアーダンパー＋マグネット）機材のため、ワークアウト時は「バーチャルERG（マニュアルERGガイダンス）」モードが自動作動し、最前面HUDオーバーレイや画面に目標ワット維持のためのレバー/ケイデンス調整指示がリアルタイム表示されます。
   * **BLEパワーメーター / ケイデンスセンサー**: Cycling Power Profile（UUID: 0x1818）に準拠したパワーメーター（Magene PES-P505等）。非連動の固定ローラーと組み合わせてペダリング入力をゲームに反映できます。
   * *注意*: Bluetooth LE接続のみ対応しています。ANT+通信には対応していません（※Bluetooth非搭載の旧型WPM Model Bをお使いの場合は、市販のANT+ to BLEブリッジまたは対応ドングルをご検討ください）。
+* **OpenBikeControl コントローラー（オプション）**: [OpenBikeControl](https://openbikecontrol.org) プロトコル（BLE サービスUUID: `d273f680-d548-419d-b9d1-fa0472345229`）に対応したハンドルリモコン・シフター等。シフトアップ/ダウン、ブレーキ、難易度+/-、メニュー操作をゲームパッド入力やアプリ操作として利用できます（設定画面の「🎮 OpenBikeControl コントローラー」から接続）。
 * **対応ゲーム**: Forza Horizon 6
 
 ### 2. 必要ソフトウェア・ツール
@@ -185,6 +186,7 @@ WPF + Microsoft WebView2 ハイブリッドアーキテクチャを採用した�
 5. x360ceのコントローラーマッピング画面にて：
    * **「Right Trigger (RT)」** (アクセル) に vJoy の `Axis X` (または `Axis 1`) を割り当てます。
    * **「Left Trigger (LT)」** (ブレーキ) に vJoy の `Axis Y` (または `Axis 2`) を割り当てます。
+   * （OpenBikeControl コントローラーを使用する場合のみ）vJoy の `Button 1`〜`Button 8` を順に **A / B / X / Y / Start / Back / LB / RB** に割り当てます。既定ではシフトアップ=B、シフトダウン=X、決定=A、戻る=B、メニュー=Start、ホーム=Back、左右=LB/RB として送信されます（`config.json` の `ControllerButtonMap` で変更可能）。
 6. 設定後、ペダルを回す（またはテストキーを押す）と、x360ceの「RT」および「LT」インジケーターが 0%〜100% で反応することを確認します。
 7. **注意**: ゲームプレイ中および本アプリ使用中は、x360ceを常にバックグラウンドで起動したままにしてください。
 

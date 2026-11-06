@@ -579,6 +579,33 @@ namespace HorizonCyclingApp
                         _bridgeService?.DisconnectHeartRateSensor();
                         break;
 
+                    case "connectController":
+                        if (_bridgeService != null &&
+                            root.TryGetProperty("mac", out var ctrlMacProp) &&
+                            root.TryGetProperty("name", out var ctrlNameProp))
+                        {
+                            ulong mac = ctrlMacProp.GetUInt64();
+                            string name = ctrlNameProp.GetString() ?? "";
+                            _ = Task.Run(async () =>
+                            {
+                                bool success = await _bridgeService.ConnectControllerAsync(mac, name);
+                                Dispatcher.Invoke(() =>
+                                {
+                                    string connJson = JsonSerializer.Serialize(new
+                                    {
+                                        type = "controllerConnectResult",
+                                        payload = new { success, name, mac }
+                                    });
+                                    webView.CoreWebView2?.PostWebMessageAsJson(connJson);
+                                });
+                            });
+                        }
+                        break;
+
+                    case "disconnectController":
+                        _bridgeService?.DisconnectController();
+                        break;
+
                     case "connectCadence":
                         if (_bridgeService != null &&
                             root.TryGetProperty("mac", out var cadMacProp) &&
@@ -854,6 +881,8 @@ namespace HorizonCyclingApp
                     heartRateSourceMacAddress = _bridgeService.Config.HeartRateSourceMacAddress,
                     heartRateSourceName = _bridgeService.Config.HeartRateSourceName,
                     heartRateEnabled = _bridgeService.Config.HeartRateEnabled,
+                    controllerSourceMacAddress = _bridgeService.Config.ControllerSourceMacAddress,
+                    controllerSourceName = _bridgeService.Config.ControllerSourceName,
                     mapScale = _bridgeService.CoordinateEngine.WorldScale,
                     invertZ = _bridgeService.CoordinateEngine.InvertZ,
                     mapOriginX = _bridgeService.CoordinateEngine.WorldOriginX,
